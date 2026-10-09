@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 from datetime import date
 
 from groq import Groq
@@ -86,8 +87,24 @@ usando SOLO los datos que te paso (registros de la base de datos del campo). Hoy
 - Respondé corto, claro y en castellano rioplatense, como un mensaje de WhatsApp.
 - Usá los totales precalculados cuando sirvan; no hagas cuentas por tu cuenta si ya están.
 - Si no hay registros que respondan la pregunta, decilo sin inventar nada.
-- Podés usar *negrita* de WhatsApp para destacar números. No uses tablas ni markdown con #.
+- Para destacar números usá *un solo asterisco* a cada lado, que es la negrita de
+  WhatsApp. NUNCA uses **doble asterisco**: en WhatsApp se ven los asteriscos.
+- Las fechas escribilas dd/mm/aaaa (09/10/2026), nunca en formato 2026-10-09.
+- No uses tablas ni markdown con #.
 """
+
+
+# El modelo a veces escribe **negrita** de markdown y fechas ISO aunque el prompt lo
+# prohíba, así que además lo corregimos acá.
+_GUIONES = "-‐‑‒–—−"
+_RE_NEGRITA = re.compile(r"\*\*(.+?)\*\*", re.DOTALL)
+_RE_FECHA_ISO = re.compile(rf"(?<!\d)(\d{{4}})[{_GUIONES}](\d{{2}})[{_GUIONES}](\d{{2}})(?!\d)")
+
+
+def formatear_whatsapp(texto: str) -> str:
+    """Deja el texto como lo espera WhatsApp: *negrita* simple y fechas dd/mm/aaaa."""
+    texto = _RE_NEGRITA.sub(r"*\1*", texto)
+    return _RE_FECHA_ISO.sub(lambda m: f"{m.group(3)}/{m.group(2)}/{m.group(1)}", texto)
 
 
 def _chat_json(system: str, usuario: str) -> dict:
@@ -120,7 +137,7 @@ def redactar_respuesta(pregunta: str, datos: dict, hoy: date) -> str:
         ],
         temperature=0.3,
     )
-    return respuesta.choices[0].message.content.strip()
+    return formatear_whatsapp(respuesta.choices[0].message.content.strip())
 
 
 def transcribir(audio: bytes, nombre_archivo: str = "audio.ogg") -> str:

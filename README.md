@@ -4,7 +4,7 @@ Bot de WhatsApp para registrar lo que pasa en el campo y consultarlo después, e
 
 ```
 vos> Hoy vacunamos 20 vacas contra aftosa en el lote 3
-bot> ✅ Anotado:
+bot> Anotado:
      • Vacunación (aftosa) · 20 vacas · lote 3 · 09/10/2026
 
 vos> ¿Cuántas vacas se vacunaron este mes?
@@ -33,7 +33,7 @@ WhatsApp ──► Meta Cloud API ──► POST /webhook (FastAPI)
                                    ▼
                      comandos (crear campo / unirme / borrar...)
                                    ▼
-                  Llama 3.3 (Groq) clasifica: registrar | consultar | charla
+                    el modelo (Groq) clasifica: registrar | consultar | charla
                      │                         │
           guarda Evento(s) en Postgres    arma filtros ──► busca SOLO en el campo del usuario
                                                          ──► la IA redacta la respuesta

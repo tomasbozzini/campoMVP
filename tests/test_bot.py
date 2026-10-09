@@ -157,3 +157,81 @@ def test_numero_argentino(monkeypatch):
     monkeypatch.setattr(config, "WA_AR_QUITAR_9", True)
     assert whatsapp.numero_para_envio("5492494123456") == "542494123456"
     assert whatsapp.numero_para_envio("34600000000") == "34600000000"
+
+
+def test_eventos_del_mismo_mensaje_heredan_lote_y_categoria(db, fake_llm):
+    """"ayer nacieron 4 terneros en el lote 5 y murió 1": la muerte también es del lote 5."""
+    respuestas, _ = fake_llm
+    usuario = _con_campo(db)
+    texto = "ayer nacieron 4 terneros en el lote 5 y murió 1"
+    respuestas[texto] = {
+        "intencion": "registrar",
+        "eventos": [
+            {"categoria": "movimiento", "tipo": "nacimiento", "cantidad_animales": 4,
+             "categoria_animal": "terneros", "lote": "5", "fecha_evento": "2026-10-08"},
+            {"categoria": "movimiento", "tipo": "muerte", "cantidad_animales": 1,
+             "fecha_evento": "2026-10-08", "confianza": "baja"},
+        ],
+    }
+    r = bot.manejar_mensaje(db, usuario.telefono, texto, hoy=HOY)
+    assert "Muerte · 1 ternero · lote 5 · 08/10/2026" in r
+
+    muerte = db.scalar(select(Evento).where(Evento.tipo == "muerte"))
+    assert muerte.lote == "5" and muerte.categoria_animal == "terneros"
+
+
+def test_no_hereda_cuando_el_mensaje_tiene_varios_lotes(db, fake_llm):
+    respuestas, _ = fake_llm
+    usuario = _con_campo(db)
+    respuestas["varios"] = {
+        "intencion": "registrar",
+        "eventos": [
+            {"categoria": "movimiento", "tipo": "nacimiento", "cantidad_animales": 2, "lote": "3"},
+            {"categoria": "movimiento", "tipo": "nacimiento", "cantidad_animales": 1, "lote": "7"},
+            {"categoria": "movimiento", "tipo": "muerte", "cantidad_animales": 1},
+        ],
+    }
+    bot.manejar_mensaje(db, usuario.telefono, "varios", hoy=HOY)
+    muerte = db.scalar(select(Evento).where(Evento.tipo == "muerte"))
+    assert muerte.lote is None
+
+
+def test_la_lluvia_no_hereda_el_lote_de_los_animales(db, fake_llm):
+    respuestas, _ = fake_llm
+    usuario = _con_campo(db)
+    respuestas["mixto"] = {
+        "intencion": "registrar",
+        "eventos": [
+            {"categoria": "movimiento", "tipo": "nacimiento", "cantidad_animales": 4, "lote": "5"},
+            {"categoria": "campo", "tipo": "lluvia", "valor": 35, "unidad": "mm"},
+        ],
+    }
+    bot.manejar_mensaje(db, usuario.telefono, "mixto", hoy=HOY)
+    lluvia = db.scalar(select(Evento).where(Evento.tipo == "lluvia"))
+    assert lluvia.lote is None
+
+
+def test_traslado_no_hereda_lote_de_origen(db, fake_llm):
+    respuestas, _ = fake_llm
+    usuario = _con_campo(db)
+    respuestas["traslado"] = {
+        "intencion": "registrar",
+        "eventos": [
+            {"categoria": "sanidad", "tipo": "vacunacion", "cantidad_animales": 10, "lote": "2"},
+            {"categoria": "movimiento", "tipo": "traslado", "cantidad_animales": 50,
+             "categoria_animal": "vaquillonas", "lote_destino": "5"},
+        ],
+    }
+    bot.manejar_mensaje(db, usuario.telefono, "traslado", hoy=HOY)
+    traslado = db.scalar(select(Evento).where(Evento.tipo == "traslado"))
+    assert traslado.lote is None and traslado.lote_destino == "5"
+
+
+def test_formato_para_whatsapp():
+    crudo = "Se movieron **50 vaquillonas** el 2026-10-09 y nacieron **4 terneros**."
+    assert llm.formatear_whatsapp(crudo) == (
+        "Se movieron *50 vaquillonas* el 09/10/2026 y nacieron *4 terneros*."
+    )
+    # lo que ya está bien no se toca
+    assert llm.formatear_whatsapp("*20* vacas el 09/10/2026") == "*20* vacas el 09/10/2026"
+    assert llm.formatear_whatsapp("son 20261009 animales") == "son 20261009 animales"

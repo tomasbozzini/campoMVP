@@ -11,7 +11,9 @@ def _bool(nombre: str, default: bool = False) -> bool:
 
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODELO = os.getenv("GROQ_MODELO", "llama-3.3-70b-versatile")
+# Groq da de baja modelos cada tanto: si este deja de existir (404 model_not_found),
+# mirá https://console.groq.com/docs/models y poné otro en GROQ_MODELO.
+GROQ_MODELO = os.getenv("GROQ_MODELO", "openai/gpt-oss-120b")
 GROQ_MODELO_AUDIO = os.getenv("GROQ_MODELO_AUDIO", "whisper-large-v3-turbo")
 
 # WhatsApp Cloud API (Meta)

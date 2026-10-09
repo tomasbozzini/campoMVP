@@ -121,7 +121,7 @@ def _crear_campo(db: Session, usuario: Usuario, nombre: str) -> str:
     db.flush()
     db.refresh(usuario)
     return (
-        f"✅ Listo, creé el campo *{campo.nombre}*.\n\n"
+        f"Listo, creé el campo *{campo.nombre}*.\n\n"
         f"Para sumar a tu gente, que le manden a este número:\n\nunirme {campo.codigo_invitacion}\n\n"
         + AYUDA
     )
@@ -142,7 +142,7 @@ def _unirse(db: Session, usuario: Usuario, codigo: str) -> str:
     usuario.rol = "miembro"
     db.flush()
     db.refresh(usuario)
-    return f"✅ Te sumaste a *{campo.nombre}*.\n\n" + AYUDA
+    return f"Te sumaste a *{campo.nombre}*.\n\n" + AYUDA
 
 
 def _a_int(valor) -> int | None:
@@ -174,7 +174,49 @@ def _texto(valor, largo: int) -> str | None:
     return str(valor).strip()[:largo]
 
 
+def _distintos(eventos: list, clave: str, normalizar=None) -> set:
+    valores = set()
+    for e in eventos:
+        if not isinstance(e, dict):
+            continue
+        valor = e.get(clave)
+        valor = normalizar(valor) if normalizar else ((_texto(valor, 40) or "").lower() or None)
+        if valor:
+            valores.add(valor)
+    return valores
+
+
+def _heredar_contexto(eventos: list) -> None:
+    """Completa el lote y la categoría de animal que el mensaje menciona una sola vez.
+
+    "ayer nacieron 4 terneros en el lote 5 y murió 1" llega como dos eventos, y el
+    segundo viene sin lote ni categoría. Si en todo el mensaje hay un único lote y una
+    única categoría, son los que corresponden. Si hay más de uno, no adivinamos.
+    """
+    if len(eventos) < 2:
+        return
+    lotes = _distintos(eventos, "lote", normalizar_lote)
+    categorias = _distintos(eventos, "categoria_animal")
+    lote = next(iter(lotes)) if len(lotes) == 1 else None
+    categoria = next(iter(categorias)) if len(categorias) == 1 else None
+    if lote is None and categoria is None:
+        return
+    for e in eventos:
+        if not isinstance(e, dict):
+            continue
+        # Solo heredan los eventos que hablan de animales: una lluvia no pasa a ser
+        # "del lote 5" porque en el mismo mensaje se haya nombrado un lote.
+        if not (e.get("cantidad_animales") or e.get("caravana")):
+            continue
+        sin_lote = not normalizar_lote(e.get("lote")) and not normalizar_lote(e.get("lote_destino"))
+        if lote and sin_lote:
+            e["lote"] = lote
+        if categoria and not (_texto(e.get("categoria_animal"), 40) or ""):
+            e["categoria_animal"] = categoria
+
+
 def _registrar(db: Session, usuario: Usuario, texto: str, eventos: list, hoy: date) -> str:
+    _heredar_contexto(eventos)
     creado = datetime.now(timezone.utc)  # mismo timestamp para poder "borrar" el mensaje entero
     guardados: list[Evento] = []
     for e in eventos:
@@ -213,12 +255,21 @@ def _registrar(db: Session, usuario: Usuario, texto: str, eventos: list, hoy: da
         )
 
     db.flush()
-    lineas = ["✅ Anotado:"] + [f"• {resumen(e)}" for e in guardados]
+    lineas = ["Anotado:"] + [f"• {resumen(e)}" for e in guardados]
     if any(e.confianza == "baja" for e in guardados):
         lineas.append("\n⚠️ No estoy seguro de haber entendido bien. Si algo está mal, mandá *borrar* y repetilo.")
     else:
         lineas.append("\n_Si algo está mal, mandá *borrar*._")
     return "\n".join(lineas)
+
+
+def _singular(palabra: str) -> str:
+    """"vacas" -> "vaca", "animales" -> "animal". Alcanza para las categorías que usamos."""
+    if palabra.endswith("es") and len(palabra) > 3:
+        return palabra[:-2]
+    if palabra.endswith("s") and len(palabra) > 2:
+        return palabra[:-1]
+    return palabra
 
 
 _NOMBRES_TIPO = {
@@ -236,7 +287,8 @@ def resumen(e: Evento) -> str:
     if e.producto:
         partes[0] += f" ({e.producto})"
     if e.cantidad_animales:
-        partes.append(f"{e.cantidad_animales} {e.categoria_animal or 'animales'}")
+        nombre = e.categoria_animal or "animales"
+        partes.append(f"{e.cantidad_animales} {_singular(nombre) if e.cantidad_animales == 1 else nombre}")
     elif e.categoria_animal:
         partes.append(e.categoria_animal)
     if e.caravana:
