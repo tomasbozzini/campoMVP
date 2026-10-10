@@ -9,9 +9,9 @@ from datetime import date, datetime
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app import config, llm
-from app.consultas import buscar, normalizar_lote
-from app.models import Campo, Evento, Usuario
+from app import config, llm, precios
+from app.consultas import buscar, normalizar_lote, totales
+from app.models import Campo, Evento, Usuario, UsoDiario
 
 log = logging.getLogger(__name__)
 
@@ -25,10 +25,14 @@ Contame lo que pasa y yo lo anoto. Por ejemplo:
 • _Llovieron 35 mm_
 • _Pasamos 50 vaquillonas del lote 2 al 5_
 
-Y preguntame lo que quieras:
+Preguntame por lo que anotaron:
 • _¿Cuántas vacas se vacunaron este mes?_
 • _¿Qué se le hizo al lote 3?_
 • _¿Cuánto llovió en septiembre?_
+
+Y precios de referencia de fuentes oficiales:
+• _¿A cuánto está la soja?_
+• _Precio del novillo_
 
 También podés mandar audios 🎤
 
@@ -42,6 +46,13 @@ BIENVENIDA = """👋 ¡Hola! Soy un asistente para registrar lo que pasa en el c
 Para empezar:
 • Si sos el dueño o encargado, mandá: *crear campo* y el nombre. Ej: _crear campo La Esperanza_
 • Si te pasaron un código, mandá: *unirme* y el código. Ej: _unirme K7P2QX_"""
+
+FUERA_DE_ALCANCE = """Eso no lo puedo responder. Solo puedo:
+• Anotar lo que pasa en tu campo
+• Responder sobre lo que ustedes registraron
+• Mostrar precios de referencia de fuentes oficiales
+
+No doy recomendaciones ni respondo otros temas. Mandá *ayuda* para ver ejemplos."""
 
 _ALFABETO_CODIGO = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # sin 0/O ni 1/I para no confundir
 
@@ -94,18 +105,53 @@ def manejar_mensaje(
     if comando in ("borrar", "deshacer"):
         return _borrar_ultimo(db, usuario)
 
+    if len(texto) > config.MAX_LARGO_MENSAJE:
+        return "El mensaje es muy largo. Mandalo en partes más cortas, de a un tema por vez."
+    if not consumir_cupo(db, usuario, hoy):
+        return "Llegaste al límite de mensajes por hoy. Mañana podés seguir."
+
     try:
         interpretado = llm.interpretar(texto, hoy)
     except Exception:
         log.exception("Error interpretando mensaje")
         return "Uy, no pude procesar el mensaje. Probá de nuevo en un ratito."
+    if not isinstance(interpretado, dict):
+        return FUERA_DE_ALCANCE
 
+    # La IA solo clasifica. Ningún texto escrito por ella llega al usuario: todas las
+    # respuestas se arman acá con datos de la base, así no puede recomendar, inventar
+    # ni usarse como chat de uso general.
     intencion = interpretado.get("intencion")
-    if intencion == "registrar":
-        return _registrar(db, usuario, texto, interpretado.get("eventos") or [], hoy)
-    if intencion == "consultar":
-        return _consultar(db, usuario, texto, interpretado.get("consulta") or {}, hoy)
-    return interpretado.get("respuesta") or AYUDA
+    if intencion == "registrar" and isinstance(interpretado.get("eventos"), list):
+        return _registrar(db, usuario, texto, interpretado["eventos"], hoy)
+    if intencion == "consultar" and isinstance(interpretado.get("consulta"), dict):
+        return _consultar(db, usuario, interpretado["consulta"])
+    if intencion == "precio" and isinstance(interpretado.get("precio"), dict):
+        pedido = interpretado["precio"]
+        rubro = pedido.get("rubro") if pedido.get("rubro") in ("granos", "hacienda") else None
+        producto = _texto(pedido.get("producto"), 40)
+        if not producto and not rubro:
+            return FUERA_DE_ALCANCE
+        return precios.responder(db, producto, rubro, hoy)
+    return FUERA_DE_ALCANCE
+
+
+def puede_usar_ia(db: Session, telefono: str) -> bool:
+    """Para los audios: no transcribimos nada de números que no están en un campo."""
+    usuario = db.scalar(select(Usuario).where(Usuario.telefono == telefono))
+    return usuario is not None and usuario.campo_id is not None
+
+
+def consumir_cupo(db: Session, usuario: Usuario, hoy: date) -> bool:
+    uso = db.scalar(select(UsoDiario).where(UsoDiario.usuario_id == usuario.id, UsoDiario.fecha == hoy))
+    if uso is None:
+        uso = UsoDiario(usuario_id=usuario.id, fecha=hoy, cantidad=0)
+        db.add(uso)
+    if uso.cantidad >= config.LIMITE_DIARIO_IA:
+        return False
+    uso.cantidad += 1
+    db.flush()
+    return True
 
 
 def _crear_campo(db: Session, usuario: Usuario, nombre: str) -> str:
@@ -335,15 +381,23 @@ def _borrar_ultimo(db: Session, usuario: Usuario) -> str:
     return "🗑️ Borré:\n" + "\n".join(lineas)
 
 
-def _consultar(db: Session, usuario: Usuario, pregunta: str, filtros: dict, hoy: date) -> str:
-    datos = buscar(db, usuario.campo_id, filtros)
-    try:
-        return llm.redactar_respuesta(pregunta, datos, hoy)
-    except Exception:
-        log.exception("Error redactando respuesta")
-        if not datos["registros"]:
-            return "No encontré registros para esa consulta."
-        return "Encontré esto:\n" + "\n".join(
-            f"• {r.get('fecha_evento')} {r.get('tipo')} {r.get('descripcion') or ''}"
-            for r in datos["registros"][:15]
-        )
+MAX_LINEAS_CONSULTA = 15
+
+
+def _consultar(db: Session, usuario: Usuario, filtros: dict) -> str:
+    eventos = buscar(db, usuario.campo_id, filtros)
+    if not eventos:
+        return "No encontré registros para esa consulta."
+
+    lineas = [f"📋 *{len(eventos)} registro{'s' if len(eventos) != 1 else ''}*"]
+    animales, valores = totales(eventos)
+    for tipo, cantidad in animales.items():
+        lineas.append(f"Total {_NOMBRES_TIPO.get(tipo, tipo.capitalize()).lower()}: *{cantidad} animales*")
+    for (tipo, unidad), suma in valores.items():
+        suma = int(suma) if float(suma).is_integer() else round(suma, 2)
+        lineas.append(f"Total {_NOMBRES_TIPO.get(tipo, tipo.capitalize()).lower()}: *{suma} {unidad}*")
+    lineas.append("")
+    lineas += [f"• {resumen(e)}" for e in eventos[:MAX_LINEAS_CONSULTA]]
+    if len(eventos) > MAX_LINEAS_CONSULTA:
+        lineas.append(f"_...y {len(eventos) - MAX_LINEAS_CONSULTA} más. Pedí un período o lote más chico para verlos._")
+    return "\n".join(lineas)

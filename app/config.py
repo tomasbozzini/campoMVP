@@ -32,3 +32,10 @@ if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 ZONA_HORARIA = ZoneInfo(os.getenv("ZONA_HORARIA", "America/Argentina/Buenos_Aires"))
+
+# Límites para que nadie use el bot como una IA de uso general
+MAX_LARGO_MENSAJE = int(os.getenv("MAX_LARGO_MENSAJE", "800"))  # caracteres
+MAX_AUDIO_BYTES = int(os.getenv("MAX_AUDIO_BYTES", str(2 * 1024 * 1024)))  # ~3-4 min de audio
+LIMITE_DIARIO_IA = int(os.getenv("LIMITE_DIARIO_IA", "80"))  # mensajes con IA por usuario y día
+# Un precio más viejo que esto se muestra avisando que no está actualizado
+DIAS_PRECIO_VIGENTE = int(os.getenv("DIAS_PRECIO_VIGENTE", "7"))

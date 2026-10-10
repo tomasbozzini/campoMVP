@@ -8,13 +8,25 @@ bot> ✅ Anotado:
      • Vacunación (aftosa) · 20 vacas · lote 3 · 09/10/2026
 
 vos> ¿Cuántas vacas se vacunaron este mes?
-bot> Este mes se vacunaron *35 vacas*: 20 en el lote 3 (09/10) y 15 en el lote 5 (02/10).
+bot> 📋 *2 registros*
+     Total vacunación: *35 animales*
+     • Vacunación (aftosa) · 20 vacas · lote 3 · 09/10/2026
+     • Vacunación (aftosa) · 15 vacas · lote 5 · 02/10/2026
+
+vos> ¿A cuánto está la soja?
+bot> • Soja (Rosario): *310.000 $/t* · 08/10/2026
+     Fuente: Cámara Arbitral de Cereales - Bolsa de Comercio de Rosario
+     https://www.cac.bcr.com.ar/es/precios-de-pizarra
+
+vos> ¿Me conviene vender ahora?
+bot> Eso no lo puedo responder. Solo puedo: ...
 ```
 
 ## Qué hace
 
 - **Registra eventos** de sanidad (vacunación, desparasitación, tratamientos), movimientos de hacienda (nacimientos, muertes, compras, ventas, traslados), pesadas, reproducción (tacto, servicio, destete) y del campo (lluvias, siembra, fumigación). Un mensaje puede traer varios eventos.
 - **Responde preguntas** sobre lo registrado. Los totales los calcula el código, no la IA, para que las sumas den bien.
+- **Informa precios de referencia** de fuentes oficiales y mercados regulados, siempre con la fuente, la fecha y el link.
 - **Entiende audios**: los transcribe con Whisper en Groq.
 - **Maneja varios campos y varios usuarios**: cada campo tiene sus datos y un código de invitación.
   - `crear campo La Esperanza`: crea el campo y te deja como admin.
@@ -33,23 +45,52 @@ WhatsApp ──► Meta Cloud API ──► POST /webhook (FastAPI)
                                    ▼
                      comandos (crear campo / unirme / borrar...)
                                    ▼
-                    el modelo (Groq) clasifica: registrar | consultar | charla
-                     │                         │
-          guarda Evento(s) en Postgres    arma filtros ──► busca SOLO en el campo del usuario
-                                                         ──► la IA redacta la respuesta
+          el modelo (Groq) SOLO clasifica: registrar | consultar | precio | fuera_de_alcance
+                │                     │                         │                │
+       guarda Evento(s)     filtros ──► busca SOLO en   último precio de   mensaje fijo
+                            el campo del usuario        tabla cotizaciones
+                                   ▼                          ▼
+                     la respuesta la arma el código, con plantillas fijas
 ```
 
 | Archivo | Qué tiene |
 |---|---|
 | `app/main.py` | Webhook de WhatsApp: verificación, firma, deduplicación de reintentos y audios |
 | `app/bot.py` | Lógica del asistente: comandos, registrar, consultar, borrar |
-| `app/llm.py` | Prompts y llamadas a Groq (interpretar, responder, transcribir) |
+| `app/llm.py` | Prompt del clasificador y llamadas a Groq (interpretar, transcribir) |
+| `app/precios.py` | Fuentes oficiales de precios, carga y respuesta con fuente y fecha |
 | `app/consultas.py` | Búsqueda con filtros y totales precalculados |
-| `app/models.py` | Tablas: `campos`, `usuarios`, `eventos`, `mensajes_procesados` |
+| `app/models.py` | Tablas: `campos`, `usuarios`, `eventos`, `cotizaciones`, `uso_diario`, `mensajes_procesados` |
 | `app/whatsapp.py` | Envío de mensajes y descarga de audios desde Meta |
 | `app/cli.py` | Chat por terminal para probar sin WhatsApp |
 
-**Seguridad:** la IA nunca escribe SQL, solo devuelve filtros, y toda búsqueda se limita al campo del usuario. El webhook valida la firma `X-Hub-Signature-256` de Meta. Los números que no están en ningún campo no pueden registrar ni consultar.
+## Alcance estricto y seguridad
+
+El bot no es un chat de IA. Está armado para que no se pueda usar para otra cosa:
+
+- **La IA solo clasifica.** Devuelve un JSON con la intención y los datos. Ningún texto escrito por la IA llega al usuario: todas las respuestas se arman en el código con plantillas fijas. Por eso no puede dar recomendaciones, inventar datos ni conversar de otros temas, aunque se lo pidan.
+- **La IA nunca ve los datos guardados.** Recibe solo el mensaje del usuario. Así no puede filtrar información de otros campos o clientes.
+- **Todo lo demás es "fuera de alcance"**: consejos ("¿conviene vender?"), preguntas generales, pedidos de textos o código, datos de otras personas, intentos de cambiarle las instrucciones. A todo eso responde con un mensaje fijo.
+- **Búsquedas aisladas por campo:** la IA nunca escribe SQL, solo filtros, y toda búsqueda se limita al campo del usuario.
+- **Límites de uso** (configurables con variables de entorno): `MAX_LARGO_MENSAJE` (800 caracteres), `MAX_AUDIO_BYTES` (~3-4 min de audio) y `LIMITE_DIARIO_IA` (80 mensajes por usuario y por día).
+- Los números que no están en ningún campo no llegan a la IA: no se transcriben sus audios ni se interpretan sus mensajes.
+- El webhook valida la firma `X-Hub-Signature-256` de Meta.
+
+## Precios de fuentes oficiales
+
+Los precios **no** los busca la IA en internet: los descarga un proceso aparte desde fuentes registradas en `app/precios.py`, los guarda en la tabla `cotizaciones` y el bot responde solo con eso, siempre con la fuente, la fecha y el link. Si un dato tiene más de `DIAS_PRECIO_VIGENTE` días (7 por defecto), avisa que no está actualizado. Si no hay datos, lo dice y no inventa.
+
+Solo se aceptan links `https` de dominios oficiales o de mercados regulados (`DOMINIOS_OFICIALES`): `*.gob.ar` (Secretaría de Agricultura, SENASA, INTA), Bolsa de Comercio de Rosario, Mercado Agroganadero de Cañuelas, Matba Rofex / A3, Bolsa de Cereales de Buenos Aires y Bolsa de Cereales de Bahía Blanca.
+
+```bash
+python -m app.precios actualizar        # corre todas las fuentes de FUENTES
+python -m app.precios cargar precios.csv # carga manual: fuente,url,rubro,producto,plaza,valor,unidad,fecha
+python -m app.precios ver soja          # muestra lo que respondería el bot
+```
+
+En Railway, `actualizar` se programa como **Cron Job** (por ejemplo, de lunes a viernes a las 18:30).
+
+> **Pendiente:** todavía no hay lectores de fuentes registrados (`FUENTES` está vacía). Cada lector se escribe y se prueba contra la página real de la fuente; el docstring de `app/precios.py` tiene un ejemplo.
 
 ## Probarlo en tu compu
 

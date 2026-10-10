@@ -26,15 +26,14 @@ def db():
 def fake_llm(monkeypatch):
     """Reemplaza al modelo: `respuestas` mapea texto -> JSON interpretado."""
     respuestas: dict[str, dict] = {}
-    consultas: list[dict] = []
-    monkeypatch.setattr(llm, "interpretar", lambda texto, hoy: respuestas[texto])
+    llamadas: list[str] = []
 
-    def redactar(pregunta, datos, hoy):
-        consultas.append(datos)
-        return f"{datos['total_registros']} registros"
+    def interpretar(texto, hoy):
+        llamadas.append(texto)
+        return respuestas[texto]
 
-    monkeypatch.setattr(llm, "redactar_respuesta", redactar)
-    return respuestas, consultas
+    monkeypatch.setattr(llm, "interpretar", interpretar)
+    return respuestas, llamadas
 
 
 def _con_campo(db, telefono="5492494000001", nombre="La Esperanza"):
@@ -118,7 +117,7 @@ def test_borrar_deshace_el_ultimo_mensaje(db, fake_llm):
 
 
 def test_consulta_filtra_por_campo_y_suma(db, fake_llm):
-    respuestas, consultas = fake_llm
+    respuestas, _ = fake_llm
     u1 = _con_campo(db, "5491100000001", "Campo Uno")
     u2 = _con_campo(db, "5491100000002", "Campo Dos")
 
@@ -140,8 +139,10 @@ def test_consulta_filtra_por_campo_y_suma(db, fake_llm):
         "intencion": "consultar",
         "consulta": {"tipo": "vacunacion", "lote": "Lote 3", "categoria_animal": "vaca", "desde": "2026-10-01", "hasta": "2026-10-31"},
     }
-    assert bot.manejar_mensaje(db, u1.telefono, pregunta, hoy=HOY) == "2 registros"
-    assert consultas[-1]["total_animales_por_tipo"] == {"vacunacion": 35}
+    r = bot.manejar_mensaje(db, u1.telefono, pregunta, hoy=HOY)
+    assert "*2 registros*" in r
+    assert "Total vacunación: *35 animales*" in r
+    assert "99" not in r
 
 
 def test_firma_del_webhook(monkeypatch):
@@ -225,16 +226,6 @@ def test_traslado_no_hereda_lote_de_origen(db, fake_llm):
     bot.manejar_mensaje(db, usuario.telefono, "traslado", hoy=HOY)
     traslado = db.scalar(select(Evento).where(Evento.tipo == "traslado"))
     assert traslado.lote is None and traslado.lote_destino == "5"
-
-
-def test_formato_para_whatsapp():
-    crudo = "Se movieron **50 vaquillonas** el 2026-10-09 y nacieron **4 terneros**."
-    assert llm.formatear_whatsapp(crudo) == (
-        "Se movieron *50 vaquillonas* el 09/10/2026 y nacieron *4 terneros*."
-    )
-    # lo que ya está bien no se toca
-    assert llm.formatear_whatsapp("*20* vacas el 09/10/2026") == "*20* vacas el 09/10/2026"
-    assert llm.formatear_whatsapp("son 20261009 animales") == "son 20261009 animales"
 
 
 def test_borrar_no_toca_mensajes_que_cayeron_en_el_mismo_timestamp(db, fake_llm):

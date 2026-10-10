@@ -43,3 +43,16 @@ def test_mensaje_de_texto_y_reintento_duplicado(cliente):
     cliente.post("/webhook", json=_payload("wamid.1", "crear campo El Ombú"))  # reintento de Meta
     assert len(cliente.enviados) == 1
     assert "El Ombú" in cliente.enviados[0][1]
+
+
+def test_audio_de_numero_sin_campo_no_se_transcribe(cliente, monkeypatch):
+    def no_llamar(*_):
+        raise AssertionError("no debería descargar ni transcribir")
+
+    monkeypatch.setattr(main.whatsapp, "descargar_media", no_llamar)
+    monkeypatch.setattr(main.llm, "transcribir", no_llamar)
+    payload = {"entry": [{"changes": [{"value": {"messages": [
+        {"from": "5491100000099", "id": "wamid.a1", "type": "audio", "audio": {"id": "media1"}},
+    ]}}]}]}
+    cliente.post("/webhook", json=payload)
+    assert "crear campo" in cliente.enviados[-1][1]

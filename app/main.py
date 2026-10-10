@@ -83,9 +83,17 @@ def procesar_mensaje(mensaje: dict, nombre: str | None) -> None:
         if tipo == "text":
             texto = mensaje["text"]["body"]
         elif tipo == "audio":
+            with SessionLocal() as db:
+                habilitado = bot.puede_usar_ia(db, telefono)
+            if not habilitado:
+                whatsapp.enviar_texto(telefono, bot.BIENVENIDA)
+                return
             audio = whatsapp.descargar_media(mensaje["audio"]["id"])
+            if len(audio) > config.MAX_AUDIO_BYTES:
+                whatsapp.enviar_texto(telefono, "El audio es muy largo. Mandá audios más cortos, de a un tema por vez.")
+                return
             texto = llm.transcribir(audio)
-            prefijo = f"🎤 _{texto}_\n\n"
+            prefijo = f"🎤 _{texto[:config.MAX_LARGO_MENSAJE]}_\n\n"
         else:
             whatsapp.enviar_texto(telefono, "Por ahora solo entiendo mensajes de texto y audios 🙏")
             return

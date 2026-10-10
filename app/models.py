@@ -1,6 +1,6 @@
 from datetime import date, datetime, timezone
 
-from sqlalchemy import JSON, Date, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -81,3 +81,37 @@ class MensajeProcesado(Base):
 
     wamid: Mapped[str] = mapped_column(String(128), primary_key=True)
     creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_ahora)
+
+
+class Cotizacion(Base):
+    """Un precio de referencia publicado por una fuente oficial o un mercado regulado.
+
+    Solo lo carga app/precios.py desde las fuentes registradas: el modelo de lenguaje
+    nunca escribe ni inventa precios.
+    """
+
+    __tablename__ = "cotizaciones"
+    __table_args__ = (UniqueConstraint("fuente", "producto", "plaza", "fecha"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    rubro: Mapped[str] = mapped_column(String(20), index=True)  # granos | hacienda | ...
+    producto: Mapped[str] = mapped_column(String(40), index=True)  # soja, maiz, novillo...
+    plaza: Mapped[str | None] = mapped_column(String(60))  # Rosario, Cañuelas...
+    valor: Mapped[float] = mapped_column(Float)
+    unidad: Mapped[str] = mapped_column(String(20))  # "$/t", "US$/t", "$/kg vivo"
+    fecha: Mapped[date] = mapped_column(Date, index=True)  # fecha que informa la fuente
+    fuente: Mapped[str] = mapped_column(String(120))
+    url: Mapped[str] = mapped_column(String(300))
+    obtenido: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_ahora)
+
+
+class UsoDiario(Base):
+    """Cuántas veces por día cada usuario usó la IA, para cortar abusos."""
+
+    __tablename__ = "uso_diario"
+    __table_args__ = (UniqueConstraint("usuario_id", "fecha"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)
+    fecha: Mapped[date] = mapped_column(Date)
+    cantidad: Mapped[int] = mapped_column(Integer, default=0)
