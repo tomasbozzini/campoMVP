@@ -46,6 +46,9 @@ class Evento(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     campo_id: Mapped[int] = mapped_column(ForeignKey("campos.id"), index=True)
     usuario_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id"))
+    # Un mensaje puede traer varios eventos; comparten este id para que "borrar"
+    # los deshaga juntos y no toque los del mensaje anterior.
+    mensaje_id: Mapped[str | None] = mapped_column(String(36), index=True)
 
     # sanidad | movimiento | pesada | reproduccion | campo
     categoria: Mapped[str] = mapped_column(String(20), index=True)

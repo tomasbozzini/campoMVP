@@ -3,7 +3,8 @@
 import logging
 import re
 import secrets
-from datetime import date, datetime, timezone
+import uuid
+from datetime import date, datetime
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
@@ -217,7 +218,7 @@ def _heredar_contexto(eventos: list) -> None:
 
 def _registrar(db: Session, usuario: Usuario, texto: str, eventos: list, hoy: date) -> str:
     _heredar_contexto(eventos)
-    creado = datetime.now(timezone.utc)  # mismo timestamp para poder "borrar" el mensaje entero
+    mensaje_id = str(uuid.uuid4())  # une los eventos del mensaje para poder "borrar" todo junto
     guardados: list[Evento] = []
     for e in eventos:
         if not isinstance(e, dict):
@@ -243,7 +244,7 @@ def _registrar(db: Session, usuario: Usuario, texto: str, eventos: list, hoy: da
             fecha_evento=_a_fecha(e.get("fecha_evento"), hoy),
             confianza=_texto(e.get("confianza"), 10),
             mensaje_original=texto,
-            creado=creado,
+            mensaje_id=mensaje_id,
         )
         db.add(evento)
         guardados.append(evento)
@@ -312,14 +313,23 @@ def _borrar_ultimo(db: Session, usuario: Usuario) -> str:
     ultimo = db.scalar(
         select(Evento)
         .where(Evento.usuario_id == usuario.id, Evento.campo_id == usuario.campo_id)
-        .order_by(Evento.creado.desc(), Evento.id.desc())
+        .order_by(Evento.id.desc())
         .limit(1)
     )
     if ultimo is None:
         return "No tenés nada anotado para borrar."
-    borrados = db.scalars(
-        select(Evento).where(Evento.usuario_id == usuario.id, Evento.creado == ultimo.creado)
-    ).all()
+    if ultimo.mensaje_id is None:
+        # Registros anteriores a la columna: sin id no hay forma de agruparlos, y un
+        # "mensaje_id IS NULL" borraría todos los viejos de una.
+        borrados = [ultimo]
+    else:
+        # Por mensaje_id y no por fecha: dos mensajes seguidos pueden caer en el mismo
+        # timestamp (en Windows el reloj salta cada ~15 ms) y se borraban los dos.
+        borrados = db.scalars(
+            select(Evento).where(
+                Evento.usuario_id == usuario.id, Evento.mensaje_id == ultimo.mensaje_id
+            )
+        ).all()
     lineas = [f"• {resumen(e)}" for e in borrados]
     db.execute(delete(Evento).where(Evento.id.in_([e.id for e in borrados])))
     return "🗑️ Borré:\n" + "\n".join(lineas)

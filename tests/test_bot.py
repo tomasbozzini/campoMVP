@@ -1,7 +1,7 @@
 import hashlib
 import hmac
 import json
-from datetime import date
+from datetime import date, datetime, timezone
 
 import pytest
 from sqlalchemy import create_engine, select
@@ -235,3 +235,44 @@ def test_formato_para_whatsapp():
     # lo que ya está bien no se toca
     assert llm.formatear_whatsapp("*20* vacas el 09/10/2026") == "*20* vacas el 09/10/2026"
     assert llm.formatear_whatsapp("son 20261009 animales") == "son 20261009 animales"
+
+
+def test_borrar_no_toca_mensajes_que_cayeron_en_el_mismo_timestamp(db, fake_llm):
+    """El reloj de Windows salta cada ~15 ms: dos mensajes seguidos comparten `creado`."""
+    respuestas, _ = fake_llm
+    usuario = _con_campo(db)
+    respuestas["uno"] = {"intencion": "registrar", "eventos": [
+        {"categoria": "campo", "tipo": "lluvia", "valor": 10, "unidad": "mm"}]}
+    respuestas["dos"] = {"intencion": "registrar", "eventos": [
+        {"categoria": "movimiento", "tipo": "nacimiento", "cantidad_animales": 3,
+         "categoria_animal": "terneros"}]}
+    bot.manejar_mensaje(db, usuario.telefono, "uno", hoy=HOY)
+    bot.manejar_mensaje(db, usuario.telefono, "dos", hoy=HOY)
+
+    # Lo que pasaba en Windows: los dos mensajes con el mismo timestamp al milisegundo.
+    mismo = datetime(2026, 10, 9, 12, 0, 0, tzinfo=timezone.utc)
+    for e in db.scalars(select(Evento)).all():
+        e.creado = mismo
+    db.flush()
+    db.expire_all()  # sqlite no guarda el tzinfo: releemos para comparar lo que quedó
+
+    eventos = db.scalars(select(Evento)).all()
+    assert len({e.creado for e in eventos}) == 1          # mismo timestamp
+    assert len({e.mensaje_id for e in eventos}) == 2      # distinto mensaje
+
+    r = bot.manejar_mensaje(db, usuario.telefono, "borrar", hoy=HOY)
+    assert "Nacimiento" in r and "Lluvia" not in r
+    assert [e.tipo for e in db.scalars(select(Evento)).all()] == ["lluvia"]
+
+
+def test_borrar_registro_viejo_sin_mensaje_id(db, fake_llm):
+    """Filas de antes de la columna: se borra solo esa, no todas las que tengan NULL."""
+    respuestas, _ = fake_llm
+    usuario = _con_campo(db)
+    for valor in (10, 20):
+        db.add(Evento(campo_id=usuario.campo_id, usuario_id=usuario.id, categoria="campo",
+                      tipo="lluvia", valor=valor, unidad="mm", fecha_evento=HOY, mensaje_id=None))
+    db.flush()
+
+    bot.manejar_mensaje(db, usuario.telefono, "borrar", hoy=HOY)
+    assert [e.valor for e in db.scalars(select(Evento)).all()] == [10]
