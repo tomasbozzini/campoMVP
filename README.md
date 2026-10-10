@@ -4,7 +4,7 @@ Bot de WhatsApp para registrar lo que pasa en el campo y consultarlo después, e
 
 ```
 vos> Hoy vacunamos 20 vacas contra aftosa en el lote 3
-bot> Anotado:
+bot> ✅ Anotado:
      • Vacunación (aftosa) · 20 vacas · lote 3 · 09/10/2026
 
 vos> ¿Cuántas vacas se vacunaron este mes?

@@ -7,6 +7,9 @@ from app.db import SessionLocal, crear_tablas
 
 
 def main() -> None:
+    # La consola de Windows usa cp1252 y se rompe con los emojis de las respuestas.
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stdin.reconfigure(encoding="utf-8")
     telefono = sys.argv[1] if len(sys.argv) > 1 else "5490000000000"
     crear_tablas()
     print(f"Chateando como {telefono}. Ctrl+C para salir.\n")

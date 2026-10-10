@@ -121,7 +121,7 @@ def _crear_campo(db: Session, usuario: Usuario, nombre: str) -> str:
     db.flush()
     db.refresh(usuario)
     return (
-        f"Listo, creé el campo *{campo.nombre}*.\n\n"
+        f"✅ Listo, creé el campo *{campo.nombre}*.\n\n"
         f"Para sumar a tu gente, que le manden a este número:\n\nunirme {campo.codigo_invitacion}\n\n"
         + AYUDA
     )
@@ -142,7 +142,7 @@ def _unirse(db: Session, usuario: Usuario, codigo: str) -> str:
     usuario.rol = "miembro"
     db.flush()
     db.refresh(usuario)
-    return f"Te sumaste a *{campo.nombre}*.\n\n" + AYUDA
+    return f"✅ Te sumaste a *{campo.nombre}*.\n\n" + AYUDA
 
 
 def _a_int(valor) -> int | None:
@@ -255,7 +255,7 @@ def _registrar(db: Session, usuario: Usuario, texto: str, eventos: list, hoy: da
         )
 
     db.flush()
-    lineas = ["Anotado:"] + [f"• {resumen(e)}" for e in guardados]
+    lineas = ["✅ Anotado:"] + [f"• {resumen(e)}" for e in guardados]
     if any(e.confianza == "baja" for e in guardados):
         lineas.append("\n⚠️ No estoy seguro de haber entendido bien. Si algo está mal, mandá *borrar* y repetilo.")
     else:
