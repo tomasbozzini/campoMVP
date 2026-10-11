@@ -1,8 +1,11 @@
-"""Probar el bot desde la terminal, sin WhatsApp:  python -m app.cli [telefono]"""
+"""Probar el bot desde la terminal, sin WhatsApp:  python -m app.cli [telefono]
+
+El número con el que chateás se autoriza solo, porque es una prueba local.
+"""
 
 import sys
 
-from app import bot
+from app import bot, usuarios
 from app.db import SessionLocal, crear_tablas
 
 
@@ -12,6 +15,9 @@ def main() -> None:
     sys.stdin.reconfigure(encoding="utf-8")
     telefono = sys.argv[1] if len(sys.argv) > 1 else "5490000000000"
     crear_tablas()
+    with SessionLocal() as db:
+        usuarios.autorizar(db, telefono)
+        db.commit()
     print(f"Chateando como {telefono}. Ctrl+C para salir.\n")
     while True:
         try:

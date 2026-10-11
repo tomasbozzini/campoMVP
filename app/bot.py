@@ -1,34 +1,39 @@
-"""Lógica del asistente: recibe el texto de un usuario y devuelve la respuesta."""
+"""Lógica del asistente: recibe el texto de un usuario y devuelve la respuesta.
+
+El bot es un asistente PERSONAL: cada número de WhatsApp tiene su propio cuaderno.
+Lo que anota un veterinario en los campos que recorre queda solo en su cuaderno; el dueño
+de un campo anota en su propio cuaderno. Los datos nunca se comparten entre personas.
+"""
 
 import logging
 import re
-import secrets
+import unicodedata
 import uuid
 from datetime import date, datetime
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app import config, llm, precios, senasa
+from app import config, llm, precios, senasa, usuarios
 from app.consultas import buscar, normalizar_lote, totales
-from app.models import Campo, Evento, Usuario, UsoDiario
+from app.models import Evento, Usuario, UsoDiario
 
 log = logging.getLogger(__name__)
 
 CATEGORIAS = {"sanidad", "movimiento", "pesada", "reproduccion", "campo"}
 
-AYUDA = """🐄 *Asistente de campo*
+AYUDA = """🐄 *Tu asistente de campo*
 
-Contame lo que pasa y yo lo anoto. Por ejemplo:
-• _Hoy vacunamos 20 vacas contra aftosa en el lote 3_
-• _Ayer nacieron 4 terneros en el potrero grande_
+Contame lo que hacés y yo lo anoto en tu cuaderno. Por ejemplo:
+• _Estoy en La Esperanza_
+• _Vacuné 20 vacas contra aftosa en el lote 3_
+• _En El Ombú hice tacto a 50 vaquillonas_
 • _Llovieron 35 mm_
-• _Pasamos 50 vaquillonas del lote 2 al 5_
 
-Preguntame por lo que anotaron:
-• _¿Cuántas vacas se vacunaron este mes?_
-• _¿Qué se le hizo al lote 3?_
-• _¿Cuánto llovió en septiembre?_
+Preguntame por lo que anotaste:
+• _¿Qué hice hoy?_
+• _¿Qué hice en La Esperanza este mes?_
+• _¿Cuántas vacas vacuné esta semana?_
 
 Precios de referencia de fuentes oficiales:
 • _¿A cuánto está la soja?_
@@ -38,47 +43,67 @@ Y si un producto veterinario está registrado en SENASA:
 • _¿La ivermectina está aprobada por SENASA?_
 
 También podés mandar audios 🎤
+Lo que anotás es solo tuyo: nadie más lo ve.
 
 Comandos:
 • *borrar*: deshace lo último que anotaste
-• *codigo*: código para sumar gente a tu campo
 • *ayuda*: este mensaje"""
 
-BIENVENIDA = """👋 ¡Hola! Soy un asistente para registrar lo que pasa en el campo.
-
-Para empezar:
-• Si sos el dueño o encargado, mandá: *crear campo* y el nombre. Ej: _crear campo La Esperanza_
-• Si te pasaron un código, mandá: *unirme* y el código. Ej: _unirme K7P2QX_"""
+NO_AUTORIZADO = """Hola 👋 Este número todavía no tiene acceso al asistente.
+Pedile al administrador que te habilite."""
 
 FUERA_DE_ALCANCE = """Eso no lo puedo responder. Solo puedo:
-• Anotar lo que pasa en tu campo
-• Responder sobre lo que ustedes registraron
+• Anotar lo que hacés en el campo
+• Responder sobre lo que vos anotaste
 • Mostrar precios de referencia de granos y hacienda de fuentes oficiales
 • Verificar si un producto veterinario está registrado en SENASA
 
 No doy recomendaciones, indicaciones de uso ni precios de medicamentos, y no respondo otros temas. Mandá *ayuda* para ver ejemplos."""
 
-_ALFABETO_CODIGO = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # sin 0/O ni 1/I para no confundir
+AYUDA_ADMIN = """
+Comandos de administrador:
+• *autorizar 5492494123456*: le da acceso a ese número
+• *quitar 5492494123456*: le saca el acceso (sus registros se conservan)
+• *autorizados*: lista de números con acceso"""
 
 
 def _hoy() -> date:
     return datetime.now(config.ZONA_HORARIA).date()
 
 
-def _nuevo_codigo(db: Session) -> str:
-    while True:
-        codigo = "".join(secrets.choice(_ALFABETO_CODIGO) for _ in range(6))
-        if not db.scalar(select(Campo).where(Campo.codigo_invitacion == codigo)):
-            return codigo
+def es_admin(telefono: str) -> bool:
+    return telefono in config.ADMIN_TELEFONOS
 
 
-def _usuario(db: Session, telefono: str, nombre: str | None) -> Usuario:
+def normalizar_telefono(texto: str) -> str | None:
+    """Deja el número como lo manda WhatsApp: 549 + característica + número.
+
+    Acepta "+54 9 249 412-3456" o "542494123456" (sin el 9, como lo guarda Meta).
+    """
+    digitos = re.sub(r"\D", "", texto)
+    if digitos.startswith("54") and not digitos.startswith("549") and len(digitos) == 12:
+        digitos = "549" + digitos[2:]
+    return digitos if 10 <= len(digitos) <= 15 else None
+
+
+def puede_usar_ia(db: Session, telefono: str) -> bool:
+    """Para los audios: no transcribimos nada de números sin acceso."""
+    if es_admin(telefono):
+        return True
     usuario = db.scalar(select(Usuario).where(Usuario.telefono == telefono))
-    if usuario is None:
-        usuario = Usuario(telefono=telefono, nombre=nombre)
+    return usuario is not None and usuario.autorizado
+
+
+def _usuario(db: Session, telefono: str, nombre: str | None) -> Usuario | None:
+    """El usuario si tiene acceso; None si no. A los números sin acceso no se los guarda."""
+    usuario = db.scalar(select(Usuario).where(Usuario.telefono == telefono))
+    if usuario is None and es_admin(telefono):
+        usuario = Usuario(telefono=telefono, nombre=nombre, autorizado=True)
         db.add(usuario)
         db.flush()
-    elif nombre and not usuario.nombre:
+    if usuario is None or not (usuario.autorizado or es_admin(telefono)):
+        return None
+    if nombre and not usuario.nombre:
         usuario.nombre = nombre
     return usuario
 
@@ -89,23 +114,14 @@ def manejar_mensaje(
     hoy = hoy or _hoy()
     texto = texto.strip()
     usuario = _usuario(db, telefono, nombre)
+    if usuario is None:
+        return NO_AUTORIZADO
     comando = texto.lower()
 
-    if m := re.match(r"^crear\s+campo\s+(.+)$", texto, re.IGNORECASE):
-        return _crear_campo(db, usuario, m.group(1).strip())
-    if m := re.match(r"^unirme\s+([a-z0-9]+)$", texto, re.IGNORECASE):
-        return _unirse(db, usuario, m.group(1).upper())
-
-    if usuario.campo is None:
-        return BIENVENIDA
-
+    if es_admin(telefono) and (respuesta := _comando_admin(db, texto)):
+        return respuesta
     if comando in ("ayuda", "help", "menu", "menú", "hola"):
-        return AYUDA
-    if comando in ("codigo", "código", "invitar"):
-        return (
-            f"Para sumar a alguien a *{usuario.campo.nombre}*, que le mande a este número:\n\n"
-            f"unirme {usuario.campo.codigo_invitacion}"
-        )
+        return AYUDA + (AYUDA_ADMIN if es_admin(telefono) else "")
     if comando in ("borrar", "deshacer"):
         return _borrar_ultimo(db, usuario)
 
@@ -126,8 +142,12 @@ def manejar_mensaje(
     # respuestas se arman acá con datos de la base, así no puede recomendar, inventar
     # ni usarse como chat de uso general.
     intencion = interpretado.get("intencion")
+    establecimiento = _texto(interpretado.get("establecimiento"), 120)
+    if intencion == "establecimiento" and establecimiento:
+        usuario.establecimiento_actual = establecimiento
+        return f"📍 Listo. Lo próximo que anotes lo guardo en *{establecimiento}*."
     if intencion == "registrar" and isinstance(interpretado.get("eventos"), list):
-        return _registrar(db, usuario, texto, interpretado["eventos"], hoy)
+        return _registrar(db, usuario, texto, interpretado["eventos"], establecimiento, hoy)
     if intencion == "consultar" and isinstance(interpretado.get("consulta"), dict):
         return _consultar(db, usuario, interpretado["consulta"])
     if intencion == "precio" and isinstance(interpretado.get("precio"), dict):
@@ -138,17 +158,33 @@ def manejar_mensaje(
             return FUERA_DE_ALCANCE
         return precios.responder(db, producto, rubro, hoy)
     if intencion == "producto_veterinario" and isinstance(interpretado.get("producto_veterinario"), dict):
-        nombre = _texto(interpretado["producto_veterinario"].get("nombre"), 80)
-        if not nombre:
+        nombre_producto = _texto(interpretado["producto_veterinario"].get("nombre"), 80)
+        if not nombre_producto:
             return FUERA_DE_ALCANCE
-        return senasa.responder(db, nombre)
+        return senasa.responder(db, nombre_producto)
     return FUERA_DE_ALCANCE
 
 
-def puede_usar_ia(db: Session, telefono: str) -> bool:
-    """Para los audios: no transcribimos nada de números que no están en un campo."""
-    usuario = db.scalar(select(Usuario).where(Usuario.telefono == telefono))
-    return usuario is not None and usuario.campo_id is not None
+def _comando_admin(db: Session, texto: str) -> str | None:
+    if texto.lower() == "autorizados":
+        lista = usuarios.autorizados(db)
+        if not lista:
+            return "Todavía no autorizaste a nadie."
+        return "Números con acceso:\n" + "\n".join(
+            f"• {u.telefono}" + (f" ({u.nombre})" if u.nombre else "") for u in lista
+        )
+    m = re.match(r"^(autorizar|quitar)\s+(.+)$", texto, re.IGNORECASE)
+    if not m:
+        return None
+    telefono = normalizar_telefono(m.group(2))
+    if telefono is None:
+        return "No entendí el número. Escribilo con código de país, ej: *autorizar 5492494123456*"
+    if m.group(1).lower() == "autorizar":
+        usuarios.autorizar(db, telefono)
+        return f"✅ {telefono} ya puede usar el asistente."
+    if not usuarios.quitar(db, telefono):
+        return f"{telefono} no tenía acceso."
+    return f"🚫 Le saqué el acceso a {telefono}. Sus registros se conservan."
 
 
 def consumir_cupo(db: Session, usuario: Usuario, hoy: date) -> bool:
@@ -163,42 +199,16 @@ def consumir_cupo(db: Session, usuario: Usuario, hoy: date) -> bool:
     return True
 
 
-def _crear_campo(db: Session, usuario: Usuario, nombre: str) -> str:
-    if usuario.campo is not None:
-        return (
-            f"Ya estás en el campo *{usuario.campo.nombre}*. "
-            "Por ahora cada número puede estar en un solo campo."
-        )
-    campo = Campo(nombre=nombre[:120], codigo_invitacion=_nuevo_codigo(db))
-    db.add(campo)
-    db.flush()
-    usuario.campo_id = campo.id
-    usuario.rol = "admin"
-    db.flush()
-    db.refresh(usuario)
-    return (
-        f"✅ Listo, creé el campo *{campo.nombre}*.\n\n"
-        f"Para sumar a tu gente, que le manden a este número:\n\nunirme {campo.codigo_invitacion}\n\n"
-        + AYUDA
-    )
-
-
-def _unirse(db: Session, usuario: Usuario, codigo: str) -> str:
-    campo = db.scalar(select(Campo).where(Campo.codigo_invitacion == codigo))
-    if campo is None:
-        return "No encontré ningún campo con ese código. Revisalo y probá de nuevo."
-    if usuario.campo_id == campo.id:
-        return f"Ya estás en *{campo.nombre}* 👍"
-    if usuario.campo_id is not None:
-        return (
-            f"Ya estás en el campo *{usuario.campo.nombre}*. "
-            "Por ahora cada número puede estar en un solo campo."
-        )
-    usuario.campo_id = campo.id
-    usuario.rol = "miembro"
-    db.flush()
-    db.refresh(usuario)
-    return f"✅ Te sumaste a *{campo.nombre}*.\n\n" + AYUDA
+def clave_establecimiento(nombre: str | None) -> str | None:
+    """"Estancia La Esperanza", "la esperanza" y "La Esperanza" son el mismo lugar."""
+    if not nombre:
+        return None
+    texto = unicodedata.normalize("NFKD", nombre.strip().lower())
+    texto = "".join(c for c in texto if not unicodedata.combining(c))
+    for prefijo in ("estancia ", "establecimiento ", "campo ", "el campo "):
+        if texto.startswith(prefijo):
+            texto = texto[len(prefijo):]
+    return " ".join(texto.split()) or None
 
 
 def _a_int(valor) -> int | None:
@@ -271,8 +281,14 @@ def _heredar_contexto(eventos: list) -> None:
             e["categoria_animal"] = categoria
 
 
-def _registrar(db: Session, usuario: Usuario, texto: str, eventos: list, hoy: date) -> str:
+def _registrar(
+    db: Session, usuario: Usuario, texto: str, eventos: list, establecimiento: str | None, hoy: date
+) -> str:
     _heredar_contexto(eventos)
+    # Si el mensaje nombra un establecimiento, pasa a ser el actual; si no, se usa el último.
+    if establecimiento:
+        usuario.establecimiento_actual = establecimiento
+    establecimiento = establecimiento or usuario.establecimiento_actual
     mensaje_id = str(uuid.uuid4())  # une los eventos del mensaje para poder "borrar" todo junto
     guardados: list[Evento] = []
     for e in eventos:
@@ -282,8 +298,9 @@ def _registrar(db: Session, usuario: Usuario, texto: str, eventos: list, hoy: da
         if categoria not in CATEGORIAS:
             continue
         evento = Evento(
-            campo_id=usuario.campo_id,
             usuario_id=usuario.id,
+            establecimiento=establecimiento,
+            establecimiento_clave=clave_establecimiento(establecimiento),
             categoria=categoria,
             tipo=(_texto(e.get("tipo"), 30) or "otro").lower(),
             descripcion=_texto(e.get("descripcion"), 500),
@@ -311,7 +328,8 @@ def _registrar(db: Session, usuario: Usuario, texto: str, eventos: list, hoy: da
         )
 
     db.flush()
-    lineas = ["✅ Anotado:"] + [f"• {resumen(e)}" for e in guardados]
+    donde = f" en 📍 *{establecimiento}*" if establecimiento else " (sin establecimiento)"
+    lineas = [f"✅ Anotado{donde}:"] + [f"• {resumen(e)}" for e in guardados]
     if any(e.confianza == "baja" for e in guardados):
         lineas.append("\n⚠️ No estoy seguro de haber entendido bien. Si algo está mal, mandá *borrar* y repetilo.")
     else:
@@ -367,7 +385,7 @@ def resumen(e: Evento) -> str:
 def _borrar_ultimo(db: Session, usuario: Usuario) -> str:
     ultimo = db.scalar(
         select(Evento)
-        .where(Evento.usuario_id == usuario.id, Evento.campo_id == usuario.campo_id)
+        .where(Evento.usuario_id == usuario.id)
         .order_by(Evento.id.desc())
         .limit(1)
     )
@@ -394,7 +412,8 @@ MAX_LINEAS_CONSULTA = 15
 
 
 def _consultar(db: Session, usuario: Usuario, filtros: dict) -> str:
-    eventos = buscar(db, usuario.campo_id, filtros)
+    filtros = {**filtros, "establecimiento": clave_establecimiento(_texto(filtros.get("establecimiento"), 120))}
+    eventos = buscar(db, usuario.id, filtros)
     if not eventos:
         return "No encontré registros para esa consulta."
 
@@ -406,7 +425,10 @@ def _consultar(db: Session, usuario: Usuario, filtros: dict) -> str:
         suma = int(suma) if float(suma).is_integer() else round(suma, 2)
         lineas.append(f"Total {_NOMBRES_TIPO.get(tipo, tipo.capitalize()).lower()}: *{suma} {unidad}*")
     lineas.append("")
-    lineas += [f"• {resumen(e)}" for e in eventos[:MAX_LINEAS_CONSULTA]]
+    lineas += [
+        f"• {resumen(e)}" + (f" · 📍 {e.establecimiento}" if e.establecimiento else "")
+        for e in eventos[:MAX_LINEAS_CONSULTA]
+    ]
     if len(eventos) > MAX_LINEAS_CONSULTA:
-        lineas.append(f"_...y {len(eventos) - MAX_LINEAS_CONSULTA} más. Pedí un período o lote más chico para verlos._")
+        lineas.append(f"_...y {len(eventos) - MAX_LINEAS_CONSULTA} más. Pedí un período, lote o establecimiento más chico para verlos._")
     return "\n".join(lineas)

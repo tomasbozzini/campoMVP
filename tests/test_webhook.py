@@ -38,14 +38,15 @@ def _payload(wamid, texto):
     }}]}]}
 
 
-def test_mensaje_de_texto_y_reintento_duplicado(cliente):
-    cliente.post("/webhook", json=_payload("wamid.1", "crear campo El Ombú"))
-    cliente.post("/webhook", json=_payload("wamid.1", "crear campo El Ombú"))  # reintento de Meta
+def test_mensaje_de_texto_y_reintento_duplicado(cliente, monkeypatch):
+    monkeypatch.setattr(config, "ADMIN_TELEFONOS", {"5491100000001"})
+    cliente.post("/webhook", json=_payload("wamid.1", "ayuda"))
+    cliente.post("/webhook", json=_payload("wamid.1", "ayuda"))  # reintento de Meta
     assert len(cliente.enviados) == 1
-    assert "El Ombú" in cliente.enviados[0][1]
+    assert "Tu asistente" in cliente.enviados[0][1]
 
 
-def test_audio_de_numero_sin_campo_no_se_transcribe(cliente, monkeypatch):
+def test_audio_de_numero_sin_acceso_no_se_transcribe(cliente, monkeypatch):
     def no_llamar(*_):
         raise AssertionError("no debería descargar ni transcribir")
 
@@ -55,4 +56,4 @@ def test_audio_de_numero_sin_campo_no_se_transcribe(cliente, monkeypatch):
         {"from": "5491100000099", "id": "wamid.a1", "type": "audio", "audio": {"id": "media1"}},
     ]}}]}]}
     cliente.post("/webhook", json=payload)
-    assert "crear campo" in cliente.enviados[-1][1]
+    assert "no tiene acceso" in cliente.enviados[-1][1]

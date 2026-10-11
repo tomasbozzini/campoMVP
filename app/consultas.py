@@ -1,7 +1,7 @@
 """Busca eventos en la base a partir de los filtros que arma el modelo.
 
 El modelo nunca escribe SQL ni ve los resultados: solo devuelve filtros, y la búsqueda
-siempre queda restringida al campo del usuario.
+siempre queda restringida a los registros de quien pregunta.
 """
 
 from collections import defaultdict
@@ -34,9 +34,11 @@ def _fecha(valor) -> date | None:
         return None
 
 
-def buscar(db: Session, campo_id: int, filtros: dict) -> list[Evento]:
-    q = select(Evento).where(Evento.campo_id == campo_id)
+def buscar(db: Session, usuario_id: int, filtros: dict) -> list[Evento]:
+    q = select(Evento).where(Evento.usuario_id == usuario_id)
 
+    if filtros.get("establecimiento"):  # ya viene normalizado (bot.clave_establecimiento)
+        q = q.where(Evento.establecimiento_clave == filtros["establecimiento"])
     if filtros.get("categoria"):
         q = q.where(Evento.categoria == str(filtros["categoria"]).lower())
     if filtros.get("tipo"):
@@ -64,7 +66,7 @@ def buscar(db: Session, campo_id: int, filtros: dict) -> list[Evento]:
 def totales(eventos: list[Evento]) -> tuple[dict[str, int], dict[tuple[str, str], float]]:
     """Animales por tipo de evento y suma de valores por (tipo, unidad).
 
-    Las cuentas se hacen acá, en código: la IA nunca ve los datos del campo.
+    Las cuentas se hacen acá, en código: la IA nunca ve los datos guardados.
     """
     animales: dict[str, int] = defaultdict(int)
     valores: dict[tuple[str, str], float] = defaultdict(float)

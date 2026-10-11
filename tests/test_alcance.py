@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
-from app import bot, config, llm, precios, senasa
+from app import bot, config, llm, precios, senasa, usuarios
 from app.db import Base
 from app.models import Cotizacion, Usuario
 
@@ -31,8 +31,7 @@ def respuestas(monkeypatch):
 
 
 def _usuario(db, telefono="5491100000001"):
-    bot.manejar_mensaje(db, telefono, "crear campo La Prueba", hoy=HOY)
-    return db.scalar(select(Usuario).where(Usuario.telefono == telefono))
+    return usuarios.autorizar(db, telefono)
 
 
 @pytest.mark.parametrize("salida", [
@@ -68,12 +67,12 @@ def test_limite_diario(db, respuestas, monkeypatch):
     # al otro día se renueva
     assert bot.manejar_mensaje(db, u.telefono, "x", hoy=date(2026, 10, 10)) == bot.FUERA_DE_ALCANCE
     # los comandos no gastan cupo
-    assert "Asistente de campo" in bot.manejar_mensaje(db, u.telefono, "ayuda", hoy=HOY)
+    assert "Tu asistente de campo" in bot.manejar_mensaje(db, u.telefono, "ayuda", hoy=HOY)
 
 
 def test_usuario_sin_campo_no_usa_la_ia(db, respuestas):
     r = bot.manejar_mensaje(db, "5491100000009", "¿a cuánto está la soja?", hoy=HOY)
-    assert r == bot.BIENVENIDA
+    assert r == bot.NO_AUTORIZADO
     assert not bot.puede_usar_ia(db, "5491100000009")
 
 

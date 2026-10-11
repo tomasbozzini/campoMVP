@@ -39,3 +39,7 @@ MAX_AUDIO_BYTES = int(os.getenv("MAX_AUDIO_BYTES", str(2 * 1024 * 1024)))  # ~3-
 LIMITE_DIARIO_IA = int(os.getenv("LIMITE_DIARIO_IA", "80"))  # mensajes con IA por usuario y día
 # Un precio más viejo que esto se muestra avisando que no está actualizado
 DIAS_PRECIO_VIGENTE = int(os.getenv("DIAS_PRECIO_VIGENTE", "7"))
+
+# Números de WhatsApp de los administradores, separados por coma (ej: 5492494123456).
+# Siempre tienen acceso y pueden autorizar a otros con "autorizar <número>".
+ADMIN_TELEFONOS = {t.strip() for t in os.getenv("ADMIN_TELEFONOS", "").split(",") if t.strip()}

@@ -1,17 +1,25 @@
 # Asistente de campo por WhatsApp 🐄
 
-Bot de WhatsApp para registrar lo que pasa en el campo y consultarlo después, en lenguaje natural y con audios.
+Asistente **personal** por WhatsApp para anotar el trabajo en el campo y consultarlo después, en lenguaje natural y con audios.
+
+Cada número de WhatsApp tiene **su propio cuaderno privado**. Un veterinario que recorre cinco campos en el día anota todo en su cuaderno, y eso queda solo ahí: el dueño de cada campo no lo ve. Si el dueño quiere tenerlo, lo anota en su propio cuaderno.
 
 ```
-vos> Hoy vacunamos 20 vacas contra aftosa en el lote 3
-bot> ✅ Anotado:
+vos> Estoy en La Esperanza
+bot> 📍 Listo. Lo próximo que anotes lo guardo en La Esperanza.
+
+vos> Vacuné 20 vacas contra aftosa en el lote 3
+bot> ✅ Anotado en 📍 La Esperanza:
      • Vacunación (aftosa) · 20 vacas · lote 3 · 09/10/2026
 
-vos> ¿Cuántas vacas se vacunaron este mes?
+vos> En El Ombú hice tacto a 50 vaquillonas
+bot> ✅ Anotado en 📍 El Ombú:
+     • Tacto · 50 vaquillonas · 09/10/2026
+
+vos> ¿Qué hice hoy?
 bot> 📋 *2 registros*
-     Total vacunación: *35 animales*
-     • Vacunación (aftosa) · 20 vacas · lote 3 · 09/10/2026
-     • Vacunación (aftosa) · 15 vacas · lote 5 · 02/10/2026
+     • Tacto · 50 vaquillonas · 09/10/2026 · 📍 El Ombú
+     • Vacunación (aftosa) · 20 vacas · lote 3 · 09/10/2026 · 📍 La Esperanza
 
 vos> ¿A cuánto está la soja?
 bot> • Soja (Rosario): *$ 560.000 por t* (ARS)
@@ -29,16 +37,24 @@ bot> Eso no lo puedo responder. Solo puedo: ...
 ## Qué hace
 
 - **Registra eventos** de sanidad (vacunación, desparasitación, tratamientos), movimientos de hacienda (nacimientos, muertes, compras, ventas, traslados), pesadas, reproducción (tacto, servicio, destete) y del campo (lluvias, siembra, fumigación). Un mensaje puede traer varios eventos.
-- **Responde preguntas** sobre lo registrado. Los totales los calcula el código, no la IA, para que las sumas den bien.
+- **Guarda en qué establecimiento** fue cada cosa. Si no lo decís, usa el último que nombraste y lo muestra en la confirmación.
+- **Responde preguntas** sobre lo que anotaste vos (también por establecimiento). Los totales los calcula el código, no la IA, para que las sumas den bien.
 - **Informa precios de referencia** de granos y hacienda de fuentes oficiales y mercados regulados, siempre con la fuente, la fecha de publicación, la moneda, si incluye impuestos u otros costos, y el link.
 - **Verifica productos veterinarios en SENASA**: si un producto figura en el registro, con número, titular y estado. **No** informa precios de medicamentos ni de instrumental, ni dosis o indicaciones.
 - **Entiende audios**: los transcribe con Whisper en Groq.
-- **Maneja varios campos y varios usuarios**: cada campo tiene sus datos y un código de invitación.
-  - `crear campo La Esperanza`: crea el campo y te deja como admin.
-  - `unirme K7P2QX`: suma a otra persona a ese campo.
-  - `codigo`: muestra el código de invitación.
+- **Solo para números autorizados**: un desconocido que escribe recibe "no tenés acceso" y no se gasta IA ni se guarda nada.
   - `borrar`: deshace lo último que anotaste.
   - `ayuda`: muestra los ejemplos.
+
+## Acceso (números autorizados)
+
+Los administradores se configuran con la variable `ADMIN_TELEFONOS` (números separados por coma, en el formato en que los manda WhatsApp: `549` + característica sin 0 + número sin 15). Siempre tienen acceso y, desde su WhatsApp, pueden:
+
+- `autorizar 5492494123456`: le da acceso a ese número.
+- `quitar 5492494123456`: le saca el acceso. Sus registros se conservan.
+- `autorizados`: lista los números con acceso.
+
+También desde la terminal: `python -m app.usuarios autorizar 5492494123456` (o `quitar`, `lista`). El chat de prueba `python -m app.cli` autoriza solo el número con el que chateás.
 
 ## Cómo funciona
 
@@ -48,12 +64,14 @@ WhatsApp ──► Meta Cloud API ──► POST /webhook (FastAPI)
                                    ▼
                              audio? ──► Whisper (Groq) ──► texto
                                    ▼
-                     comandos (crear campo / unirme / borrar...)
+           ¿número autorizado? ── no ──► "no tenés acceso" (sin IA)
                                    ▼
-          el modelo (Groq) SOLO clasifica: registrar | consultar | precio | fuera_de_alcance
+                  comandos (borrar / ayuda / autorizar...)
+                                   ▼
+   el modelo (Groq) SOLO clasifica: registrar | consultar | establecimiento | precio | ... | fuera_de_alcance
                 │                     │                         │                │
        guarda Evento(s)     filtros ──► busca SOLO en   último precio de   mensaje fijo
-                            el campo del usuario        tabla cotizaciones
+                            el cuaderno del usuario     tabla cotizaciones
                                    ▼                          ▼
                      la respuesta la arma el código, con plantillas fijas
 ```
@@ -66,7 +84,7 @@ WhatsApp ──► Meta Cloud API ──► POST /webhook (FastAPI)
 | `app/precios.py` | Fuentes oficiales de precios, carga y respuesta con fuente y fecha |
 | `app/senasa.py` | Registro de productos veterinarios de SENASA: carga y verificación |
 | `app/consultas.py` | Búsqueda con filtros y totales precalculados |
-| `app/models.py` | Tablas: `campos`, `usuarios`, `eventos`, `cotizaciones`, `productos_veterinarios`, `uso_diario`, `mensajes_procesados` |
+| `app/models.py` | Tablas: `usuarios`, `eventos`, `cotizaciones`, `productos_veterinarios`, `uso_diario`, `mensajes_procesados` |
 | `app/whatsapp.py` | Envío de mensajes y descarga de audios desde Meta |
 | `app/cli.py` | Chat por terminal para probar sin WhatsApp |
 
@@ -75,11 +93,11 @@ WhatsApp ──► Meta Cloud API ──► POST /webhook (FastAPI)
 El bot no es un chat de IA. Está armado para que no se pueda usar para otra cosa:
 
 - **La IA solo clasifica.** Devuelve un JSON con la intención y los datos. Ningún texto escrito por la IA llega al usuario: todas las respuestas se arman en el código con plantillas fijas. Por eso no puede dar recomendaciones, inventar datos ni conversar de otros temas, aunque se lo pidan.
-- **La IA nunca ve los datos guardados.** Recibe solo el mensaje del usuario. Así no puede filtrar información de otros campos o clientes.
+- **La IA nunca ve los datos guardados.** Recibe solo el mensaje del usuario. Así no puede filtrar información de otras personas.
 - **Todo lo demás es "fuera de alcance"**: consejos ("¿conviene vender?"), preguntas generales, pedidos de textos o código, datos de otras personas, intentos de cambiarle las instrucciones. A todo eso responde con un mensaje fijo.
-- **Búsquedas aisladas por campo:** la IA nunca escribe SQL, solo filtros, y toda búsqueda se limita al campo del usuario.
+- **Búsquedas aisladas por campo:** la IA nunca escribe SQL, solo filtros, y toda búsqueda se limita a los registros de quien pregunta.
 - **Límites de uso** (configurables con variables de entorno): `MAX_LARGO_MENSAJE` (800 caracteres), `MAX_AUDIO_BYTES` (~3-4 min de audio) y `LIMITE_DIARIO_IA` (80 mensajes por usuario y por día).
-- Los números que no están en ningún campo no llegan a la IA: no se transcriben sus audios ni se interpretan sus mensajes.
+- Los números no autorizados no llegan a la IA: no se transcriben sus audios ni se interpretan sus mensajes.
 - El webhook valida la firma `X-Hub-Signature-256` de Meta.
 
 ## Precios de fuentes oficiales

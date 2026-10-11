@@ -1,7 +1,7 @@
 from datetime import date, datetime, timezone
 
 from sqlalchemy import JSON, Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
 
@@ -10,42 +10,34 @@ def _ahora() -> datetime:
     return datetime.now(timezone.utc)
 
 
-class Campo(Base):
-    """Un establecimiento. Todos los datos se separan por campo."""
-
-    __tablename__ = "campos"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    nombre: Mapped[str] = mapped_column(String(120))
-    codigo_invitacion: Mapped[str] = mapped_column(String(12), unique=True, index=True)
-    creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_ahora)
-
-    usuarios: Mapped[list["Usuario"]] = relationship(back_populates="campo")
-
-
 class Usuario(Base):
-    """Un número de WhatsApp. Pertenece a un solo campo a la vez."""
+    """Un número de WhatsApp. Cada persona tiene su propio cuaderno privado de registros."""
 
     __tablename__ = "usuarios"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     telefono: Mapped[str] = mapped_column(String(20), unique=True, index=True)
     nombre: Mapped[str | None] = mapped_column(String(120))
-    campo_id: Mapped[int | None] = mapped_column(ForeignKey("campos.id"), index=True)
-    rol: Mapped[str] = mapped_column(String(20), default="miembro")  # "admin" | "miembro"
+    # Solo los números autorizados por un administrador pueden usar el bot.
+    autorizado: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Último establecimiento que nombró: se usa cuando anota algo sin decir dónde fue.
+    establecimiento_actual: Mapped[str | None] = mapped_column(String(120))
     creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_ahora)
-
-    campo: Mapped[Campo | None] = relationship(back_populates="usuarios")
 
 
 class Evento(Base):
-    """Cualquier cosa que pasó en el campo: sanidad, movimientos, pesadas, clima, etc."""
+    """Cualquier cosa que anotó una persona: sanidad, movimientos, pesadas, clima, etc.
+
+    Pertenece SOLO a quien lo anotó. Nadie más lo ve, aunque sea del mismo establecimiento.
+    """
 
     __tablename__ = "eventos"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    campo_id: Mapped[int] = mapped_column(ForeignKey("campos.id"), index=True)
-    usuario_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id"))
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)
+    # Dónde pasó, como lo escribió la persona ("La Esperanza") y normalizado para buscar.
+    establecimiento: Mapped[str | None] = mapped_column(String(120))
+    establecimiento_clave: Mapped[str | None] = mapped_column(String(120), index=True)
     # Un mensaje puede traer varios eventos; comparten este id para que "borrar"
     # los deshaga juntos y no toque los del mensaje anterior.
     mensaje_id: Mapped[str | None] = mapped_column(String(36), index=True)

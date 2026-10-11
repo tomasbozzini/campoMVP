@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
-from app import bot, config, llm, whatsapp
+from app import bot, config, llm, usuarios, whatsapp
 from app.db import Base
 from app.models import Evento, Usuario
 
@@ -36,26 +36,40 @@ def fake_llm(monkeypatch):
     return respuestas, llamadas
 
 
-def _con_campo(db, telefono="5492494000001", nombre="La Esperanza"):
-    bot.manejar_mensaje(db, telefono, f"crear campo {nombre}", hoy=HOY)
-    return db.scalar(select(Usuario).where(Usuario.telefono == telefono))
+def _con_campo(db, telefono="5492494000001"):
+    """Un usuario autorizado, con su cuaderno vacío."""
+    return usuarios.autorizar(db, telefono)
 
 
-def test_usuario_nuevo_recibe_bienvenida(db):
-    assert "crear campo" in bot.manejar_mensaje(db, "5491100000000", "hola", hoy=HOY)
+def test_numero_sin_acceso_no_usa_el_bot(db, fake_llm):
+    _, llamadas = fake_llm
+    assert bot.manejar_mensaje(db, "5491100000000", "hola", hoy=HOY) == bot.NO_AUTORIZADO
+    assert llamadas == []
+    assert db.scalar(select(Usuario)) is None  # no se guarda nada de números desconocidos
 
 
-def test_crear_campo_y_unirse(db):
-    admin = _con_campo(db)
-    assert admin.rol == "admin"
-    codigo = admin.campo.codigo_invitacion
+def test_admin_autoriza_y_quita_por_whatsapp(db, fake_llm, monkeypatch):
+    monkeypatch.setattr(config, "ADMIN_TELEFONOS", {"5492494000009"})
+    admin = "5492494000009"
+    assert "autorizar" in bot.manejar_mensaje(db, admin, "ayuda", hoy=HOY)
 
-    r = bot.manejar_mensaje(db, "5491100000002", f"unirme {codigo.lower()}", hoy=HOY)
-    assert "Te sumaste a *La Esperanza*" in r
-    peon = db.scalar(select(Usuario).where(Usuario.telefono == "5491100000002"))
-    assert peon.campo_id == admin.campo_id and peon.rol == "miembro"
+    # Meta guarda los números argentinos sin el 9: igual tiene que reconocerlo.
+    r = bot.manejar_mensaje(db, admin, "autorizar +54 249 412-3456", hoy=HOY)
+    assert "5492494123456 ya puede usar" in r
+    assert "Tu asistente" in bot.manejar_mensaje(db, "5492494123456", "ayuda", hoy=HOY)
+    assert "autorizar" not in bot.manejar_mensaje(db, "5492494123456", "ayuda", hoy=HOY)
+    assert "5492494123456" in bot.manejar_mensaje(db, admin, "autorizados", hoy=HOY)
 
-    assert "No encontré" in bot.manejar_mensaje(db, "5491100000003", "unirme ZZZZZZ", hoy=HOY)
+    assert "saqué el acceso" in bot.manejar_mensaje(db, admin, "quitar 5492494123456", hoy=HOY)
+    assert bot.manejar_mensaje(db, "5492494123456", "ayuda", hoy=HOY) == bot.NO_AUTORIZADO
+
+
+def test_un_no_admin_no_puede_autorizar(db, fake_llm):
+    respuestas, _ = fake_llm
+    u = _con_campo(db)
+    respuestas["autorizar 5491100000005"] = {"intencion": "fuera_de_alcance"}
+    assert bot.manejar_mensaje(db, u.telefono, "autorizar 5491100000005", hoy=HOY) == bot.FUERA_DE_ALCANCE
+    assert not bot.puede_usar_ia(db, "5491100000005")
 
 
 def test_registrar_vacunacion(db, fake_llm):
@@ -74,7 +88,7 @@ def test_registrar_vacunacion(db, fake_llm):
     assert "Vacunación (aftosa) · 20 vacas · lote 3 · 09/10/2026" in r
 
     evento = db.scalar(select(Evento))
-    assert evento.campo_id == usuario.campo_id
+    assert evento.usuario_id == usuario.id
     assert evento.lote == "3"
     assert evento.mensaje_original == texto
 
@@ -116,10 +130,10 @@ def test_borrar_deshace_el_ultimo_mensaje(db, fake_llm):
     assert [e.tipo for e in restantes] == ["lluvia"]
 
 
-def test_consulta_filtra_por_campo_y_suma(db, fake_llm):
+def test_consulta_solo_ve_lo_propio_y_suma(db, fake_llm):
     respuestas, _ = fake_llm
-    u1 = _con_campo(db, "5491100000001", "Campo Uno")
-    u2 = _con_campo(db, "5491100000002", "Campo Dos")
+    u1 = _con_campo(db, "5491100000001")
+    u2 = _con_campo(db, "5491100000002")
 
     def vacunacion(cant, lote):
         return {"intencion": "registrar", "eventos": [{
@@ -132,7 +146,7 @@ def test_consulta_filtra_por_campo_y_suma(db, fake_llm):
     respuestas["v3"] = vacunacion(99, "3")
     bot.manejar_mensaje(db, u1.telefono, "v1", hoy=HOY)
     bot.manejar_mensaje(db, u1.telefono, "v2", hoy=HOY)
-    bot.manejar_mensaje(db, u2.telefono, "v3", hoy=HOY)  # otro campo: no debe aparecer
+    bot.manejar_mensaje(db, u2.telefono, "v3", hoy=HOY)  # otra persona: no debe aparecer
 
     pregunta = "¿cuántas vacas se vacunaron en el lote 3 este mes?"
     respuestas[pregunta] = {
@@ -261,9 +275,59 @@ def test_borrar_registro_viejo_sin_mensaje_id(db, fake_llm):
     respuestas, _ = fake_llm
     usuario = _con_campo(db)
     for valor in (10, 20):
-        db.add(Evento(campo_id=usuario.campo_id, usuario_id=usuario.id, categoria="campo",
+        db.add(Evento(usuario_id=usuario.id, categoria="campo",
                       tipo="lluvia", valor=valor, unidad="mm", fecha_evento=HOY, mensaje_id=None))
     db.flush()
 
     bot.manejar_mensaje(db, usuario.telefono, "borrar", hoy=HOY)
     assert [e.valor for e in db.scalars(select(Evento)).all()] == [10]
+
+
+def test_veterinario_recorre_varios_campos(db, fake_llm):
+    """El establecimiento nombrado queda como actual para lo que se anote después."""
+    respuestas, _ = fake_llm
+    vet = _con_campo(db, "5491100000007")
+    vacunacion = {"categoria": "sanidad", "tipo": "vacunacion", "cantidad_animales": 20, "categoria_animal": "vacas"}
+    respuestas["estoy en La Esperanza"] = {"intencion": "establecimiento", "establecimiento": "La Esperanza"}
+    respuestas["vacuné 20 vacas"] = {"intencion": "registrar", "eventos": [vacunacion]}
+    respuestas["en El Ombú hice tacto a 50 vaquillonas"] = {
+        "intencion": "registrar", "establecimiento": "El Ombú",
+        "eventos": [{"categoria": "reproduccion", "tipo": "tacto", "cantidad_animales": 50, "categoria_animal": "vaquillonas"}],
+    }
+    respuestas["y vacuné 20 vacas"] = {"intencion": "registrar", "eventos": [vacunacion]}
+
+    assert "La Esperanza" in bot.manejar_mensaje(db, vet.telefono, "estoy en La Esperanza", hoy=HOY)
+    assert "Anotado en 📍 *La Esperanza*" in bot.manejar_mensaje(db, vet.telefono, "vacuné 20 vacas", hoy=HOY)
+    assert "Anotado en 📍 *El Ombú*" in bot.manejar_mensaje(db, vet.telefono, "en El Ombú hice tacto a 50 vaquillonas", hoy=HOY)
+    assert "Anotado en 📍 *El Ombú*" in bot.manejar_mensaje(db, vet.telefono, "y vacuné 20 vacas", hoy=HOY)
+
+    # Consulta por establecimiento, escrito distinto ("estancia", minúsculas, sin tilde).
+    respuestas["¿qué hice en la estancia el ombu?"] = {
+        "intencion": "consultar", "consulta": {"establecimiento": "estancia el ombu"}}
+    r = bot.manejar_mensaje(db, vet.telefono, "¿qué hice en la estancia el ombu?", hoy=HOY)
+    assert "*2 registros*" in r and "Tacto" in r and "📍 El Ombú" in r and "La Esperanza" not in r
+
+
+def test_sin_establecimiento_lo_aclara(db, fake_llm):
+    respuestas, _ = fake_llm
+    u = _con_campo(db)
+    respuestas["llovieron 30 mm"] = {"intencion": "registrar", "eventos": [
+        {"categoria": "campo", "tipo": "lluvia", "valor": 30, "unidad": "mm"}]}
+    assert "Anotado (sin establecimiento)" in bot.manejar_mensaje(db, u.telefono, "llovieron 30 mm", hoy=HOY)
+
+
+def test_el_dueno_no_ve_lo_que_anoto_el_veterinario(db, fake_llm):
+    """Mismo establecimiento, cuadernos separados."""
+    respuestas, _ = fake_llm
+    vet = _con_campo(db, "5491100000007")
+    dueno = _con_campo(db, "5491100000008")
+    respuestas["en La Esperanza vacuné 20 vacas"] = {
+        "intencion": "registrar", "establecimiento": "La Esperanza",
+        "eventos": [{"categoria": "sanidad", "tipo": "vacunacion", "cantidad_animales": 20}]}
+    bot.manejar_mensaje(db, vet.telefono, "en La Esperanza vacuné 20 vacas", hoy=HOY)
+
+    respuestas["¿qué pasó en La Esperanza?"] = {"intencion": "consultar", "consulta": {"establecimiento": "La Esperanza"}}
+    assert bot.manejar_mensaje(db, dueno.telefono, "¿qué pasó en La Esperanza?", hoy=HOY) == "No encontré registros para esa consulta."
+    # y "borrar" del dueño no toca lo del veterinario
+    assert "nada anotado" in bot.manejar_mensaje(db, dueno.telefono, "borrar", hoy=HOY)
+    assert db.scalar(select(Evento)) is not None

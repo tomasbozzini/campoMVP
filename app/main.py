@@ -86,7 +86,7 @@ def procesar_mensaje(mensaje: dict, nombre: str | None) -> None:
             with SessionLocal() as db:
                 habilitado = bot.puede_usar_ia(db, telefono)
             if not habilitado:
-                whatsapp.enviar_texto(telefono, bot.BIENVENIDA)
+                whatsapp.enviar_texto(telefono, bot.NO_AUTORIZADO)
                 return
             audio = whatsapp.descargar_media(mensaje["audio"]["id"])
             if len(audio) > config.MAX_AUDIO_BYTES:
