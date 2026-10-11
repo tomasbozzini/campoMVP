@@ -193,37 +193,85 @@ def _responder(db: Session, usuario: Usuario, telefono: str, texto: str, hoy: da
         return "Uy, no pude procesar el mensaje. Probá de nuevo en un ratito."
     if not isinstance(interpretado, dict):
         return FUERA_DE_ALCANCE
+    # Un mensaje puede traer varios pedidos ("¿cuánto está la soja y el maíz?", "anotá la
+    # lluvia y borrá la cosecha"). Se aceptan también respuestas viejas de una sola acción.
+    acciones = interpretado.get("acciones") if isinstance(interpretado.get("acciones"), list) else [interpretado]
+    acciones = [a for a in acciones if isinstance(a, dict)][:MAX_ACCIONES]
+    return _ejecutar_acciones(db, usuario, texto, acciones, hoy)
 
-    # La IA solo clasifica. Ningún texto escrito por ella llega al usuario: todas las
-    # respuestas se arman acá con datos de la base y textos fijos, así no puede
-    # recomendar, inventar ni usarse como chat de uso general.
-    intencion = interpretado.get("intencion")
-    establecimiento = _texto(interpretado.get("establecimiento"), 120)
+
+MAX_ACCIONES = 6
+SEPARADOR = "\n\n"
+FUERA_PARCIAL = "Lo demás que pediste no lo puedo responder: no doy recomendaciones ni respondo temas que no sean de tu cuaderno, precios oficiales o SENASA."
+
+
+def _ejecutar_acciones(db: Session, usuario: Usuario, texto: str, acciones: list[dict], hoy: date) -> str:
+    if not acciones:
+        return FUERA_DE_ALCANCE
+    varias = len(acciones) > 1
+    respuestas: list[str] = []
+    hubo_fuera = False
+    precios_pedidos: list[tuple[str | None, str | None]] = []
+    posicion_precios: int | None = None
+
+    for accion in acciones:
+        intencion = accion.get("intencion")
+        if varias and intencion == "saludo":
+            continue  # "hola, ¿cuánto está la soja?": se responde solo lo que pide
+        if intencion == "precio" and isinstance(accion.get("precio"), dict):
+            # Los precios se juntan en una sola respuesta, para no repetir la fuente.
+            pedido = accion["precio"]
+            rubro = pedido.get("rubro") if pedido.get("rubro") in ("granos", "hacienda") else None
+            producto = _texto(pedido.get("producto"), 40)
+            if producto or rubro:
+                if posicion_precios is None:
+                    posicion_precios = len(respuestas)
+                    respuestas.append("")
+                precios_pedidos.append((producto, rubro))
+                continue
+        respuesta = _ejecutar(db, usuario, texto, accion, hoy)
+        if respuesta == FUERA_DE_ALCANCE:
+            hubo_fuera = True
+        else:
+            respuestas.append(respuesta)
+
+    if posicion_precios is not None:
+        respuestas[posicion_precios] = precios.responder_varios(db, precios_pedidos, hoy)
+    if not respuestas:
+        if not hubo_fuera and any(a.get("intencion") == "saludo" for a in acciones):
+            return SALUDO
+        return FUERA_DE_ALCANCE
+    if hubo_fuera:
+        respuestas.append(FUERA_PARCIAL)
+    return SEPARADOR.join(respuestas)
+
+
+def _ejecutar(db: Session, usuario: Usuario, texto: str, accion: dict, hoy: date) -> str:
+    """Ejecuta UNA acción. La IA solo clasifica: ningún texto escrito por ella llega al
+    usuario. Todas las respuestas se arman acá con datos de la base y textos fijos, así no
+    puede recomendar, inventar ni usarse como chat de uso general."""
+    intencion = accion.get("intencion")
+    establecimiento = _texto(accion.get("establecimiento"), 120)
     if intencion == "saludo":
-        return GRACIAS if interpretado.get("agradece") is True else SALUDO
+        return GRACIAS if accion.get("agradece") is True else SALUDO
     if intencion == "aclarar":
-        faltan = [PREGUNTAS[f] for f in interpretado.get("falta") or [] if f in PREGUNTAS]
+        faltan = [PREGUNTAS[f] for f in accion.get("falta") or [] if f in PREGUNTAS]
         return "\n".join(dict.fromkeys(faltan)) or PREGUNTAS["que_paso"]
     if intencion == "establecimiento" and establecimiento:
         usuario.establecimiento_actual = establecimiento
         return f"📍 Listo. Lo próximo que anotes lo guardo en *{establecimiento}*."
-    if intencion == "registrar" and isinstance(interpretado.get("eventos"), list):
-        return _registrar(db, usuario, texto, interpretado["eventos"], establecimiento, hoy)
-    if intencion == "borrar" and isinstance(interpretado.get("borrado"), dict):
-        return _borrar(db, usuario, interpretado["borrado"])
-    if intencion == "corregir" and isinstance(interpretado.get("correccion"), dict):
-        return _corregir(db, usuario, interpretado["correccion"], hoy)
-    if intencion == "consultar" and isinstance(interpretado.get("consulta"), dict):
-        return _consultar(db, usuario, interpretado["consulta"])
-    if intencion == "precio" and isinstance(interpretado.get("precio"), dict):
-        pedido = interpretado["precio"]
-        rubro = pedido.get("rubro") if pedido.get("rubro") in ("granos", "hacienda") else None
-        producto = _texto(pedido.get("producto"), 40)
-        if not producto and not rubro:
-            return PREGUNTAS["que_producto_precio"]
-        return precios.responder(db, producto, rubro, hoy)
-    if intencion == "producto_veterinario" and isinstance(interpretado.get("producto_veterinario"), dict):
-        nombre_producto = _texto(interpretado["producto_veterinario"].get("nombre"), 80)
+    if intencion == "registrar" and isinstance(accion.get("eventos"), list):
+        return _registrar(db, usuario, texto, accion["eventos"], establecimiento, hoy)
+    if intencion == "borrar" and isinstance(accion.get("borrado"), dict):
+        return _borrar(db, usuario, accion["borrado"])
+    if intencion == "corregir" and isinstance(accion.get("correccion"), dict):
+        return _corregir(db, usuario, accion["correccion"], hoy)
+    if intencion == "consultar" and isinstance(accion.get("consulta"), dict):
+        return _consultar(db, usuario, accion["consulta"])
+    if intencion == "precio":
+        return PREGUNTAS["que_producto_precio"]
+    if intencion == "producto_veterinario" and isinstance(accion.get("producto_veterinario"), dict):
+        nombre_producto = _texto(accion["producto_veterinario"].get("nombre"), 80)
         if not nombre_producto:
             return "¿Qué producto querés verificar en SENASA? Decime el nombre comercial o el principio activo."
         return senasa.responder(db, nombre_producto)

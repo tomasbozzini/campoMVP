@@ -196,3 +196,67 @@ def test_aclarar_usa_solo_preguntas_fijas(db, respuestas):
     respuestas["corregí eso"] = {"intencion": "aclarar", "falta": ["cual_registro", "que_cambiar"]}
     r = bot.manejar_mensaje(db, u.telefono, "corregí eso", hoy=HOY)
     assert r == bot.PREGUNTAS["cual_registro"] + "\n" + bot.PREGUNTAS["que_cambiar"]
+
+
+def _maiz(db):
+    precios.guardar(db, FUENTE, URL_PIZARRA, "granos", [
+        {"producto": "Maíz", "plaza": "Rosario", "valor": 250000, "unidad": "t", "fecha": date(2026, 10, 8)}])
+
+
+def test_varios_precios_en_un_mensaje_agrupados_por_fuente(db, respuestas):
+    u = _usuario(db)
+    _cargar_soja(db)
+    _maiz(db)
+    respuestas["¿cuánto está la soja y el maíz?"] = {"acciones": [
+        {"intencion": "precio", "precio": {"rubro": "granos", "producto": "soja"}},
+        {"intencion": "precio", "precio": {"rubro": "granos", "producto": "maiz"}},
+    ]}
+    r = bot.manejar_mensaje(db, u.telefono, "¿cuánto está la soja y el maíz?", hoy=HOY)
+    assert "Soja (Rosario)" in r and "Maíz (Rosario)" in r
+    assert r.count("Fuente:") == 1 and r.count("No son una recomendación") == 1
+
+
+def test_precio_que_falta_se_aclara_sin_perder_el_resto(db, respuestas):
+    u = _usuario(db)
+    _cargar_soja(db)
+    respuestas["soja y girasol"] = {"acciones": [
+        {"intencion": "precio", "precio": {"producto": "soja"}},
+        {"intencion": "precio", "precio": {"producto": "girasol"}},
+    ]}
+    r = bot.manejar_mensaje(db, u.telefono, "soja y girasol", hoy=HOY)
+    assert "Soja (Rosario)" in r and "No tengo precios oficiales cargados de: Girasol." in r
+
+
+def test_mezcla_de_pedidos_se_responde_en_orden(db, respuestas):
+    u = _usuario(db)
+    _cargar_soja(db)
+    texto = "hola, anotá que llovieron 20 mm, ¿cuánto está la soja? y ¿me conviene vender?"
+    respuestas[texto] = {"acciones": [
+        {"intencion": "saludo"},
+        {"intencion": "registrar", "eventos": [{"categoria": "campo", "tipo": "lluvia", "valor": 20, "unidad": "mm"}]},
+        {"intencion": "precio", "precio": {"producto": "soja"}},
+        {"intencion": "fuera_de_alcance"},
+    ]}
+    r = bot.manejar_mensaje(db, u.telefono, texto, hoy=HOY)
+    assert r.index("Anotado") < r.index("Soja (Rosario)") < r.index(bot.FUERA_PARCIAL)
+    assert bot.SALUDO not in r and bot.FUERA_DE_ALCANCE not in r
+
+
+def test_solo_fuera_de_alcance_o_solo_saludo(db, respuestas):
+    u = _usuario(db)
+    respuestas["a"] = {"acciones": [{"intencion": "fuera_de_alcance"}, {"intencion": "fuera_de_alcance"}]}
+    respuestas["b"] = {"acciones": [{"intencion": "saludo"}, {"intencion": "saludo"}]}
+    respuestas["c"] = {"acciones": []}
+    assert bot.manejar_mensaje(db, u.telefono, "a", hoy=HOY) == bot.FUERA_DE_ALCANCE
+    assert bot.manejar_mensaje(db, u.telefono, "b", hoy=HOY) == bot.SALUDO
+    assert bot.manejar_mensaje(db, u.telefono, "c", hoy=HOY) == bot.FUERA_DE_ALCANCE
+
+
+def test_tope_de_acciones_por_mensaje(db, respuestas):
+    u = _usuario(db)
+    respuestas["muchas"] = {"acciones": [
+        {"intencion": "registrar", "eventos": [{"categoria": "campo", "tipo": "lluvia", "valor": i, "unidad": "mm"}]}
+        for i in range(1, 20)]}
+    bot.manejar_mensaje(db, u.telefono, "muchas", hoy=HOY)
+    from app.models import Evento
+    assert len(db.scalars(select(Evento)).all()) == bot.MAX_ACCIONES

@@ -37,6 +37,7 @@ bot> Eso no lo puedo responder. Solo puedo: ...
 ## Qué hace
 
 - **Registra eventos** de sanidad (vacunación, desparasitación, tratamientos), movimientos de hacienda (nacimientos, muertes, compras, ventas, traslados), pesadas, reproducción (tacto, servicio, destete) y del campo (lluvias, siembra, fumigación). Un mensaje puede traer varios eventos.
+- **Varios pedidos en un mensaje**: "¿cuánto está la soja y el maíz?", o "anotá que llovieron 20 mm, borrá la cosecha del lote 5 y ¿la ivermectina está en SENASA?". La IA separa el mensaje en acciones (hasta 6) y el bot responde cada una en orden; los precios salen juntos, agrupados por fuente.
 - **Corrige registros**: "a esas 5 vaquillonas las vacuné con ivermectina" o "no eran 20, eran 25" modifican el registro que corresponde (busca entre los últimos 20 el que coincide con lo que mencionás) en vez de crear uno nuevo, y muestra cómo quedó antes y ahora.
 - **Borra registros puntuales**: "borrá la lluvia de La Pastora" o "borrá las 5 vaquillonas y la cosecha del lote 5, ambos de La Pastora". Cada descripción tiene que señalar un solo registro: si coincide con varios, no borra nada y muestra las opciones para que precises (o pedís borrar *todos*). Con "¿qué tengo anotado?" ves la lista.
 - **Guarda en qué establecimiento** fue cada cosa. Si no lo decís, usa el último que nombraste y lo muestra en la confirmación.

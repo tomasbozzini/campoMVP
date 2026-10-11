@@ -605,3 +605,23 @@ def test_confirmacion_no_borra_lo_de_otro(db, fake_llm):
     db.flush()
     bot.manejar_mensaje(db, u.telefono, "sí", hoy=HOY)
     assert len(db.scalars(select(Evento)).all()) == 6
+
+
+def test_anotar_borrar_y_corregir_en_un_mismo_mensaje(db, fake_llm):
+    respuestas, _ = fake_llm
+    u = _con_campo(db)
+    _anotar_en_la_pastora(respuestas, db, u)
+    texto = "borrá la cosecha del lote 5, a las 5 vaquillonas ponele ivermectina y anotá que nacieron 3 terneros"
+    respuestas[texto] = {"acciones": [
+        {"intencion": "borrar", "borrado": {"registros": [{"tipo": "cosecha", "lote": "5"}]}},
+        {"intencion": "corregir", "correccion": {
+            "referencia": {"cantidad_animales": 5, "categoria_animal": "vaquillonas"},
+            "cambios": {"producto": "ivermectina"}}},
+        {"intencion": "registrar", "eventos": [
+            {"categoria": "movimiento", "tipo": "nacimiento", "cantidad_animales": 3, "categoria_animal": "terneros"}]},
+    ]}
+    r = bot.manejar_mensaje(db, u.telefono, texto, hoy=HOY)
+    assert r.index("Borré") < r.index("Corregido") < r.index("Anotado")
+    tipos = sorted(e.tipo for e in db.scalars(select(Evento)).all())
+    assert tipos == ["lluvia", "lluvia", "nacimiento", "vacunacion"]
+    assert db.scalar(select(Evento).where(Evento.tipo == "vacunacion")).producto == "ivermectina"

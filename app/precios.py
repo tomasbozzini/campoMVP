@@ -425,22 +425,42 @@ def _lineas_cotizacion(c: Cotizacion, hoy: date) -> list[str]:
     ]
 
 
+SIN_PRECIOS = (
+    "No tengo precios cargados de ese producto de una fuente oficial. "
+    "Solo informo precios que publican organismos oficiales o mercados regulados."
+)
+
+
 def responder(db: Session, producto: str | None, rubro: str | None, hoy: date) -> str:
-    cotizaciones = ultimas(db, producto, rubro)
+    return responder_varios(db, [(producto, rubro)], hoy)
+
+
+def responder_varios(db: Session, pedidos: list[tuple[str | None, str | None]], hoy: date) -> str:
+    """Precios de varios productos en una sola respuesta, agrupados por fuente."""
+    cotizaciones: dict[int, Cotizacion] = {}
+    faltan: list[str] = []
+    for producto, rubro in pedidos:
+        encontradas = ultimas(db, producto, rubro)
+        if not encontradas:
+            nombre = normalizar_producto(producto) or ""
+            # Solo nombramos lo que falta si es una palabra simple (no repetimos texto libre de la IA).
+            faltan.append(_NOMBRES.get(nombre, nombre.capitalize()) if re.fullmatch(r"[a-zñ ]{2,20}", nombre) else "")
+        cotizaciones.update({c.id: c for c in encontradas})
     if not cotizaciones:
-        # Mensaje fijo: no repetimos lo que escribió la IA.
-        return (
-            "No tengo precios cargados de ese producto de una fuente oficial. "
-            "Solo informo precios que publican organismos oficiales o mercados regulados."
-        )
+        return SIN_PRECIOS
+
     lineas = []
     por_fuente: dict[tuple[str, str], list[Cotizacion]] = {}
-    for c in cotizaciones:
+    for c in cotizaciones.values():
         por_fuente.setdefault((c.fuente, c.url), []).append(c)
     for (fuente, url), lista in por_fuente.items():
         for c in lista[:20]:
             lineas += _lineas_cotizacion(c, hoy)
         lineas.append(f"Fuente: {fuente}\n{url}\n")
+    if faltan:
+        nombres = ", ".join(f for f in faltan if f)
+        lineas.append(f"No tengo precios oficiales cargados de: {nombres}.\n" if nombres else
+                      "De algún producto que pediste no tengo precios oficiales cargados.\n")
     return "\n".join(lineas) + "\n" + AVISO
 
 
