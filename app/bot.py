@@ -54,6 +54,8 @@ _Tu cuaderno de trabajo, por WhatsApp._
 🔒 Lo que anotás es solo tuyo.
 
 *borrar* → deshace lo último que anotaste
+*privacidad* → cómo se usan tus datos
+*borrar mis datos* → elimina todo lo tuyo
 *ayuda* → muestra este menú"""
 
 NO_AUTORIZADO = """👋 *¡Hola!*
@@ -149,9 +151,70 @@ def manejar_mensaje(
     usuario = _usuario(db, telefono, nombre)
     if usuario is None:
         return NO_AUTORIZADO
+    comando = _comando(texto)
+    if comando in PEDIR_BORRAR_DATOS:
+        return _pedir_borrar_datos(db, usuario)
+    if comando == CONFIRMAR_BORRAR_DATOS:
+        # Después de esto no se guarda nada más de esta persona, ni siquiera este mensaje.
+        return _borrar_datos(db, usuario)
     respuesta = _responder(db, usuario, telefono, texto, hoy or _hoy())
     _guardar_charla(db, usuario, texto, respuesta)
     return respuesta
+
+
+def _comando(texto: str) -> str:
+    texto = unicodedata.normalize("NFKD", texto.lower().strip(" !.¡¿?"))
+    return " ".join("".join(c for c in texto if not unicodedata.combining(c)).split())
+
+
+# Derecho de supresión (Ley 25.326): la persona puede borrar todo lo suyo desde el chat.
+PEDIR_BORRAR_DATOS = {"borrar mis datos", "eliminar mis datos", "borrar mi cuenta", "eliminar mi cuenta"}
+CONFIRMAR_BORRAR_DATOS = "confirmo borrar mis datos"
+
+
+def _pedir_borrar_datos(db: Session, usuario: Usuario) -> str:
+    registros = len(db.scalars(select(Evento.id).where(Evento.usuario_id == usuario.id)).all())
+    return (
+        "⚠️ *BORRAR TODOS TUS DATOS*\n\n"
+        "Se van a eliminar para siempre:\n"
+        f"      › tu cuaderno ({registros} registro{'s' if registros != 1 else ''})\n"
+        "      › tus últimos mensajes con el bot\n"
+        "      › tu número y tu nombre de perfil\n\n"
+        "También perdés el acceso: para volver a usarlo, el administrador te tiene que habilitar de nuevo.\n\n"
+        f"{LINEA}\n"
+        "Si estás seguro, mandá exactamente:\n*confirmo borrar mis datos*\n\n"
+        "_Si no, ignorá este mensaje y no se borra nada._"
+    )
+
+
+def _borrar_datos(db: Session, usuario: Usuario) -> str:
+    for modelo in (Evento, MensajeChat, UsoDiario, BorradoPendiente):
+        db.execute(delete(modelo).where(modelo.usuario_id == usuario.id))
+    db.delete(usuario)
+    db.flush()
+    log.info("Usuario %s borró todos sus datos", usuario.id)
+    return (
+        "🗑️ *DATOS BORRADOS*\n\n"
+        "Eliminé tu cuaderno, tus mensajes y tu número. No queda nada tuyo guardado.\n"
+        "Gracias por haber usado el asistente 👋"
+    )
+
+
+def _privacidad() -> str:
+    texto = (
+        "🔒 *TUS DATOS*\n\n"
+        "      › Guardo tu número y lo que anotás, solo para mostrártelo a vos.\n"
+        "      › Nadie más ve tu cuaderno, ni siquiera quien tenga el mismo campo.\n"
+        "      › Tus mensajes los interpreta una IA (Groq) y viajan por WhatsApp (Meta).\n"
+        "      › No vendo ni comparto tus datos con nadie más.\n\n"
+        "*Qué podés hacer*\n"
+        "      › Ver todo lo tuyo: _¿qué tengo anotado?_\n"
+        "      › Corregir o borrar registros cuando quieras\n"
+        "      › Borrar todo, incluido tu número: *borrar mis datos*"
+    )
+    if config.PRIVACIDAD_URL:
+        texto += f"\n\n{LINEA}\n📄 Política completa:\n{config.PRIVACIDAD_URL}"
+    return texto
 
 
 def _historial(db: Session, usuario: Usuario) -> list[tuple[str, str]]:
@@ -187,6 +250,8 @@ def _responder(db: Session, usuario: Usuario, telefono: str, texto: str, hoy: da
         return AYUDA + (AYUDA_ADMIN if es_admin(telefono) else "")
     if comando in ("borrar", "deshacer"):
         return _borrar_ultimo(db, usuario)
+    if comando in ("privacidad", "mis datos", "datos"):
+        return _privacidad()
 
     if len(texto) > config.MAX_LARGO_MENSAJE:
         return "✋ El mensaje es muy largo.\nMandalo en partes más cortas, de a un tema por vez."

@@ -57,3 +57,12 @@ def test_audio_de_numero_sin_acceso_no_se_transcribe(cliente, monkeypatch):
     ]}}]}]}
     cliente.post("/webhook", json=payload)
     assert "no tiene acceso" in cliente.enviados[-1][1]
+
+
+def test_politica_de_privacidad(cliente, monkeypatch):
+    monkeypatch.setattr(config, "PRIVACIDAD_RESPONSABLE", "Campo <Bot>")
+    monkeypatch.setattr(config, "PRIVACIDAD_CONTACTO", "datos@ejemplo.com")
+    r = cliente.get("/privacidad")
+    assert r.status_code == 200 and r.headers["content-type"].startswith("text/html")
+    assert "Campo &lt;Bot&gt;" in r.text and "datos@ejemplo.com" in r.text
+    assert "Ley 25.326" in r.text and "borrar mis datos" in r.text

@@ -104,6 +104,12 @@ El bot no es un chat de IA. Está armado para que no se pueda usar para otra cos
 - Los números no autorizados no llegan a la IA: no se transcriben sus audios ni se interpretan sus mensajes.
 - El webhook valida la firma `X-Hub-Signature-256` de Meta.
 
+## Privacidad y datos personales
+
+- **Política de privacidad**: el bot la publica en `/privacidad` (por ejemplo `https://tu-bot.up.railway.app/privacidad`). Esa es la URL que pide Meta para publicar la app. Completá `PRIVACIDAD_RESPONSABLE` (nombre o razón social) y `PRIVACIDAD_CONTACTO` (email) en el `.env`. El texto está en `app/privacidad.py` y es un **borrador**: revisalo con alguien que sepa de protección de datos (Ley 25.326) antes de tener clientes.
+- **`privacidad`**: el usuario recibe un resumen de cómo se usan sus datos y, si está configurada `PRIVACIDAD_URL`, el link a la política completa.
+- **`borrar mis datos`**: el bot muestra qué se va a borrar y pide confirmar con `confirmo borrar mis datos`. Al confirmar se eliminan el cuaderno, los mensajes recientes, el uso diario y el número de la persona, que pierde el acceso hasta que el administrador la habilite de nuevo. Nada de esto pasa por la IA.
+
 ## Precios de fuentes oficiales
 
 Los precios **no** los busca la IA en internet: los descarga un proceso aparte desde fuentes registradas en `app/precios.py`, los guarda en la tabla `cotizaciones` y el bot responde solo con eso, siempre con la fuente, la fecha y el link. Si un dato tiene más de `DIAS_PRECIO_VIGENTE` días (7 por defecto), avisa que no está actualizado. Si no hay datos, lo dice y no inventa.

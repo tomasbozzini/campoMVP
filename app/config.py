@@ -43,3 +43,9 @@ DIAS_PRECIO_VIGENTE = int(os.getenv("DIAS_PRECIO_VIGENTE", "7"))
 # Números de WhatsApp de los administradores, separados por coma (ej: 5492494123456).
 # Siempre tienen acceso y pueden autorizar a otros con "autorizar <número>".
 ADMIN_TELEFONOS = {t.strip() for t in os.getenv("ADMIN_TELEFONOS", "").split(",") if t.strip()}
+
+# Datos para la política de privacidad que se publica en /privacidad
+PRIVACIDAD_RESPONSABLE = os.getenv("PRIVACIDAD_RESPONSABLE", "")  # nombre o razón social
+PRIVACIDAD_CONTACTO = os.getenv("PRIVACIDAD_CONTACTO", "")  # email para consultas y pedidos
+# URL pública de la política (ej: https://tu-bot.up.railway.app/privacidad), para el comando "privacidad"
+PRIVACIDAD_URL = os.getenv("PRIVACIDAD_URL", "")

@@ -5,9 +5,10 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request, Response
+from fastapi.responses import HTMLResponse
 from sqlalchemy.exc import IntegrityError
 
-from app import bot, config, llm, whatsapp
+from app import bot, config, llm, privacidad, whatsapp
 from app.db import SessionLocal, crear_tablas
 from app.models import MensajeProcesado
 
@@ -27,6 +28,12 @@ app = FastAPI(title="Asistente de campo", lifespan=_ciclo_de_vida)
 @app.get("/")
 def salud() -> dict:
     return {"ok": True}
+
+
+@app.get("/privacidad", response_class=HTMLResponse)
+def politica_de_privacidad() -> str:
+    """Página pública con la política de privacidad (Meta la pide para publicar la app)."""
+    return privacidad.html()
 
 
 @app.get("/webhook")

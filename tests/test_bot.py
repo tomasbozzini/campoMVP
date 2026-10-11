@@ -625,3 +625,33 @@ def test_anotar_borrar_y_corregir_en_un_mismo_mensaje(db, fake_llm):
     tipos = sorted(e.tipo for e in db.scalars(select(Evento)).all())
     assert tipos == ["lluvia", "lluvia", "nacimiento", "vacunacion"]
     assert db.scalar(select(Evento).where(Evento.tipo == "vacunacion")).producto == "ivermectina"
+
+
+def test_borrar_mis_datos_pide_confirmacion_y_borra_todo(db, fake_llm):
+    respuestas, llamadas = fake_llm
+    u = _con_campo(db, "5491100000001")
+    otro = _con_campo(db, "5491100000002")
+    _anotar_en_la_pastora(respuestas, db, u)
+    _anotar_en_la_pastora(respuestas, db, otro)
+    llamadas.clear()
+
+    r = bot.manejar_mensaje(db, u.telefono, "Borrar mis datos", hoy=HOY)
+    assert "BORRAR TODOS TUS DATOS" in r and "4 registros" in r
+    assert len(db.scalars(select(Evento).where(Evento.usuario_id == u.id)).all()) == 4  # todavía nada
+
+    r = bot.manejar_mensaje(db, u.telefono, "Confirmo borrar mis datos.", hoy=HOY)
+    assert "DATOS BORRADOS" in r
+    assert db.scalar(select(Usuario).where(Usuario.telefono == u.telefono)) is None
+    assert db.scalar(select(MensajeChat).where(MensajeChat.usuario_id == u.id)) is None
+    assert db.scalar(select(Evento).where(Evento.usuario_id == u.id)) is None
+    assert llamadas == []  # nada de esto pasa por la IA
+    # lo del otro usuario sigue intacto, y el que borró ya no tiene acceso
+    assert len(db.scalars(select(Evento).where(Evento.usuario_id == otro.id)).all()) == 4
+    assert bot.manejar_mensaje(db, u.telefono, "hola", hoy=HOY) == bot.NO_AUTORIZADO
+
+
+def test_privacidad_explica_y_muestra_el_link(db, fake_llm, monkeypatch):
+    u = _con_campo(db)
+    monkeypatch.setattr(config, "PRIVACIDAD_URL", "https://ejemplo.com/privacidad")
+    r = bot.manejar_mensaje(db, u.telefono, "privacidad", hoy=HOY)
+    assert "TUS DATOS" in r and "borrar mis datos" in r and "https://ejemplo.com/privacidad" in r
