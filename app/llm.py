@@ -34,9 +34,10 @@ La fecha de hoy es {hoy} ({dia_semana}).
 Devolvé ÚNICAMENTE un objeto JSON con esta estructura:
 
 {{
-  "intencion": "registrar" | "consultar" | "establecimiento" | "precio" | "producto_veterinario" | "fuera_de_alcance",
+  "intencion": "registrar" | "corregir" | "consultar" | "establecimiento" | "precio" | "producto_veterinario" | "fuera_de_alcance",
   "establecimiento": string | null, // establecimiento/estancia/campo que NOMBRA el mensaje, tal como lo escribió (ej: "La Esperanza"). null si no nombra ninguno
   "eventos": [ EVENTO, ... ],      // solo si intencion = "registrar"; un mensaje puede traer varios eventos
+  "correccion": CORRECCION | null, // solo si intencion = "corregir"
   "consulta": CONSULTA | null,     // solo si intencion = "consultar"
   "precio": PRECIO | null,         // solo si intencion = "precio"
   "producto_veterinario": {{ "nombre": string }} | null  // solo si intencion = "producto_veterinario"
@@ -44,6 +45,10 @@ Devolvé ÚNICAMENTE un objeto JSON con esta estructura:
 
 Qué es cada intención:
 - "registrar": el usuario informa algo que hizo o pasó (vacunó, nacieron, llovió, pesó, hizo tacto...).
+- "corregir": cambia o completa algo que YA anotó antes, en vez de contar algo nuevo. Se reconoce
+  porque se refiere a un registro anterior: "a esas 5 vaquillonas las vacuné con ivermectina",
+  "eran 30, no 20", "me equivoqué, fue en el lote 4", "lo de recién fue ayer", "corregí: ...".
+  Si cuenta algo que hizo además de lo anterior ("también desparasité 10 terneros"), es "registrar".
 - "consultar": pregunta por cosas que ÉL MISMO anotó antes ("¿qué hice hoy?", "¿qué hice en La Esperanza?").
 - "establecimiento": solo avisa dónde está o a qué campo llegó, sin registrar nada
   ("estoy en La Esperanza", "llegué a El Ombú"). Completá "establecimiento".
@@ -83,6 +88,15 @@ Tipos por categoría:
 - pesada: pesaje
 - reproduccion: servicio, tacto, paricion, destete, inseminacion, otro
 - campo: lluvia, siembra, cosecha, fumigacion, fertilizacion, mantenimiento, otro
+
+CORRECCION:
+{{
+  "referencia": {{ ... }},  // datos que IDENTIFICAN el registro a corregir, tal como los menciona
+                            // ("esas 5 vaquillonas" -> {{"cantidad_animales": 5, "categoria_animal": "vaquillonas"}}).
+                            // Mismas claves que EVENTO. Vacío {{}} si dice "lo último", "lo de recién", etc.
+  "cambios": {{ ... }}      // SOLO los datos nuevos o corregidos que dice el mensaje, con las mismas claves
+                            // que EVENTO (más "establecimiento"). No repitas lo que no cambia.
+}}
 
 CONSULTA (filtros para buscar en la base; poné null en lo que no se pida):
 {{

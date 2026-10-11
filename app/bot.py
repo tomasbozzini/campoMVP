@@ -30,6 +30,10 @@ Contame lo que hacés y yo lo anoto en tu cuaderno. Por ejemplo:
 • _En El Ombú hice tacto a 50 vaquillonas_
 • _Llovieron 35 mm_
 
+Si algo quedó mal, corregilo:
+• _A esas vaquillonas las vacuné con ivermectina_
+• _No eran 20, eran 25_
+
 Preguntame por lo que anotaste:
 • _¿Qué hice hoy?_
 • _¿Qué hice en La Esperanza este mes?_
@@ -148,6 +152,8 @@ def manejar_mensaje(
         return f"📍 Listo. Lo próximo que anotes lo guardo en *{establecimiento}*."
     if intencion == "registrar" and isinstance(interpretado.get("eventos"), list):
         return _registrar(db, usuario, texto, interpretado["eventos"], establecimiento, hoy)
+    if intencion == "corregir" and isinstance(interpretado.get("correccion"), dict):
+        return _corregir(db, usuario, interpretado["correccion"], hoy)
     if intencion == "consultar" and isinstance(interpretado.get("consulta"), dict):
         return _consultar(db, usuario, interpretado["consulta"])
     if intencion == "precio" and isinstance(interpretado.get("precio"), dict):
@@ -380,6 +386,91 @@ def resumen(e: Evento) -> str:
         partes.append(f"{valor} {e.unidad or ''}".strip())
     partes.append(e.fecha_evento.strftime("%d/%m/%Y"))
     return " · ".join(partes)
+
+
+# Cuántos registros recientes se revisan para encontrar el que se quiere corregir.
+CORRECCION_ULTIMOS = 20
+
+
+def _coincide(e: Evento, referencia: dict) -> bool:
+    """¿El registro tiene todos los datos con los que el usuario lo identificó?"""
+    for clave, valor in referencia.items():
+        if valor in (None, ""):
+            continue
+        texto = str(valor).strip().lower()
+        if clave == "cantidad_animales":
+            if e.cantidad_animales != _a_int(valor):
+                return False
+        elif clave == "categoria_animal":
+            if not e.categoria_animal or _singular(texto) not in e.categoria_animal.lower():
+                return False
+        elif clave in ("lote", "lote_destino"):
+            if getattr(e, clave) != normalizar_lote(valor):
+                return False
+        elif clave == "establecimiento":
+            if e.establecimiento_clave != clave_establecimiento(str(valor)):
+                return False
+        elif clave in ("tipo", "caravana"):
+            if (getattr(e, clave) or "").lower() != texto:
+                return False
+        elif clave == "producto":
+            if texto not in (e.producto or "").lower():
+                return False
+        # el resto de las claves (descripcion, confianza...) no sirve para identificar
+    return True
+
+
+def _corregir(db: Session, usuario: Usuario, correccion: dict, hoy: date) -> str:
+    referencia = correccion.get("referencia") if isinstance(correccion.get("referencia"), dict) else {}
+    cambios = correccion.get("cambios") if isinstance(correccion.get("cambios"), dict) else {}
+    recientes = db.scalars(
+        select(Evento).where(Evento.usuario_id == usuario.id)
+        .order_by(Evento.id.desc()).limit(CORRECCION_ULTIMOS)
+    ).all()
+    evento = next((e for e in recientes if _coincide(e, referencia)), None)
+    if evento is None:
+        return (
+            "No encontré cuál de tus registros querés corregir 🤔. "
+            "Si es el último, mandá *borrar* y anotalo de nuevo completo."
+        )
+
+    antes = resumen(evento)
+    aplicados = 0
+    for clave, valor in cambios.items():
+        if clave == "establecimiento":
+            nombre = _texto(valor, 120)
+            if nombre:
+                evento.establecimiento = nombre
+                evento.establecimiento_clave = clave_establecimiento(nombre)
+                aplicados += 1
+            continue
+        if clave not in _CORREGIBLES or valor in (None, ""):
+            continue
+        setattr(evento, clave, _CORREGIBLES[clave](valor, hoy))
+        aplicados += 1
+    if not aplicados:
+        return "No entendí qué querés cambiar. Probá con algo como: _eran 30, no 20_"
+
+    db.flush()
+    donde = f" · 📍 {evento.establecimiento}" if evento.establecimiento else ""
+    return f"✏️ Corregido:\nAntes: {antes}\nAhora: {resumen(evento)}{donde}\n\n_Si algo está mal, mandá *borrar*._"
+
+
+# Qué se puede corregir y cómo se limpia cada valor (igual que al registrar).
+_CORREGIBLES = {
+    "tipo": lambda v, hoy: (_texto(v, 30) or "otro").lower(),
+    "descripcion": lambda v, hoy: _texto(v, 500),
+    "producto": lambda v, hoy: _texto(v, 120),
+    "dosis": lambda v, hoy: _texto(v, 60),
+    "cantidad_animales": lambda v, hoy: _a_int(v),
+    "categoria_animal": lambda v, hoy: (_texto(v, 40) or "").lower() or None,
+    "caravana": lambda v, hoy: _texto(v, 40),
+    "lote": lambda v, hoy: normalizar_lote(v),
+    "lote_destino": lambda v, hoy: normalizar_lote(v),
+    "valor": lambda v, hoy: _a_float(v),
+    "unidad": lambda v, hoy: _texto(v, 20),
+    "fecha_evento": lambda v, hoy: _a_fecha(v, hoy),
+}
 
 
 def _borrar_ultimo(db: Session, usuario: Usuario) -> str:

@@ -37,6 +37,7 @@ bot> Eso no lo puedo responder. Solo puedo: ...
 ## Qué hace
 
 - **Registra eventos** de sanidad (vacunación, desparasitación, tratamientos), movimientos de hacienda (nacimientos, muertes, compras, ventas, traslados), pesadas, reproducción (tacto, servicio, destete) y del campo (lluvias, siembra, fumigación). Un mensaje puede traer varios eventos.
+- **Corrige registros**: "a esas 5 vaquillonas las vacuné con ivermectina" o "no eran 20, eran 25" modifican el registro que corresponde (busca entre los últimos 20 el que coincide con lo que mencionás) en vez de crear uno nuevo, y muestra cómo quedó antes y ahora.
 - **Guarda en qué establecimiento** fue cada cosa. Si no lo decís, usa el último que nombraste y lo muestra en la confirmación.
 - **Responde preguntas** sobre lo que anotaste vos (también por establecimiento). Los totales los calcula el código, no la IA, para que las sumas den bien.
 - **Informa precios de referencia** de granos y hacienda de fuentes oficiales y mercados regulados, siempre con la fuente, la fecha de publicación, la moneda, si incluye impuestos u otros costos, y el link.

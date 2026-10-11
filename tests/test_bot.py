@@ -331,3 +331,73 @@ def test_el_dueno_no_ve_lo_que_anoto_el_veterinario(db, fake_llm):
     # y "borrar" del dueño no toca lo del veterinario
     assert "nada anotado" in bot.manejar_mensaje(db, dueno.telefono, "borrar", hoy=HOY)
     assert db.scalar(select(Evento)) is not None
+
+
+def _vacunar_vaquillonas(respuestas, db, usuario):
+    respuestas["vacuné 5 vaquillonas en el lote 3"] = {"intencion": "registrar", "eventos": [
+        {"categoria": "sanidad", "tipo": "vacunacion", "cantidad_animales": 5,
+         "categoria_animal": "vaquillonas", "lote": "3"}]}
+    bot.manejar_mensaje(db, usuario.telefono, "vacuné 5 vaquillonas en el lote 3", hoy=HOY)
+
+
+def test_corregir_completa_el_registro_en_vez_de_crear_otro(db, fake_llm):
+    respuestas, _ = fake_llm
+    u = _con_campo(db)
+    _vacunar_vaquillonas(respuestas, db, u)
+    texto = "a esas 5 vaquillonas las vacuné con ivermectina"
+    respuestas[texto] = {"intencion": "corregir", "correccion": {
+        "referencia": {"cantidad_animales": 5, "categoria_animal": "vaquillonas"},
+        "cambios": {"producto": "ivermectina"}}}
+
+    r = bot.manejar_mensaje(db, u.telefono, texto, hoy=HOY)
+    assert "Antes: Vacunación · 5 vaquillonas · lote 3" in r
+    assert "Ahora: Vacunación (ivermectina) · 5 vaquillonas · lote 3" in r
+    eventos = db.scalars(select(Evento)).all()
+    assert len(eventos) == 1 and eventos[0].producto == "ivermectina"
+
+
+def test_corregir_busca_el_registro_que_coincide(db, fake_llm):
+    respuestas, _ = fake_llm
+    u = _con_campo(db)
+    _vacunar_vaquillonas(respuestas, db, u)
+    respuestas["llovieron 20 mm"] = {"intencion": "registrar", "eventos": [
+        {"categoria": "campo", "tipo": "lluvia", "valor": 20, "unidad": "mm"}]}
+    bot.manejar_mensaje(db, u.telefono, "llovieron 20 mm", hoy=HOY)
+
+    # se refiere a las vaquillonas, aunque lo último que anotó fue la lluvia
+    respuestas["no eran 5 vaquillonas, eran 7"] = {"intencion": "corregir", "correccion": {
+        "referencia": {"cantidad_animales": 5, "categoria_animal": "vaquillona"},
+        "cambios": {"cantidad_animales": 7}}}
+    bot.manejar_mensaje(db, u.telefono, "no eran 5 vaquillonas, eran 7", hoy=HOY)
+    vacunacion = db.scalar(select(Evento).where(Evento.tipo == "vacunacion"))
+    lluvia = db.scalar(select(Evento).where(Evento.tipo == "lluvia"))
+    assert vacunacion.cantidad_animales == 7 and lluvia.valor == 20
+
+
+def test_corregir_sin_referencia_toma_el_ultimo_y_no_toca_otros_usuarios(db, fake_llm):
+    respuestas, _ = fake_llm
+    u = _con_campo(db, "5491100000001")
+    otro = _con_campo(db, "5491100000002")
+    _vacunar_vaquillonas(respuestas, db, otro)
+    respuestas["lo de recién fue en el lote 4"] = {"intencion": "corregir", "correccion": {
+        "referencia": {}, "cambios": {"lote": "lote 4"}}}
+
+    r = bot.manejar_mensaje(db, u.telefono, "lo de recién fue en el lote 4", hoy=HOY)
+    assert "No encontré cuál de tus registros" in r
+    assert db.scalar(select(Evento)).lote == "3"  # el registro del otro usuario no se tocó
+
+    _vacunar_vaquillonas(respuestas, db, u)
+    bot.manejar_mensaje(db, u.telefono, "lo de recién fue en el lote 4", hoy=HOY)
+    mio = db.scalar(select(Evento).where(Evento.usuario_id == u.id))
+    assert mio.lote == "4"
+
+
+def test_corregir_no_acepta_fechas_futuras_ni_campos_raros(db, fake_llm):
+    respuestas, _ = fake_llm
+    u = _con_campo(db)
+    _vacunar_vaquillonas(respuestas, db, u)
+    respuestas["x"] = {"intencion": "corregir", "correccion": {
+        "referencia": {}, "cambios": {"fecha_evento": "2030-01-01", "usuario_id": 999}}}
+    bot.manejar_mensaje(db, u.telefono, "x", hoy=HOY)
+    e = db.scalar(select(Evento))
+    assert e.fecha_evento == HOY and e.usuario_id == u.id
