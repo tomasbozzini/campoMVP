@@ -26,7 +26,7 @@ def db():
 @pytest.fixture
 def respuestas(monkeypatch):
     datos: dict[str, object] = {}
-    monkeypatch.setattr(llm, "interpretar", lambda texto, hoy: datos[texto])
+    monkeypatch.setattr(llm, "interpretar", lambda texto, hoy, historial=None: datos[texto])
     return datos
 
 
@@ -40,7 +40,7 @@ def _usuario(db, telefono="5491100000001"):
     {"intencion": "charla", "respuesta": "Te recomiendo vender ya"},
     {"intencion": "registrar", "eventos": "no es una lista"},
     {"intencion": "consultar"},
-    {"intencion": "precio", "precio": {}},
+    {"intencion": "inventada"},
     ["no", "es", "un", "objeto"],
 ])
 def test_todo_lo_que_no_es_valido_es_fuera_de_alcance(db, respuestas, salida):
@@ -173,3 +173,26 @@ def test_senasa_solo_acepta_gob_ar(db):
         senasa.reemplazar_registro(db, [{"nombre": "x", "registro": "1"}], HOY, URL_PIZARRA)
     with pytest.raises(ValueError):  # un archivo vacío no borra el registro
         senasa.reemplazar_registro(db, [], HOY, URL_SENASA)
+
+
+def test_precio_sin_producto_repregunta(db, respuestas):
+    u = _usuario(db)
+    respuestas["precio"] = {"intencion": "precio", "precio": {}}
+    assert bot.manejar_mensaje(db, u.telefono, "precio", hoy=HOY) == bot.PREGUNTAS["que_producto_precio"]
+
+
+def test_saludo_y_gracias(db, respuestas):
+    u = _usuario(db)
+    respuestas["buen día"] = {"intencion": "saludo"}
+    respuestas["gracias!"] = {"intencion": "saludo", "agradece": True}
+    assert bot.manejar_mensaje(db, u.telefono, "buen día", hoy=HOY) == bot.SALUDO
+    assert bot.manejar_mensaje(db, u.telefono, "gracias!", hoy=HOY) == bot.GRACIAS
+
+
+def test_aclarar_usa_solo_preguntas_fijas(db, respuestas):
+    u = _usuario(db)
+    respuestas["anotá"] = {"intencion": "aclarar", "falta": ["que_paso", "texto libre inventado", "que_paso"]}
+    assert bot.manejar_mensaje(db, u.telefono, "anotá", hoy=HOY) == bot.PREGUNTAS["que_paso"]
+    respuestas["corregí eso"] = {"intencion": "aclarar", "falta": ["cual_registro", "que_cambiar"]}
+    r = bot.manejar_mensaje(db, u.telefono, "corregí eso", hoy=HOY)
+    assert r == bot.PREGUNTAS["cual_registro"] + "\n" + bot.PREGUNTAS["que_cambiar"]

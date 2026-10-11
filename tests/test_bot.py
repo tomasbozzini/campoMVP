@@ -1,7 +1,7 @@
 import hashlib
 import hmac
 import json
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy import create_engine, select
@@ -9,7 +9,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app import bot, config, llm, usuarios, whatsapp
 from app.db import Base
-from app.models import Evento, Usuario
+from app.models import Evento, MensajeChat, Usuario
 
 HOY = date(2026, 10, 9)
 
@@ -28,7 +28,7 @@ def fake_llm(monkeypatch):
     respuestas: dict[str, dict] = {}
     llamadas: list[str] = []
 
-    def interpretar(texto, hoy):
+    def interpretar(texto, hoy, historial=None):
         llamadas.append(texto)
         return respuestas[texto]
 
@@ -498,3 +498,42 @@ def test_reintenta_el_numero_argentino_sin_el_9(monkeypatch):
     whatsapp.enviar_texto("5492494123456", "hola")
     whatsapp.enviar_texto("5492494123456", "chau")
     assert enviados == ["5492494123456", "542494123456", "5492494123456", "542494123456"]
+
+
+def test_la_ia_recibe_la_charla_reciente_solo_del_mismo_usuario(db, monkeypatch):
+    vistos = {}
+    respuestas = {
+        "vacuné 5 vaquillonas": {"intencion": "aclarar", "falta": ["establecimiento"]},
+        "La Pastora": {"intencion": "registrar", "establecimiento": "La Pastora", "eventos": [
+            {"categoria": "sanidad", "tipo": "vacunacion", "cantidad_animales": 5, "categoria_animal": "vaquillonas"}]},
+        "hola": {"intencion": "saludo"},
+    }
+
+    def interpretar(texto, hoy, historial=None):
+        vistos[texto] = historial
+        return respuestas[texto]
+
+    monkeypatch.setattr(llm, "interpretar", interpretar)
+    u = _con_campo(db, "5491100000001")
+    otro = _con_campo(db, "5491100000002")
+    bot.manejar_mensaje(db, otro.telefono, "hola", hoy=HOY)
+
+    assert bot.manejar_mensaje(db, u.telefono, "vacuné 5 vaquillonas", hoy=HOY) == bot.PREGUNTAS["establecimiento"]
+    assert "Anotado en 📍 *La Pastora*" in bot.manejar_mensaje(db, u.telefono, "La Pastora", hoy=HOY)
+    assert vistos["La Pastora"] == [
+        ("usuario", "vacuné 5 vaquillonas"), ("bot", bot.PREGUNTAS["establecimiento"])]
+    assert vistos["vacuné 5 vaquillonas"] == []  # no ve lo que charló el otro usuario
+
+
+def test_la_charla_vieja_no_se_usa_y_no_se_acumula(db, fake_llm):
+    respuestas, _ = fake_llm
+    u = _con_campo(db)
+    respuestas["hola"] = {"intencion": "saludo"}
+    for _ in range(bot.HISTORIAL_MENSAJES + 5):
+        bot.manejar_mensaje(db, u.telefono, "hola", hoy=HOY)
+    assert len(db.scalars(select(MensajeChat)).all()) == bot.HISTORIAL_MENSAJES * 2
+
+    for m in db.scalars(select(MensajeChat)).all():
+        m.creado = datetime.now(timezone.utc) - timedelta(minutes=bot.HISTORIAL_MINUTOS + 1)
+    db.flush()
+    assert bot._historial(db, u) == []

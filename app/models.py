@@ -135,3 +135,19 @@ class ProductoVeterinario(Base):
     fuente: Mapped[str] = mapped_column(String(120))
     url: Mapped[str] = mapped_column(String(300))
     obtenido: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_ahora)
+
+
+class MensajeChat(Base):
+    """Últimos mensajes de cada persona con el bot, para que la IA entienda el contexto
+    ("sí", "esa", "la de ayer", la respuesta a una pregunta del bot).
+
+    Solo se usan los de la misma persona y de los últimos minutos (ver bot.HISTORIAL_*).
+    """
+
+    __tablename__ = "mensajes_chat"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)
+    rol: Mapped[str] = mapped_column(String(10))  # "usuario" | "bot"
+    texto: Mapped[str] = mapped_column(Text)
+    creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_ahora, index=True)

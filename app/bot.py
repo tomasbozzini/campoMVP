@@ -9,14 +9,14 @@ import logging
 import re
 import unicodedata
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app import config, llm, precios, senasa, usuarios
 from app.consultas import buscar, normalizar_lote, totales
-from app.models import Evento, Usuario, UsoDiario
+from app.models import Evento, MensajeChat, Usuario, UsoDiario
 
 log = logging.getLogger(__name__)
 
@@ -114,19 +114,67 @@ def _usuario(db: Session, telefono: str, nombre: str | None) -> Usuario | None:
     return usuario
 
 
+# Contexto de la charla que ve la IA: solo de la misma persona y de los últimos minutos.
+HISTORIAL_MENSAJES = 6
+HISTORIAL_MINUTOS = 30
+HISTORIAL_LARGO = 600  # caracteres por mensaje guardado
+
+SALUDO = "¡Hola! 👋 Contame qué hiciste y lo anoto, o preguntame por lo que tenés anotado. Mandá *ayuda* para ver ejemplos."
+GRACIAS = "¡De nada! 👍"
+
+# Preguntas fijas para cuando falta un dato. La IA elige cuáles faltan; el texto es del código.
+PREGUNTAS = {
+    "que_paso": "¿Qué querés que anote? Contame qué hiciste, por ejemplo: _vacuné 20 vacas en el lote 3_.",
+    "establecimiento": "¿En qué establecimiento fue?",
+    "cual_registro": "¿Cuál de tus registros? Decime el tipo, la fecha, el lote o el campo. Con *¿qué tengo anotado?* ves la lista.",
+    "que_cambiar": "¿Qué querés cambiar de ese registro?",
+    "cantidad": "¿Cuántos animales eran?",
+    "producto": "¿Qué producto usaste?",
+    "fecha": "¿Qué día fue?",
+    "que_producto_precio": "¿De qué grano o categoría de hacienda querés el precio? Por ejemplo: _soja_, _novillo_.",
+}
+
+
 def manejar_mensaje(
     db: Session, telefono: str, texto: str, nombre: str | None = None, hoy: date | None = None
 ) -> str:
-    hoy = hoy or _hoy()
     texto = texto.strip()
     usuario = _usuario(db, telefono, nombre)
     if usuario is None:
         return NO_AUTORIZADO
-    comando = texto.lower()
+    respuesta = _responder(db, usuario, telefono, texto, hoy or _hoy())
+    _guardar_charla(db, usuario, texto, respuesta)
+    return respuesta
 
+
+def _historial(db: Session, usuario: Usuario) -> list[tuple[str, str]]:
+    desde = datetime.now(timezone.utc) - timedelta(minutes=HISTORIAL_MINUTOS)
+    filas = db.scalars(
+        select(MensajeChat)
+        .where(MensajeChat.usuario_id == usuario.id, MensajeChat.creado >= desde)
+        .order_by(MensajeChat.id.desc()).limit(HISTORIAL_MENSAJES)
+    ).all()
+    return [(f.rol, f.texto) for f in reversed(filas)]
+
+
+def _guardar_charla(db: Session, usuario: Usuario, texto: str, respuesta: str) -> None:
+    db.add(MensajeChat(usuario_id=usuario.id, rol="usuario", texto=texto[:HISTORIAL_LARGO]))
+    db.add(MensajeChat(usuario_id=usuario.id, rol="bot", texto=respuesta[:HISTORIAL_LARGO]))
+    # No hace falta guardar más que lo que se usa como contexto.
+    viejos = db.scalars(
+        select(MensajeChat.id).where(MensajeChat.usuario_id == usuario.id)
+        .order_by(MensajeChat.id.desc()).offset(HISTORIAL_MENSAJES * 2)
+    ).all()
+    if viejos:
+        db.execute(delete(MensajeChat).where(MensajeChat.id.in_(viejos)))
+    db.flush()
+
+
+def _responder(db: Session, usuario: Usuario, telefono: str, texto: str, hoy: date) -> str:
+    comando = texto.lower().strip(" !.¡")
     if es_admin(telefono) and (respuesta := _comando_admin(db, texto)):
         return respuesta
-    if comando in ("ayuda", "help", "menu", "menú", "hola"):
+    if comando in ("ayuda", "help", "menu", "menú"):
         return AYUDA + (AYUDA_ADMIN if es_admin(telefono) else "")
     if comando in ("borrar", "deshacer"):
         return _borrar_ultimo(db, usuario)
@@ -137,7 +185,7 @@ def manejar_mensaje(
         return "Llegaste al límite de mensajes por hoy. Mañana podés seguir."
 
     try:
-        interpretado = llm.interpretar(texto, hoy)
+        interpretado = llm.interpretar(texto, hoy, _historial(db, usuario))
     except Exception:
         log.exception("Error interpretando mensaje")
         return "Uy, no pude procesar el mensaje. Probá de nuevo en un ratito."
@@ -145,10 +193,15 @@ def manejar_mensaje(
         return FUERA_DE_ALCANCE
 
     # La IA solo clasifica. Ningún texto escrito por ella llega al usuario: todas las
-    # respuestas se arman acá con datos de la base, así no puede recomendar, inventar
-    # ni usarse como chat de uso general.
+    # respuestas se arman acá con datos de la base y textos fijos, así no puede
+    # recomendar, inventar ni usarse como chat de uso general.
     intencion = interpretado.get("intencion")
     establecimiento = _texto(interpretado.get("establecimiento"), 120)
+    if intencion == "saludo":
+        return GRACIAS if interpretado.get("agradece") is True else SALUDO
+    if intencion == "aclarar":
+        faltan = [PREGUNTAS[f] for f in interpretado.get("falta") or [] if f in PREGUNTAS]
+        return "\n".join(dict.fromkeys(faltan)) or PREGUNTAS["que_paso"]
     if intencion == "establecimiento" and establecimiento:
         usuario.establecimiento_actual = establecimiento
         return f"📍 Listo. Lo próximo que anotes lo guardo en *{establecimiento}*."
@@ -165,12 +218,12 @@ def manejar_mensaje(
         rubro = pedido.get("rubro") if pedido.get("rubro") in ("granos", "hacienda") else None
         producto = _texto(pedido.get("producto"), 40)
         if not producto and not rubro:
-            return FUERA_DE_ALCANCE
+            return PREGUNTAS["que_producto_precio"]
         return precios.responder(db, producto, rubro, hoy)
     if intencion == "producto_veterinario" and isinstance(interpretado.get("producto_veterinario"), dict):
         nombre_producto = _texto(interpretado["producto_veterinario"].get("nombre"), 80)
         if not nombre_producto:
-            return FUERA_DE_ALCANCE
+            return "¿Qué producto querés verificar en SENASA? Decime el nombre comercial o el principio activo."
         return senasa.responder(db, nombre_producto)
     return FUERA_DE_ALCANCE
 

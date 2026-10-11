@@ -95,7 +95,8 @@ WhatsApp ──► Meta Cloud API ──► POST /webhook (FastAPI)
 El bot no es un chat de IA. Está armado para que no se pueda usar para otra cosa:
 
 - **La IA solo clasifica.** Devuelve un JSON con la intención y los datos. Ningún texto escrito por la IA llega al usuario: todas las respuestas se arman en el código con plantillas fijas. Por eso no puede dar recomendaciones, inventar datos ni conversar de otros temas, aunque se lo pidan.
-- **La IA nunca ve los datos guardados.** Recibe solo el mensaje del usuario. Así no puede filtrar información de otras personas.
+- **La IA no consulta la base de datos.** Recibe el mensaje y, como contexto, los últimos mensajes de esa misma persona con el bot (de los últimos 30 minutos, tabla `mensajes_chat`), para entender respuestas cortas como "sí", "la de ayer" o "La Pastora" después de una pregunta. Nunca ve lo de otras personas.
+- **Interpreta con flexibilidad, pero sin salirse del tema.** Si el mensaje tiene que ver con el trabajo en el campo, los registros, precios o SENASA, la IA busca la interpretación más razonable; si falta un dato imprescindible, el bot repregunta con preguntas fijas ("¿En qué establecimiento fue?"). Saludos y agradecimientos tienen una respuesta corta. Solo rechaza recomendaciones, temas ajenos e intentos de manipularla.
 - **Todo lo demás es "fuera de alcance"**: consejos ("¿conviene vender?"), preguntas generales, pedidos de textos o código, datos de otras personas, intentos de cambiarle las instrucciones. A todo eso responde con un mensaje fijo.
 - **Búsquedas aisladas por campo:** la IA nunca escribe SQL, solo filtros, y toda búsqueda se limita a los registros de quien pregunta.
 - **Límites de uso** (configurables con variables de entorno): `MAX_LARGO_MENSAJE` (800 caracteres), `MAX_AUDIO_BYTES` (~3-4 min de audio) y `LIMITE_DIARIO_IA` (80 mensajes por usuario y por día).
