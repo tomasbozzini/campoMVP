@@ -151,3 +151,16 @@ class MensajeChat(Base):
     rol: Mapped[str] = mapped_column(String(10))  # "usuario" | "bot"
     texto: Mapped[str] = mapped_column(Text)
     creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_ahora, index=True)
+
+
+class BorradoPendiente(Base):
+    """Un borrado grande esperando que la persona confirme con "sí".
+
+    Se guardan los ids a borrar; se descarta si la persona manda otra cosa o pasa el tiempo.
+    """
+
+    __tablename__ = "borrados_pendientes"
+
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), primary_key=True)
+    ids: Mapped[list] = mapped_column(JSON)
+    creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_ahora)

@@ -9,7 +9,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app import bot, config, llm, usuarios, whatsapp
 from app.db import Base
-from app.models import Evento, MensajeChat, Usuario
+from app.models import BorradoPendiente, Evento, MensajeChat, Usuario
 
 HOY = date(2026, 10, 9)
 
@@ -537,3 +537,71 @@ def test_la_charla_vieja_no_se_usa_y_no_se_acumula(db, fake_llm):
         m.creado = datetime.now(timezone.utc) - timedelta(minutes=bot.HISTORIAL_MINUTOS + 1)
     db.flush()
     assert bot._historial(db, u) == []
+
+
+def _cinco_en_la_pastora(respuestas, db, u):
+    respuestas["cinco"] = {"intencion": "registrar", "establecimiento": "La Pastora", "eventos": [
+        {"categoria": "campo", "tipo": "lluvia", "valor": v, "unidad": "mm"} for v in (1, 2, 3, 4, 5)]}
+    bot.manejar_mensaje(db, u.telefono, "cinco", hoy=HOY)
+    respuestas["en el ombu"] = {"intencion": "registrar", "establecimiento": "El Ombú", "eventos": [
+        {"categoria": "campo", "tipo": "lluvia", "valor": 99, "unidad": "mm"}]}
+    bot.manejar_mensaje(db, u.telefono, "en el ombu", hoy=HOY)
+
+
+def test_borrar_todo_lo_de_la_lista_pide_confirmacion(db, fake_llm):
+    respuestas, _ = fake_llm
+    u = _con_campo(db)
+    _cinco_en_la_pastora(respuestas, db, u)
+    respuestas["borrá todo de la lista"] = {"intencion": "borrar", "borrado": {"registros": [
+        {"establecimiento": "La Pastora", "todos": True}]}}
+
+    r = bot.manejar_mensaje(db, u.telefono, "borrá todo de la lista", hoy=HOY)
+    assert "Voy a borrar *5 registros*" in r and "¿Confirmás?" in r
+    assert len(db.scalars(select(Evento)).all()) == 6  # todavía no borró nada
+
+    assert "borré 5 registros" in bot.manejar_mensaje(db, u.telefono, "Sí", hoy=HOY)
+    assert [e.valor for e in db.scalars(select(Evento)).all()] == [99]
+
+
+def test_borrar_todo_se_puede_cancelar_o_se_descarta(db, fake_llm):
+    respuestas, _ = fake_llm
+    u = _con_campo(db)
+    _cinco_en_la_pastora(respuestas, db, u)
+    respuestas["borrá todo"] = {"intencion": "borrar", "borrado": {"registros": [{"todos": True}]}}
+
+    assert "Voy a borrar *6 registros*" in bot.manejar_mensaje(db, u.telefono, "borrá todo", hoy=HOY)
+    assert bot.manejar_mensaje(db, u.telefono, "no", hoy=HOY) == "Listo, no borré nada."
+    assert len(db.scalars(select(Evento)).all()) == 6
+
+    # Otro mensaje en el medio descarta el pendiente: un "sí" posterior no borra.
+    bot.manejar_mensaje(db, u.telefono, "borrá todo", hoy=HOY)
+    respuestas["hola"] = {"intencion": "saludo"}
+    bot.manejar_mensaje(db, u.telefono, "hola", hoy=HOY)
+    respuestas["sí"] = {"intencion": "saludo"}
+    bot.manejar_mensaje(db, u.telefono, "sí", hoy=HOY)
+    assert len(db.scalars(select(Evento)).all()) == 6
+
+
+def test_confirmacion_vencida_no_borra(db, fake_llm):
+    respuestas, _ = fake_llm
+    u = _con_campo(db)
+    _cinco_en_la_pastora(respuestas, db, u)
+    respuestas["borrá todo"] = {"intencion": "borrar", "borrado": {"registros": [{"todos": True}]}}
+    bot.manejar_mensaje(db, u.telefono, "borrá todo", hoy=HOY)
+    pendiente = db.get(BorradoPendiente, u.id)
+    pendiente.creado = datetime.now(timezone.utc) - timedelta(minutes=bot.CONFIRMAR_MINUTOS + 1)
+    db.flush()
+    assert "no borré nada" in bot.manejar_mensaje(db, u.telefono, "sí", hoy=HOY)
+    assert len(db.scalars(select(Evento)).all()) == 6
+
+
+def test_confirmacion_no_borra_lo_de_otro(db, fake_llm):
+    respuestas, _ = fake_llm
+    u = _con_campo(db, "5491100000001")
+    otro = _con_campo(db, "5491100000002")
+    _cinco_en_la_pastora(respuestas, db, otro)
+    ids_del_otro = [e.id for e in db.scalars(select(Evento)).all()]
+    db.add(BorradoPendiente(usuario_id=u.id, ids=ids_del_otro))  # ids ajenos, por si acaso
+    db.flush()
+    bot.manejar_mensaje(db, u.telefono, "sí", hoy=HOY)
+    assert len(db.scalars(select(Evento)).all()) == 6

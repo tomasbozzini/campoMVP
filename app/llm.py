@@ -131,6 +131,10 @@ BORRADO:
 REFERENCIA: mismas claves que EVENTO (solo las que menciona para identificarlo) más
   "establecimiento" y "todos": true SOLO si pide explícitamente borrar todos los que coincidan.
   Si una frase aplica a varias cosas ("ambos del campo La Pastora"), repetí ese dato en cada una.
+  Si dice "todo lo de la lista", "todo eso", "borralos" después de que el sistema le mostró una
+  lista, usá UNA referencia con los mismos filtros de esa consulta (establecimiento, tipo, fechas
+  como "desde"/"hasta"...) y "todos": true.
+  Si pide borrar TODO lo que tiene anotado, sin ninguna lista ni filtro: [{{"todos": true}}].
   Ej: "borrá las 5 vaquillonas y la cosecha del lote 5, ambos de La Pastora" ->
   [{{"cantidad_animales": 5, "categoria_animal": "vaquillonas", "establecimiento": "La Pastora"}},
    {{"tipo": "cosecha", "lote": "5", "establecimiento": "La Pastora"}}]

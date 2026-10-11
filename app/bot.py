@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from app import config, llm, precios, senasa, usuarios
 from app.consultas import buscar, normalizar_lote, totales
-from app.models import Evento, MensajeChat, Usuario, UsoDiario
+from app.models import BorradoPendiente, Evento, MensajeChat, Usuario, UsoDiario
 
 log = logging.getLogger(__name__)
 
@@ -172,6 +172,8 @@ def _guardar_charla(db: Session, usuario: Usuario, texto: str, respuesta: str) -
 
 def _responder(db: Session, usuario: Usuario, telefono: str, texto: str, hoy: date) -> str:
     comando = texto.lower().strip(" !.¡")
+    if (respuesta := _resolver_borrado_pendiente(db, usuario, comando)) is not None:
+        return respuesta
     if es_admin(telefono) and (respuesta := _comando_admin(db, texto)):
         return respuesta
     if comando in ("ayuda", "help", "menu", "menú"):
@@ -476,6 +478,13 @@ def _coincide(e: Evento, referencia: dict) -> bool:
         elif clave == "categoria":
             if e.categoria != texto:
                 return False
+        elif clave in ("desde", "hasta"):
+            try:
+                limite = date.fromisoformat(texto)
+            except ValueError:
+                continue
+            if (clave == "desde" and e.fecha_evento < limite) or (clave == "hasta" and e.fecha_evento > limite):
+                return False
         elif clave == "fecha_evento":
             try:
                 if e.fecha_evento != date.fromisoformat(texto):
@@ -540,16 +549,24 @@ _CORREGIBLES = {
 
 
 # Cuántos registros se revisan para encontrar lo que se quiere borrar.
-BORRADO_ULTIMOS = 500
+BORRADO_ULTIMOS = 5000
 MAX_REFERENCIAS_BORRADO = 10
 
 
+# Más de esta cantidad de registros de una vez pide confirmación con "sí".
+CONFIRMAR_DESDE = 4
+CONFIRMAR_MINUTOS = 10
+SI = {"si", "sí", "dale", "confirmo", "confirmar", "ok", "si, borralos", "sí, borralos", "si borralos", "sí borralos"}
+NO = {"no", "cancelar", "cancela", "cancelá", "no, cancelar"}
+
+
 def _borrar(db: Session, usuario: Usuario, borrado: dict) -> str:
-    """Borra registros puntuales que la persona describe ("la lluvia de La Pastora").
+    """Borra registros que la persona describe ("la lluvia de La Pastora", "todo lo de la lista").
 
     Cada descripción tiene que señalar UN solo registro. Si coincide con varios, no se
     borra nada de esa descripción y se muestran las opciones para que precise, salvo
     que haya pedido explícitamente borrar todos ("todas las lluvias de La Pastora").
+    Si en total se van a borrar muchos registros, se pide confirmación antes.
     """
     referencias = borrado.get("registros")
     if not isinstance(referencias, list) or not referencias:
@@ -566,12 +583,14 @@ def _borrar(db: Session, usuario: Usuario, borrado: dict) -> str:
             continue
         todos = ref.get("todos") is True
         filtro = {k: v for k, v in ref.items() if k != "todos"}
-        if not any(v not in (None, "") for v in filtro.values()):
+        hay_filtro = any(v not in (None, "") for v in filtro.values())
+        if not hay_filtro and not todos:
             avisos.append("Una de las cosas que pediste borrar no la pude identificar.")
             continue
-        coinciden = [e for e in recientes if _coincide(e, filtro)]
+        # Sin filtro y con "todos": es todo el cuaderno (siempre pide confirmación).
+        coinciden = [e for e in recientes if _coincide(e, filtro)] if hay_filtro else list(recientes)
         if not coinciden:
-            avisos.append(f"No encontré: {_describir(filtro)}.")
+            avisos.append(f"No encontré: {_describir(filtro)}." if hay_filtro else "No tenés nada anotado.")
         elif len(coinciden) > 1 and not todos:
             opciones = "\n".join(f"   • {_linea(e)}" for e in coinciden[:8])
             mas = f"\n   _...y {len(coinciden) - 8} más_" if len(coinciden) > 8 else ""
@@ -584,7 +603,15 @@ def _borrar(db: Session, usuario: Usuario, borrado: dict) -> str:
             a_borrar.update({e.id: e for e in coinciden})
 
     lineas = []
-    if a_borrar:
+    if len(a_borrar) >= CONFIRMAR_DESDE:
+        db.merge(BorradoPendiente(usuario_id=usuario.id, ids=list(a_borrar), creado=datetime.now(timezone.utc)))
+        lista = list(a_borrar.values())
+        lineas.append(f"⚠️ Voy a borrar *{len(lista)} registros*:")
+        lineas += [f"• {_linea(e)}" for e in lista[:10]]
+        if len(lista) > 10:
+            lineas.append(f"_...y {len(lista) - 10} más_")
+        lineas.append("\n¿Confirmás? Respondé *sí* para borrarlos o *no* para cancelar. Esto no se puede deshacer.")
+    elif a_borrar:
         lineas.append("🗑️ Borré:")
         lineas += [f"• {_linea(e)}" for e in a_borrar.values()]
         db.execute(delete(Evento).where(Evento.id.in_(list(a_borrar)), Evento.usuario_id == usuario.id))
@@ -593,6 +620,28 @@ def _borrar(db: Session, usuario: Usuario, borrado: dict) -> str:
             lineas.append("")
         lineas += avisos
     return "\n".join(lineas) or "No entendí qué querés borrar."
+
+
+def _resolver_borrado_pendiente(db: Session, usuario: Usuario, comando: str) -> str | None:
+    """Si hay un borrado esperando confirmación: "sí" lo hace, "no" lo cancela, y
+    cualquier otro mensaje lo descarta (y sigue el flujo normal)."""
+    pendiente = db.get(BorradoPendiente, usuario.id)
+    if pendiente is None:
+        return None
+    db.delete(pendiente)
+    db.flush()
+    creado = pendiente.creado if pendiente.creado.tzinfo else pendiente.creado.replace(tzinfo=timezone.utc)
+    vigente = datetime.now(timezone.utc) - creado <= timedelta(minutes=CONFIRMAR_MINUTOS)
+    if comando in NO:
+        return "Listo, no borré nada."
+    if comando not in SI:
+        return None
+    if not vigente:
+        return "Pasó mucho tiempo desde que lo pediste y no borré nada. Si querés, pedilo de nuevo."
+    resultado = db.execute(
+        delete(Evento).where(Evento.id.in_(pendiente.ids), Evento.usuario_id == usuario.id)
+    )
+    return f"🗑️ Listo, borré {resultado.rowcount} registros."
 
 
 def _linea(e: Evento) -> str:
