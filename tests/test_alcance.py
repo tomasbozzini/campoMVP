@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
-from app import bot, config, llm, precios
+from app import bot, config, llm, precios, senasa
 from app.db import Base
 from app.models import Cotizacion, Usuario
 
@@ -77,9 +77,9 @@ def test_usuario_sin_campo_no_usa_la_ia(db, respuestas):
     assert not bot.puede_usar_ia(db, "5491100000009")
 
 
-def _cargar_soja(db, fecha=date(2026, 10, 8), valor=310000):
+def _cargar_soja(db, fecha=date(2026, 10, 8), valor=310000, **extra):
     precios.guardar(db, FUENTE, URL_PIZARRA, "granos", [
-        {"producto": "Soja", "plaza": "Rosario", "valor": valor, "unidad": "$/t", "fecha": fecha},
+        {"producto": "Soja", "plaza": "Rosario", "valor": valor, "unidad": "t", "fecha": fecha, **extra},
     ])
 
 
@@ -90,16 +90,29 @@ def test_precio_con_fuente_y_fecha(db, respuestas):
     respuestas["¿a cuánto está la soja?"] = {"intencion": "precio", "precio": {"rubro": "granos", "producto": "soja"}}
 
     r = bot.manejar_mensaje(db, u.telefono, "¿a cuánto está la soja?", hoy=HOY)
-    assert "Soja (Rosario): *310.000 $/t* · 08/10/2026" in r
+    assert "Soja (Rosario): *$ 310.000 por t* (ARS)" in r
+    assert "Publicado el 08/10/2026" in r
+    assert "La fuente no informa si incluye impuestos u otros costos." in r
     assert "300.000" not in r  # solo el último
     assert f"Fuente: {FUENTE}" in r and URL_PIZARRA in r
     assert "No son una recomendación" in r
-    assert "no actualizado" not in r
+    assert "puede no estar actualizado" not in r
 
 
 def test_precio_viejo_avisa(db):
     _cargar_soja(db, date(2026, 9, 1))
-    assert "dato no actualizado" in precios.responder(db, "soja", None, HOY)
+    assert "dato de hace 38 días, puede no estar actualizado" in precios.responder(db, "soja", None, HOY)
+
+
+def test_precio_aclara_costos_adicionales(db):
+    _cargar_soja(db, incluye_impuestos="no", costos_adicionales="Precio orientativo, sin gastos comerciales")
+    r = precios.responder(db, "soja", None, HOY)
+    assert "No incluye impuestos (IVA). Precio orientativo, sin gastos comerciales." in r
+
+
+def test_moneda_desconocida_se_rechaza(db):
+    with pytest.raises(ValueError):
+        _cargar_soja(db, moneda="EUR")
 
 
 def test_sin_precio_no_inventa(db, respuestas):
@@ -112,7 +125,7 @@ def test_sin_precio_no_inventa(db, respuestas):
 def test_solo_acepta_fuentes_oficiales(db):
     for url in ("https://www.preciosdelcampo.com/soja", "http://www.bcr.com.ar/x", "https://bcr.com.ar.trucho.com/x"):
         with pytest.raises(ValueError):
-            precios.guardar(db, "Otra", url, "granos", [{"producto": "soja", "valor": 1, "unidad": "$/t", "fecha": HOY}])
+            precios.guardar(db, "Otra", url, "granos", [{"producto": "soja", "valor": 1, "unidad": "t", "fecha": HOY}])
     assert precios.es_oficial("https://www.magyp.gob.ar/precios")
     assert precios.es_oficial(URL_PIZARRA)
     assert db.scalar(select(Cotizacion)) is None
@@ -123,3 +136,41 @@ def test_guardar_precio_dos_veces_no_duplica(db):
     _cargar_soja(db, valor=310000)
     filas = db.scalars(select(Cotizacion)).all()
     assert len(filas) == 1 and filas[0].valor == 310000 and filas[0].producto == "soja"
+
+
+URL_SENASA = "https://www.argentina.gob.ar/senasa/registro-productos-veterinarios"
+
+
+def _cargar_senasa(db):
+    senasa.reemplazar_registro(db, [
+        {"nombre": "Ivomec 1%", "registro": "12.345", "titular": "Lab Uno SA",
+         "principio_activo": "Ivermectina", "estado": "Vigente"},
+        {"nombre": "Bioaftógen", "registro": "98.765", "titular": "Lab Dos SA",
+         "principio_activo": "Virus aftosa inactivado", "estado": "Vigente"},
+    ], date(2026, 10, 1), URL_SENASA)
+
+
+def test_senasa_por_principio_activo(db, respuestas):
+    u = _usuario(db)
+    _cargar_senasa(db)
+    respuestas["¿la ivermectina está aprobada?"] = {
+        "intencion": "producto_veterinario", "producto_veterinario": {"nombre": "IVERMECTINA"}}
+    r = bot.manejar_mensaje(db, u.telefono, "¿la ivermectina está aprobada?", hoy=HOY)
+    assert "*Ivomec 1%*" in r and "Registro SENASA N° 12.345" in r and "Titular: Lab Uno SA" in r
+    assert "Estado: vigente" in r
+    assert "datos al 01/10/2026" in r and URL_SENASA in r
+    assert "$" not in r  # nunca precios
+
+
+def test_senasa_sin_tildes_y_sin_resultados(db):
+    _cargar_senasa(db)
+    assert "Bioaftógen" in senasa.responder(db, "bioaftogen")
+    r = senasa.responder(db, "productoinexistente")
+    assert "No encontré ese producto" in r and "no confirma que no esté registrado" in r
+
+
+def test_senasa_solo_acepta_gob_ar(db):
+    with pytest.raises(ValueError):
+        senasa.reemplazar_registro(db, [{"nombre": "x", "registro": "1"}], HOY, URL_PIZARRA)
+    with pytest.raises(ValueError):  # un archivo vacío no borra el registro
+        senasa.reemplazar_registro(db, [], HOY, URL_SENASA)

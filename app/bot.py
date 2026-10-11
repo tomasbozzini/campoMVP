@@ -9,7 +9,7 @@ from datetime import date, datetime
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app import config, llm, precios
+from app import config, llm, precios, senasa
 from app.consultas import buscar, normalizar_lote, totales
 from app.models import Campo, Evento, Usuario, UsoDiario
 
@@ -30,9 +30,12 @@ Preguntame por lo que anotaron:
 • _¿Qué se le hizo al lote 3?_
 • _¿Cuánto llovió en septiembre?_
 
-Y precios de referencia de fuentes oficiales:
+Precios de referencia de fuentes oficiales:
 • _¿A cuánto está la soja?_
 • _Precio del novillo_
+
+Y si un producto veterinario está registrado en SENASA:
+• _¿La ivermectina está aprobada por SENASA?_
 
 También podés mandar audios 🎤
 
@@ -50,9 +53,10 @@ Para empezar:
 FUERA_DE_ALCANCE = """Eso no lo puedo responder. Solo puedo:
 • Anotar lo que pasa en tu campo
 • Responder sobre lo que ustedes registraron
-• Mostrar precios de referencia de fuentes oficiales
+• Mostrar precios de referencia de granos y hacienda de fuentes oficiales
+• Verificar si un producto veterinario está registrado en SENASA
 
-No doy recomendaciones ni respondo otros temas. Mandá *ayuda* para ver ejemplos."""
+No doy recomendaciones, indicaciones de uso ni precios de medicamentos, y no respondo otros temas. Mandá *ayuda* para ver ejemplos."""
 
 _ALFABETO_CODIGO = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # sin 0/O ni 1/I para no confundir
 
@@ -133,6 +137,11 @@ def manejar_mensaje(
         if not producto and not rubro:
             return FUERA_DE_ALCANCE
         return precios.responder(db, producto, rubro, hoy)
+    if intencion == "producto_veterinario" and isinstance(interpretado.get("producto_veterinario"), dict):
+        nombre = _texto(interpretado["producto_veterinario"].get("nombre"), 80)
+        if not nombre:
+            return FUERA_DE_ALCANCE
+        return senasa.responder(db, nombre)
     return FUERA_DE_ALCANCE
 
 

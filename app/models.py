@@ -1,6 +1,6 @@
 from datetime import date, datetime, timezone
 
-from sqlalchemy import JSON, Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -98,8 +98,13 @@ class Cotizacion(Base):
     producto: Mapped[str] = mapped_column(String(40), index=True)  # soja, maiz, novillo...
     plaza: Mapped[str | None] = mapped_column(String(60))  # Rosario, Cañuelas...
     valor: Mapped[float] = mapped_column(Float)
-    unidad: Mapped[str] = mapped_column(String(20))  # "$/t", "US$/t", "$/kg vivo"
-    fecha: Mapped[date] = mapped_column(Date, index=True)  # fecha que informa la fuente
+    moneda: Mapped[str] = mapped_column(String(3), default="ARS")  # ARS | USD, tal como publica la fuente
+    unidad: Mapped[str] = mapped_column(String(20))  # "t", "kg vivo"
+    fecha: Mapped[date] = mapped_column(Date, index=True)  # fecha de publicación que informa la fuente
+    # Si el precio incluye impuestos (IVA). None = la fuente no lo informa.
+    incluye_impuestos: Mapped[bool | None] = mapped_column(Boolean)
+    # Costos adicionales que aclara la fuente: "No incluye comisión ni flete", etc.
+    costos_adicionales: Mapped[str | None] = mapped_column(String(300))
     fuente: Mapped[str] = mapped_column(String(120))
     url: Mapped[str] = mapped_column(String(300))
     obtenido: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_ahora)
@@ -115,3 +120,26 @@ class UsoDiario(Base):
     usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)
     fecha: Mapped[date] = mapped_column(Date)
     cantidad: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class ProductoVeterinario(Base):
+    """Un producto del registro oficial de SENASA (Vademécum de Productos Veterinarios).
+
+    Sirve solo para verificar si un producto está aprobado para comercializarse. No se
+    guardan precios ni indicaciones de uso.
+    """
+
+    __tablename__ = "productos_veterinarios"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    nombre: Mapped[str] = mapped_column(String(200), index=True)  # nombre comercial
+    nombre_busqueda: Mapped[str] = mapped_column(String(200), index=True)  # minúscula y sin tildes
+    registro: Mapped[str] = mapped_column(String(40))  # número de registro SENASA
+    titular: Mapped[str | None] = mapped_column(String(200))  # laboratorio / empresa titular
+    principio_activo: Mapped[str | None] = mapped_column(String(300))
+    principio_busqueda: Mapped[str | None] = mapped_column(String(300))
+    estado: Mapped[str | None] = mapped_column(String(40))  # vigente, vencido, suspendido... (como lo publica SENASA)
+    fecha_datos: Mapped[date] = mapped_column(Date)  # fecha de los datos según la fuente
+    fuente: Mapped[str] = mapped_column(String(120))
+    url: Mapped[str] = mapped_column(String(300))
+    obtenido: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_ahora)

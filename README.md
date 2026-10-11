@@ -14,7 +14,9 @@ bot> 📋 *2 registros*
      • Vacunación (aftosa) · 15 vacas · lote 5 · 02/10/2026
 
 vos> ¿A cuánto está la soja?
-bot> • Soja (Rosario): *310.000 $/t* · 08/10/2026
+bot> • Soja (Rosario): *$ 310.000 por t* (ARS)
+       Publicado el 08/10/2026
+       No incluye impuestos (IVA). Precio orientativo, sin gastos comerciales.
      Fuente: Cámara Arbitral de Cereales - Bolsa de Comercio de Rosario
      https://www.cac.bcr.com.ar/es/precios-de-pizarra
 
@@ -26,7 +28,8 @@ bot> Eso no lo puedo responder. Solo puedo: ...
 
 - **Registra eventos** de sanidad (vacunación, desparasitación, tratamientos), movimientos de hacienda (nacimientos, muertes, compras, ventas, traslados), pesadas, reproducción (tacto, servicio, destete) y del campo (lluvias, siembra, fumigación). Un mensaje puede traer varios eventos.
 - **Responde preguntas** sobre lo registrado. Los totales los calcula el código, no la IA, para que las sumas den bien.
-- **Informa precios de referencia** de fuentes oficiales y mercados regulados, siempre con la fuente, la fecha y el link.
+- **Informa precios de referencia** de granos y hacienda de fuentes oficiales y mercados regulados, siempre con la fuente, la fecha de publicación, la moneda, si incluye impuestos u otros costos, y el link.
+- **Verifica productos veterinarios en SENASA**: si un producto figura en el registro, con número, titular y estado. **No** informa precios de medicamentos ni de instrumental, ni dosis o indicaciones.
 - **Entiende audios**: los transcribe con Whisper en Groq.
 - **Maneja varios campos y varios usuarios**: cada campo tiene sus datos y un código de invitación.
   - `crear campo La Esperanza`: crea el campo y te deja como admin.
@@ -59,8 +62,9 @@ WhatsApp ──► Meta Cloud API ──► POST /webhook (FastAPI)
 | `app/bot.py` | Lógica del asistente: comandos, registrar, consultar, borrar |
 | `app/llm.py` | Prompt del clasificador y llamadas a Groq (interpretar, transcribir) |
 | `app/precios.py` | Fuentes oficiales de precios, carga y respuesta con fuente y fecha |
+| `app/senasa.py` | Registro de productos veterinarios de SENASA: carga y verificación |
 | `app/consultas.py` | Búsqueda con filtros y totales precalculados |
-| `app/models.py` | Tablas: `campos`, `usuarios`, `eventos`, `cotizaciones`, `uso_diario`, `mensajes_procesados` |
+| `app/models.py` | Tablas: `campos`, `usuarios`, `eventos`, `cotizaciones`, `productos_veterinarios`, `uso_diario`, `mensajes_procesados` |
 | `app/whatsapp.py` | Envío de mensajes y descarga de audios desde Meta |
 | `app/cli.py` | Chat por terminal para probar sin WhatsApp |
 
@@ -84,13 +88,29 @@ Solo se aceptan links `https` de dominios oficiales o de mercados regulados (`DO
 
 ```bash
 python -m app.precios actualizar        # corre todas las fuentes de FUENTES
-python -m app.precios cargar precios.csv # carga manual: fuente,url,rubro,producto,plaza,valor,unidad,fecha
+python -m app.precios cargar precios.csv # carga manual (columnas abajo)
 python -m app.precios ver soja          # muestra lo que respondería el bot
 ```
+
+Columnas del CSV: `fuente,url,rubro,producto,plaza,valor,moneda,unidad,fecha,incluye_impuestos,costos_adicionales`.
+`moneda` es `ARS` (por defecto) o `USD`, tal como publica la fuente: el bot no convierte monedas. `fecha` es la fecha de publicación que informa la fuente. `incluye_impuestos` es `si`, `no` o vacío; si está vacío y no hay `costos_adicionales`, el bot aclara que la fuente no lo informa.
 
 En Railway, `actualizar` se programa como **Cron Job** (por ejemplo, de lunes a viernes a las 18:30).
 
 > **Pendiente:** todavía no hay lectores de fuentes registrados (`FUENTES` está vacía). Cada lector se escribe y se prueba contra la página real de la fuente; el docstring de `app/precios.py` tiene un ejemplo.
+
+## Productos veterinarios (SENASA)
+
+El bot solo verifica si un producto está en el **registro oficial de SENASA** (Vademécum de Productos Veterinarios): número de registro, titular, principio activo y estado, con la fecha de los datos y el link. No informa precios, dosis ni indicaciones. Si un producto no aparece, lo aclara y no lo da por "no registrado".
+
+```bash
+python -m app.senasa cargar registro.csv --fecha 2026-10-10 --url https://www.argentina.gob.ar/senasa/...
+python -m app.senasa ver ivermectina
+```
+
+Columnas del CSV: `nombre,registro,titular,principio_activo,estado`. Cada carga reemplaza el registro entero. Solo acepta links `https` de `*.gob.ar`.
+
+> **Pendiente:** falta automatizar la descarga del Vademécum de SENASA (hay que revisar qué formato ofrece la consulta pública).
 
 ## Probarlo en tu compu
 

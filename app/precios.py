@@ -21,7 +21,9 @@ Para agregar una fuente:
             html = cliente.get(self.url).text
             ...  # leer la tabla
             return [{"producto": "soja", "plaza": "Rosario", "valor": 300000,
-                     "unidad": "$/t", "fecha": date(2026, 10, 9)}]
+                     "moneda": "ARS", "unidad": "t", "fecha": date(2026, 10, 9),
+                     "incluye_impuestos": False,
+                     "costos_adicionales": "Precio orientativo, sin IVA ni gastos comerciales"}]
 
     FUENTES.append(PizarraRosario())
 """
@@ -87,6 +89,28 @@ class Fuente:
 FUENTES: list[Fuente] = []
 
 
+MONEDAS = {"ARS": "$", "USD": "US$"}
+
+
+def _moneda(valor) -> str:
+    moneda = str(valor or "ARS").strip().upper()
+    if moneda not in MONEDAS:
+        raise ValueError(f"Moneda no soportada: {valor}")
+    return moneda
+
+
+def _si_no(valor) -> bool | None:
+    """True/False si la fuente lo informa; None si no dice nada."""
+    if isinstance(valor, bool) or valor is None:
+        return valor
+    texto = str(valor).strip().lower()
+    if texto in ("si", "sí", "true", "1"):
+        return True
+    if texto in ("no", "false", "0"):
+        return False
+    return None
+
+
 def guardar(db: Session, fuente: str, url: str, rubro: str, precios: list[dict]) -> int:
     if not es_oficial(url):
         raise ValueError(f"La URL {url} no es de una fuente oficial habilitada")
@@ -114,7 +138,10 @@ def guardar(db: Session, fuente: str, url: str, rubro: str, precios: list[dict])
             db.add(existente)
         existente.rubro = rubro
         existente.valor = valor
+        existente.moneda = _moneda(p.get("moneda"))
         existente.unidad = str(p["unidad"]).strip()
+        existente.incluye_impuestos = _si_no(p.get("incluye_impuestos"))
+        existente.costos_adicionales = (str(p.get("costos_adicionales") or "").strip() or None)
         existente.url = url
         guardados += 1
     db.flush()
@@ -167,6 +194,31 @@ def _numero(valor: float) -> str:
     return texto.removesuffix(",00")
 
 
+def _costos(c: Cotizacion) -> str:
+    partes = []
+    if c.incluye_impuestos is True:
+        partes.append("Incluye impuestos.")
+    elif c.incluye_impuestos is False:
+        partes.append("No incluye impuestos (IVA).")
+    if c.costos_adicionales:
+        partes.append(c.costos_adicionales.rstrip(".") + ".")
+    if not partes:
+        return "La fuente no informa si incluye impuestos u otros costos."
+    return " ".join(partes)
+
+
+def _lineas_cotizacion(c: Cotizacion, hoy: date) -> list[str]:
+    plaza = f" ({c.plaza})" if c.plaza else ""
+    nombre = _NOMBRES.get(c.producto, c.producto.capitalize())
+    dias = (hoy - c.fecha).days
+    viejo = f" ⚠️ dato de hace {dias} días, puede no estar actualizado" if dias > config.DIAS_PRECIO_VIGENTE else ""
+    return [
+        f"• {nombre}{plaza}: *{MONEDAS[c.moneda]} {_numero(c.valor)} por {c.unidad}* ({c.moneda})",
+        f"  Publicado el {c.fecha.strftime('%d/%m/%Y')}{viejo}",
+        f"  {_costos(c)}",
+    ]
+
+
 def responder(db: Session, producto: str | None, rubro: str | None, hoy: date) -> str:
     cotizaciones = ultimas(db, producto, rubro)
     if not cotizaciones:
@@ -181,18 +233,16 @@ def responder(db: Session, producto: str | None, rubro: str | None, hoy: date) -
         por_fuente.setdefault((c.fuente, c.url), []).append(c)
     for (fuente, url), lista in por_fuente.items():
         for c in lista[:20]:
-            plaza = f" ({c.plaza})" if c.plaza else ""
-            viejo = " ⚠️ dato no actualizado" if (hoy - c.fecha).days > config.DIAS_PRECIO_VIGENTE else ""
-            lineas.append(
-                f"• {_NOMBRES.get(c.producto, c.producto.capitalize())}{plaza}: *{_numero(c.valor)} {c.unidad}* "
-                f"· {c.fecha.strftime('%d/%m/%Y')}{viejo}"
-            )
+            lineas += _lineas_cotizacion(c, hoy)
         lineas.append(f"Fuente: {fuente}\n{url}\n")
     return "\n".join(lineas) + "\n" + AVISO
 
 
 def _cargar_csv(db: Session, ruta: str) -> None:
-    """Columnas: fuente,url,rubro,producto,plaza,valor,unidad,fecha (fecha YYYY-MM-DD)."""
+    """Columnas: fuente,url,rubro,producto,plaza,valor,moneda,unidad,fecha,incluye_impuestos,costos_adicionales.
+
+    fecha en YYYY-MM-DD; incluye_impuestos: si / no / vacío si la fuente no lo informa.
+    """
     with open(ruta, encoding="utf-8") as f:
         filas = list(csv.DictReader(f))
     grupos: dict[tuple[str, str, str], list[dict]] = {}

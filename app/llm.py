@@ -33,10 +33,11 @@ La fecha de hoy es {hoy} ({dia_semana}).
 Devolvé ÚNICAMENTE un objeto JSON con esta estructura:
 
 {{
-  "intencion": "registrar" | "consultar" | "precio" | "fuera_de_alcance",
+  "intencion": "registrar" | "consultar" | "precio" | "producto_veterinario" | "fuera_de_alcance",
   "eventos": [ EVENTO, ... ],      // solo si intencion = "registrar"; un mensaje puede traer varios eventos
   "consulta": CONSULTA | null,     // solo si intencion = "consultar"
-  "precio": PRECIO | null          // solo si intencion = "precio"
+  "precio": PRECIO | null,         // solo si intencion = "precio"
+  "producto_veterinario": {{ "nombre": string }} | null  // solo si intencion = "producto_veterinario"
 }}
 
 Qué es cada intención:
@@ -44,7 +45,11 @@ Qué es cada intención:
 - "consultar": pregunta por datos que él o su equipo registraron antes en SU campo.
 - "precio": pide el precio o cotización actual de un grano o de hacienda (soja, maíz, trigo,
   girasol, sorgo, cebada, novillo, vaca, ternero, vaquillona, toro...).
-- "fuera_de_alcance": TODO lo demás. Incluye: pedidos de consejo o recomendación ("¿conviene
+- "producto_veterinario": quiere saber si un producto veterinario (vacuna, antiparasitario,
+  antibiótico, etc.) está registrado o aprobado por SENASA. "nombre" es el nombre comercial o
+  el principio activo tal como lo escribió (ej: "ivermectina", "Aftosa Bioaftogen").
+- "fuera_de_alcance": TODO lo demás. Incluye: precios de medicamentos, vacunas o instrumental
+  veterinario; dosis, indicaciones o tratamientos; pedidos de consejo o recomendación ("¿conviene
   vender?", "¿qué vacuna le doy?", "¿cuándo siembro?"), preguntas generales o de cultura,
   pedidos de redactar textos, traducir, programar, hacer cuentas que no son de sus registros,
   datos de otras personas, campos o productores, datos personales, preguntas sobre el sistema
