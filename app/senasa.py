@@ -16,20 +16,28 @@ La fuente, la URL y la fecha de los datos se pasan en la línea de comandos:
     python -m app.senasa cargar registro.csv --fecha 2026-10-10 \\
         --url https://www.argentina.gob.ar/senasa/...
 
-Para automatizarlo, se puede escribir una función que descargue el Vademécum y devuelva
-las mismas filas, y llamar a `reemplazar_registro` desde un cron.
+También se puede traer el registro solo, desde la consulta pública de SENASA (ver
+`descargar` más abajo para lo que publica y lo que no):
+
+    python -m app.senasa actualizar
+
+En Railway eso se programa como Cron Job, igual que los precios.
 """
 
 import argparse
 import csv
 import logging
+import re
 import unicodedata
-from datetime import date
+from datetime import date, datetime
 from urllib.parse import urlparse
 
+import httpx
+import xlrd
 from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session
 
+from app import config
 from app.models import ProductoVeterinario
 from app.precios import es_oficial
 
@@ -77,6 +85,100 @@ def reemplazar_registro(db: Session, filas: list[dict], fecha_datos: date, url: 
     db.add_all(productos)
     db.flush()
     return len(productos)
+
+
+# --- Descarga del registro desde la consulta pública de SENASA ---------------
+#
+# SENASA tiene dos consultas públicas de productos veterinarios:
+#
+# 1. El Vademécum nuevo (aps2.senasa.gov.ar/vademecumVet/app/publico). Tiene principio
+#    activo e indicaciones, pero su API está detrás del SSO de SENASA (todo /api/...
+#    redirige al login JOSSO), así que no se puede leer sin credenciales.
+# 2. La "Consulta Pública de Productos Veterinarios" del sistema ADT, que es la que se
+#    usa acá: es pública, no pide clave y tiene un botón "Exportar a CSV".
+#
+# Dos cosas para tener en cuenta de esa exportación:
+# - El archivo se llama .csv pero es un Excel 97-2003 (empieza con la firma OLE2), por
+#   eso se lee con xlrd.
+# - Trae 5 columnas: certificado, nombre comercial, expediente, firma y "propio". NO
+#   trae principio activo ni estado del registro, así que esos campos quedan vacíos:
+#   el bot dice "no informado" en lugar de inventarlos.
+#
+# La consulta tampoco informa a qué fecha están los datos, así que `actualizar` usa la
+# fecha de la descarga. Es lo que después el bot muestra como "datos al ...".
+
+URL_CONSULTA = "https://aps2.senasa.gov.ar/adt/pages/public/farmacos/consultaProductosFarmacos.faces"
+# Página oficial (.gob.ar) desde donde una persona llega a esa misma consulta.
+URL_OFICIAL = (
+    "https://www.argentina.gob.ar/senasa/programas-sanitarios/"
+    "productos-veterinarios-fitosanitarios-y-fertilizantes/listados-oficiales"
+)
+COLUMNAS_ESPERADAS = ["Nro.Certificado", "Nombre comercial", "Expediente", "Nombre de firma", "Propio"]
+MINIMO_PRODUCTOS = 100  # si vienen menos, algo salió mal y no tocamos el registro
+CAMPOS_BUSQUEDA = ("_idJsp5", "_idJsp7", "_idJsp9", "_idJsp11")  # certificado, nombre, cuit, firma
+
+
+def _campos_del_formulario(pagina: str) -> dict:
+    """Los hidden del formulario JSF (jsf_tree/jsf_state) más los filtros, vacíos."""
+    campos = {}
+    for etiqueta in re.findall(r'<input[^>]*type="hidden"[^>]*>', pagina):
+        nombre = re.search(r'name="([^"]+)"', etiqueta)
+        valor = re.search(r'value="([^"]*)"', etiqueta)
+        if nombre:
+            campos[nombre.group(1)] = valor.group(1) if valor else ""
+    if "jsf_state_64" not in campos:
+        raise ValueError("La consulta de SENASA no devolvió el estado del formulario; la página cambió")
+    campos.update({f"Formulario:{c}": "" for c in CAMPOS_BUSQUEDA})
+    campos["Formulario_SUBMIT"] = "1"
+    return campos
+
+
+def descargar(cliente: httpx.Client) -> list[dict]:
+    """Trae todos los productos de la consulta pública de SENASA.
+
+    Hace lo mismo que una persona: abre la consulta, aprieta "Consultar" sin filtros y
+    después "Exportar a CSV".
+    """
+    pagina = cliente.get(URL_CONSULTA).content.decode("ISO-8859-1")
+
+    buscar_todo = _campos_del_formulario(pagina)
+    buscar_todo["Formulario:cmdConsultarProductos"] = "Consultar"
+    resultados = cliente.post(URL_CONSULTA, data=buscar_todo).content.decode("ISO-8859-1")
+
+    exportar = _campos_del_formulario(resultados)
+    exportar["Formulario:exportarConsultaACSV"] = "Exportar a CSV"
+    descarga = cliente.post(URL_CONSULTA, data=exportar).content
+
+    if not descarga.startswith(b"\xd0\xcf\x11\xe0"):
+        raise ValueError("La exportación de SENASA no es un Excel 97-2003; la página cambió")
+
+    hoja = xlrd.open_workbook(file_contents=descarga).sheet_by_index(0)
+    encabezados = [str(c.value).strip() for c in hoja.row(0)]
+    if encabezados != COLUMNAS_ESPERADAS:
+        raise ValueError(f"Las columnas de SENASA cambiaron: {encabezados}")
+
+    filas = []
+    for i in range(1, hoja.nrows):
+        certificado, nombre = str(hoja.cell_value(i, 0)).strip(), str(hoja.cell_value(i, 1)).strip()
+        if not certificado or not nombre:
+            continue
+        filas.append({
+            "nombre": nombre,
+            "registro": certificado,
+            "titular": str(hoja.cell_value(i, 3)).strip() or None,
+            # La consulta pública no publica ninguno de los dos.
+            "principio_activo": None,
+            "estado": None,
+        })
+    if len(filas) < MINIMO_PRODUCTOS:
+        raise ValueError(f"SENASA devolvió solo {len(filas)} productos; no reemplazo el registro")
+    return filas
+
+
+def actualizar(db: Session, fecha_datos: date, url: str = URL_OFICIAL) -> int:
+    with httpx.Client(timeout=180, follow_redirects=True, headers={"User-Agent": "campo-bot/1.0"}) as cliente:
+        filas = descargar(cliente)
+    return reemplazar_registro(db, filas, fecha_datos, url)
 
 
 def buscar(db: Session, texto: str) -> list[ProductoVeterinario]:
@@ -134,13 +236,21 @@ def main() -> None:
     cargar.add_argument("csv")
     cargar.add_argument("--fecha", required=True, help="fecha de los datos según SENASA, YYYY-MM-DD")
     cargar.add_argument("--url", required=True, help="página oficial de SENASA de donde salen los datos")
+    traer = sub.add_parser("actualizar", help="descarga la consulta pública de SENASA")
+    traer.add_argument("--fecha", help="fecha de los datos; por defecto, la de hoy")
+    traer.add_argument("--url", default=URL_OFICIAL, help="página oficial que se guarda como fuente")
     ver = sub.add_parser("ver")
     ver.add_argument("texto")
     args = parser.parse_args()
 
     crear_tablas()
     with SessionLocal() as db:
-        if args.comando == "cargar":
+        if args.comando == "actualizar":
+            fecha = date.fromisoformat(args.fecha) if args.fecha else datetime.now(config.ZONA_HORARIA).date()
+            n = actualizar(db, fecha, args.url)
+            db.commit()
+            print(f"{n} productos cargados (datos al {fecha.strftime('%d/%m/%Y')})")
+        elif args.comando == "cargar":
             with open(args.csv, encoding="utf-8") as f:
                 n = reemplazar_registro(db, list(csv.DictReader(f)), date.fromisoformat(args.fecha), args.url)
             db.commit()

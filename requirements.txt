@@ -5,4 +5,6 @@ psycopg2-binary==2.9.13
 groq==1.7.0
 httpx==0.28.1
 python-dotenv==1.2.3
+# La "exportación a CSV" de la consulta pública de SENASA es en realidad un Excel 97-2003.
+xlrd==2.0.2
 tzdata==2026.5

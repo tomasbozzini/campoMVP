@@ -30,9 +30,11 @@ Para agregar una fuente:
 
 import csv
 import logging
+import re
 import sys
 import unicodedata
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+from html import unescape
 from urllib.parse import urlparse
 
 import httpx
@@ -85,8 +87,212 @@ class Fuente:
         raise NotImplementedError
 
 
-# Las fuentes reales se agregan acá (ver el docstring del módulo).
-FUENTES: list[Fuente] = []
+# --- Lectores de las fuentes ------------------------------------------------
+#
+# Cada lector separa la descarga (`obtener`) de la lectura del HTML (`leer`), para
+# poder probar la lectura contra los archivos de tests/fixtures/ sin salir a internet.
+
+
+def _a_numero(texto: str) -> float:
+    """Pasa un número escrito como en Argentina a float: "$560.000,00" -> 560000.0."""
+    limpio = re.sub(r"[^\d,.]", "", texto or "")
+    limpio = limpio.replace(".", "").replace(",", ".")
+    if not re.fullmatch(r"\d+(\.\d+)?", limpio):
+        raise ValueError(f"No pude leer el número {texto!r}")
+    return float(limpio)
+
+
+def _texto_plano(fragmento: str) -> str:
+    """Saca las etiquetas y normaliza los espacios de un trozo de HTML."""
+    texto = unescape(re.sub(r"<[^>]+>", " ", fragmento)).replace("\xa0", " ")
+    return re.sub(r"\s+", " ", texto).strip()
+
+
+def _celdas(fila: str) -> list[str]:
+    return [_texto_plano(c) for c in re.findall(r"<t[dh][^>]*>(.*?)</t[dh]>", fila, re.S | re.I)]
+
+
+class PizarraRosario(Fuente):
+    """Precios de pizarra de la Cámara Arbitral de Cereales (Bolsa de Comercio de Rosario).
+
+    La página muestra un panel por grano con el precio del día en $/t para la zona
+    Rosario. Cuando la Cámara no fijó pizarra el panel dice "S/C" y, si la hay, al lado
+    aparece la estimación entre paréntesis, "(E)". El valor en dólares que publica al pie
+    de cada panel es, según la propia página, "sólo a título informativo", así que se
+    guarda el precio en pesos, que es la pizarra.
+    """
+
+    nombre = "Cámara Arbitral de Cereales - Bolsa de Comercio de Rosario"
+    url = "https://www.cac.bcr.com.ar/es/precios-de-pizarra"
+    rubro = "granos"
+    plaza = "Rosario"
+
+    def obtener(self, cliente: httpx.Client) -> list[dict]:
+        respuesta = cliente.get(self.url)
+        respuesta.raise_for_status()
+        return self.leer(respuesta.content.decode("utf-8"))
+
+    def leer(self, pagina: str) -> list[dict]:
+        fecha = re.search(r"Precios Pizarra del d[ií]a\s*(\d{2}/\d{2}/\d{4})", pagina)
+        if not fecha:
+            raise ValueError("No encontré la fecha de la pizarra; la página cambió")
+        fecha = datetime.strptime(fecha.group(1), "%d/%m/%Y").date()
+
+        pie = re.search(r'class="price-board-footer">\s*<div>(.*?)</div>', pagina, re.S)
+        if not pie:
+            raise ValueError("No encontré las condiciones al pie de la pizarra; la página cambió")
+        # La primera oración es la que dice en qué condiciones vale el precio; lo que sigue
+        # explica la conversión a dólares, que no usamos.
+        condiciones = _texto_plano(pie.group(1)).split(". ")[0].rstrip(".") + "."
+        if not re.search(r"impuesto|iva", condiciones, re.I):
+            condiciones += " La fuente no aclara si incluye impuestos."
+
+        precios = []
+        bloques = pagina.split('<div class="board board-')[1:]
+        for bloque in bloques:
+            corte = bloque.find('class="price-board-footer"')
+            if corte != -1:
+                bloque = bloque[:corte]
+            titulo = re.search(r"<h3>(.*?)</h3>", bloque, re.S)
+            precio = re.search(r'class="price">(.*?)</div>', bloque, re.S)
+            if not titulo or not precio:
+                continue
+            producto = _texto_plano(titulo.group(1))
+            if not producto:
+                continue
+            estimado = re.search(r'class="price-sc-estimated">(.*?)</span>', precio.group(1), re.S)
+            if estimado:
+                valor, aclaracion = estimado.group(1), (
+                    " Sin cotización (S/C) ese día: la Cámara publicó un valor estimado (E)."
+                )
+            elif "S/C" in _texto_plano(precio.group(1)):
+                # Sin cotización y sin estimación: ese día no hay precio para este grano.
+                continue
+            else:
+                valor, aclaracion = precio.group(1), ""
+            precios.append({
+                "producto": producto,
+                "plaza": self.plaza,
+                "valor": _a_numero(_texto_plano(valor)),
+                "moneda": "ARS",
+                "unidad": "t",
+                "fecha": fecha,
+                "incluye_impuestos": None,
+                "costos_adicionales": condiciones + aclaracion,
+            })
+
+        if not precios:
+            raise ValueError("No pude leer ningún precio de la pizarra; la página cambió")
+        return precios
+
+
+class HaciendaCanuelas(Fuente):
+    """Precios por categoría del Mercado Agroganadero de Cañuelas.
+
+    La página devuelve la planilla de una rueda (un día) y hay que pedírsela por POST con
+    el rango de fechas. Los sábados, domingos y feriados viene vacía, así que se prueba
+    día por día hacia atrás hasta encontrar la última rueda con operaciones.
+
+    De cada categoría (NOVILLOS, NOVILLITOS, VAQUILLONAS, VACAS, TOROS, ...) se guarda el
+    promedio por kg vivo que publica la planilla, y se verifica contra el importe y los
+    kilos totales de sus subcategorías: si no coinciden, la lectura falla en lugar de
+    guardar un número dudoso.
+    """
+
+    nombre = "Mercado Agroganadero de Cañuelas"
+    url = "https://www.mercadoagroganadero.com.ar/dll/hacienda1.dll/haciinfo000502"
+    rubro = "hacienda"
+    plaza = "Cañuelas"
+    DIAS_ATRAS = 8
+    # El formulario de la página manda estos campos; sin identificarse alcanza.
+    CAMPOS = {"ID": "", "CP": "", "FLASH": "", "USUARIO": "SIN IDENTIFICAR",
+              "OPCIONMENU": "", "OPCIONSUBMENU": ""}
+
+    def obtener(self, cliente: httpx.Client) -> list[dict]:
+        hoy = datetime.now(config.ZONA_HORARIA).date()
+        for atras in range(self.DIAS_ATRAS):
+            dia = (hoy - timedelta(days=atras)).strftime("%d/%m/%Y")
+            respuesta = cliente.post(
+                self.url, data={**self.CAMPOS, "txtFechaIni": dia, "txtFechaFin": dia}
+            )
+            respuesta.raise_for_status()
+            # La página declara windows-1252 en su <meta>, pero no en la respuesta HTTP.
+            precios = self.leer(respuesta.content.decode("windows-1252"))
+            if precios:
+                return precios
+        raise ValueError(f"El MAG no publicó ninguna rueda en los últimos {self.DIAS_ATRAS} días")
+
+    def leer(self, pagina: str) -> list[dict]:
+        """Devuelve los precios de la rueda, o [] si ese día no hubo operaciones."""
+        encabezado = re.search(
+            r"PRECIOS POR CATEGORIA.*?DESDE EL \w+ (\d{2}/\d{2}/\d{4}) AL \w+ (\d{2}/\d{2}/\d{4})"
+            # entre la fecha y la aclaración puede haber un <BR> y un <FONT> de color
+            r"(?:\s|<[^>]*>)*PRECIOS (DEFINITIVOS|PROVISORIOS)",
+            pagina, re.S | re.I,
+        )
+        if not encabezado:
+            raise ValueError("No encontré el encabezado de la planilla del MAG; la página cambió")
+        desde, hasta, estado = encabezado.groups()
+        if desde != hasta:
+            raise ValueError(f"La planilla abarca más de un día ({desde} a {hasta})")
+        fecha = datetime.strptime(desde, "%d/%m/%Y").date()
+
+        grupos: dict[str, dict] = {}
+        actual = None
+        for fila in re.findall(r"<tr[^>]*>(.*?)</tr>", pagina, re.S | re.I):
+            celdas = _celdas(fila)
+            if len(celdas) < 9:
+                continue
+            nombre = celdas[0]
+            if nombre.lower().startswith("totales"):
+                break
+            if nombre:
+                actual = nombre.split()[0].upper()
+                grupo = grupos.setdefault(
+                    actual, {"importe": 0.0, "kilos": 0.0, "cabezas": 0, "publicado": None}
+                )
+                grupo["importe"] += _a_numero(celdas[6])
+                grupo["kilos"] += _a_numero(celdas[7])
+                grupo["cabezas"] += int(_a_numero(celdas[5]))
+            elif actual and re.fullmatch(r"[\d.,]+", celdas[3] or ""):
+                # Fila de subtotal de la categoría: el promedio que publica la planilla.
+                grupos[actual]["publicado"] = _a_numero(celdas[3])
+
+        if not grupos:
+            return []
+
+        aclaracion = (
+            f"Precios {estado.lower()} publicados por el MAG para la rueda del día. "
+            "Promedio de la categoría por kg vivo. "
+            "Categorías según RESOL-2018-32-APN-SGA#MPYT. "
+            "La fuente no aclara si incluye impuestos, comisiones o fletes."
+        )
+        precios = []
+        for categoria, datos in grupos.items():
+            publicado, kilos = datos["publicado"], datos["kilos"]
+            if publicado is None or kilos <= 0 or datos["cabezas"] <= 0:
+                raise ValueError(f"La planilla del MAG no cierra para {categoria}: {datos}")
+            # El promedio publicado tiene que ser el importe sobre los kilos.
+            calculado = datos["importe"] / kilos
+            if abs(calculado - publicado) / publicado > 0.005:
+                raise ValueError(
+                    f"El promedio de {categoria} no coincide con importe/kilos "
+                    f"({publicado} vs {calculado:.3f}); la planilla cambió"
+                )
+            precios.append({
+                "producto": categoria,
+                "plaza": self.plaza,
+                "valor": publicado,
+                "moneda": "ARS",
+                "unidad": "kg vivo",
+                "fecha": fecha,
+                "incluye_impuestos": None,
+                "costos_adicionales": aclaracion,
+            })
+        return precios
+
+
+FUENTES: list[Fuente] = [PizarraRosario(), HaciendaCanuelas()]
 
 
 MONEDAS = {"ARS": "$", "USD": "US$"}

@@ -14,9 +14,11 @@ bot> 📋 *2 registros*
      • Vacunación (aftosa) · 15 vacas · lote 5 · 02/10/2026
 
 vos> ¿A cuánto está la soja?
-bot> • Soja (Rosario): *$ 310.000 por t* (ARS)
+bot> • Soja (Rosario): *$ 560.000 por t* (ARS)
        Publicado el 08/10/2026
-       No incluye impuestos (IVA). Precio orientativo, sin gastos comerciales.
+       Precios corrientes expresados en $/Tn por mercadería, entrega enseguida,
+       pago contado, puesto sobre camión y/o vagón en zona Rosario. La fuente no
+       aclara si incluye impuestos.
      Fuente: Cámara Arbitral de Cereales - Bolsa de Comercio de Rosario
      https://www.cac.bcr.com.ar/es/precios-de-pizarra
 
@@ -97,20 +99,38 @@ Columnas del CSV: `fuente,url,rubro,producto,plaza,valor,moneda,unidad,fecha,inc
 
 En Railway, `actualizar` se programa como **Cron Job** (por ejemplo, de lunes a viernes a las 18:30).
 
-> **Pendiente:** todavía no hay lectores de fuentes registrados (`FUENTES` está vacía). Cada lector se escribe y se prueba contra la página real de la fuente; el docstring de `app/precios.py` tiene un ejemplo.
+Fuentes registradas en `FUENTES`:
+
+| Fuente | Qué trae | Cómo |
+|---|---|---|
+| Cámara Arbitral de Cereales (Bolsa de Comercio de Rosario) | Pizarra de trigo, maíz, girasol, soja y sorgo en $/t, plaza Rosario | Lee los paneles de [precios de pizarra](https://www.cac.bcr.com.ar/es/precios-de-pizarra). Si un grano está S/C (sin cotización) y la Cámara publica un estimado, se guarda avisando que es estimado; si no hay ni estimado, ese grano no se guarda. El valor en dólares no se usa: la propia página aclara que es "sólo a título informativo" |
+| Mercado Agroganadero de Cañuelas | Promedio por kg vivo de novillos, novillitos, vaquillonas, vacas, toros y MEJ | Pide la planilla de una rueda por POST. Los días sin operaciones vienen vacíos, así que prueba día por día hacia atrás hasta la última rueda. Verifica cada promedio contra el importe y los kilos de la categoría: si no cierran, falla en lugar de guardar |
+
+Las dos guardan la **fecha de publicación que informa la fuente** (no la de hoy) y, en `costos_adicionales`, solo lo que la fuente aclara. Ninguna de las dos dice si sus precios incluyen impuestos, así que el bot lo aclara como no informado en lugar de suponerlo.
+
+Los lectores separan la descarga (`obtener`) de la lectura del HTML (`leer`), y los tests de `tests/test_precios.py` corren `leer` contra los HTML guardados en `tests/fixtures/`, sin tocar internet.
 
 ## Productos veterinarios (SENASA)
 
 El bot solo verifica si un producto está en el **registro oficial de SENASA** (Vademécum de Productos Veterinarios): número de registro, titular, principio activo y estado, con la fecha de los datos y el link. No informa precios, dosis ni indicaciones. Si un producto no aparece, lo aclara y no lo da por "no registrado".
 
 ```bash
+python -m app.senasa actualizar     # descarga la consulta pública de SENASA
 python -m app.senasa cargar registro.csv --fecha 2026-10-10 --url https://www.argentina.gob.ar/senasa/...
 python -m app.senasa ver ivermectina
 ```
 
 Columnas del CSV: `nombre,registro,titular,principio_activo,estado`. Cada carga reemplaza el registro entero. Solo acepta links `https` de `*.gob.ar`.
 
-> **Pendiente:** falta automatizar la descarga del Vademécum de SENASA (hay que revisar qué formato ofrece la consulta pública).
+`actualizar` trae los productos de la **Consulta Pública de Productos Veterinarios** del sistema ADT de SENASA, que es pública y no pide clave fiscal. Son unos 8.400 productos. Tres cosas a tener en cuenta:
+
+- El botón "Exportar a CSV" de SENASA devuelve en realidad un **Excel 97-2003** con nombre `.csv`; por eso el proyecto depende de `xlrd`.
+- La consulta pública publica certificado, nombre comercial, expediente y firma, pero **no** el principio activo ni el estado del registro. Esos campos quedan vacíos y el bot muestra "no informado" en lugar de inventarlos. La búsqueda, entonces, es por nombre comercial: "ivermectina" encuentra los 26 productos que la llevan en el nombre.
+- SENASA **no informa a qué fecha están los datos**, así que se guarda la fecha de la descarga, que es lo que el bot muestra como "datos al ...".
+
+El Vademécum nuevo (`aps2.senasa.gov.ar/vademecumVet`) sí tiene principio activo e indicaciones, pero su API está detrás del SSO de SENASA: todo `/api/...` redirige al login, así que no se puede leer sin credenciales.
+
+Como `DOMINIOS_OFICIALES` solo acepta `*.gob.ar` para SENASA y la consulta vive en `aps2.senasa.gov.ar`, el registro se guarda con la URL de la página oficial de [Listados Oficiales](https://www.argentina.gob.ar/senasa/programas-sanitarios/productos-veterinarios-fitosanitarios-y-fertilizantes/listados-oficiales), que es desde donde una persona llega a esa misma consulta.
 
 ## Probarlo en tu compu
 
