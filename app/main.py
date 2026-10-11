@@ -90,7 +90,7 @@ def procesar_mensaje(mensaje: dict, nombre: str | None) -> None:
                 return
             audio = whatsapp.descargar_media(mensaje["audio"]["id"])
             if len(audio) > config.MAX_AUDIO_BYTES:
-                whatsapp.enviar_texto(telefono, "El audio es muy largo. Mandá audios más cortos, de a un tema por vez.")
+                whatsapp.enviar_texto(telefono, "✋ El audio es muy largo.\nMandá audios más cortos, de a un tema por vez.")
                 return
             texto = llm.transcribir(audio)
             prefijo = f"🎤 _{texto[:config.MAX_LARGO_MENSAJE]}_\n\n"
@@ -103,6 +103,6 @@ def procesar_mensaje(mensaje: dict, nombre: str | None) -> None:
             db.commit()
     except Exception:
         log.exception("Error procesando mensaje %s", wamid)
-        respuesta = "Uy, algo falló procesando tu mensaje. Probá de nuevo en un rato."
+        respuesta = "😕 Uy, algo falló procesando tu mensaje.\nProbá de nuevo en un rato."
 
     whatsapp.enviar_texto(telefono, prefijo + respuesta)

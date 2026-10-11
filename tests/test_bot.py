@@ -56,7 +56,7 @@ def test_admin_autoriza_y_quita_por_whatsapp(db, fake_llm, monkeypatch):
     # Meta guarda los números argentinos sin el 9: igual tiene que reconocerlo.
     r = bot.manejar_mensaje(db, admin, "autorizar +54 249 412-3456", hoy=HOY)
     assert "5492494123456 ya puede usar" in r
-    assert "Tu asistente" in bot.manejar_mensaje(db, "5492494123456", "ayuda", hoy=HOY)
+    assert "TU ASISTENTE" in bot.manejar_mensaje(db, "5492494123456", "ayuda", hoy=HOY)
     assert "autorizar" not in bot.manejar_mensaje(db, "5492494123456", "ayuda", hoy=HOY)
     assert "5492494123456" in bot.manejar_mensaje(db, admin, "autorizados", hoy=HOY)
 
@@ -85,7 +85,7 @@ def test_registrar_vacunacion(db, fake_llm):
         }],
     }
     r = bot.manejar_mensaje(db, usuario.telefono, texto, hoy=HOY)
-    assert "Vacunación (aftosa) · 20 vacas · lote 3 · 09/10/2026" in r
+    assert "💉 *Vacunación* · aftosa\n      20 vacas · Lote 3\n      📅 Vie 09/10/2026" in r
 
     evento = db.scalar(select(Evento))
     assert evento.usuario_id == usuario.id
@@ -154,8 +154,8 @@ def test_consulta_solo_ve_lo_propio_y_suma(db, fake_llm):
         "consulta": {"tipo": "vacunacion", "lote": "Lote 3", "categoria_animal": "vaca", "desde": "2026-10-01", "hasta": "2026-10-31"},
     }
     r = bot.manejar_mensaje(db, u1.telefono, pregunta, hoy=HOY)
-    assert "*2 registros*" in r
-    assert "Total vacunación: *35 animales*" in r
+    assert "2 registros" in r
+    assert "💉 Vacunación: *35* animales" in r
     assert "99" not in r
 
 
@@ -189,7 +189,7 @@ def test_eventos_del_mismo_mensaje_heredan_lote_y_categoria(db, fake_llm):
         ],
     }
     r = bot.manejar_mensaje(db, usuario.telefono, texto, hoy=HOY)
-    assert "Muerte · 1 ternero · lote 5 · 08/10/2026" in r
+    assert "🔻 *Muerte*\n      1 ternero · Lote 5\n      📅 Jue 08/10/2026" in r
 
     muerte = db.scalar(select(Evento).where(Evento.tipo == "muerte"))
     assert muerte.lote == "5" and muerte.categoria_animal == "terneros"
@@ -297,15 +297,15 @@ def test_veterinario_recorre_varios_campos(db, fake_llm):
     respuestas["y vacuné 20 vacas"] = {"intencion": "registrar", "eventos": [vacunacion]}
 
     assert "La Esperanza" in bot.manejar_mensaje(db, vet.telefono, "estoy en La Esperanza", hoy=HOY)
-    assert "Anotado en 📍 *La Esperanza*" in bot.manejar_mensaje(db, vet.telefono, "vacuné 20 vacas", hoy=HOY)
-    assert "Anotado en 📍 *El Ombú*" in bot.manejar_mensaje(db, vet.telefono, "en El Ombú hice tacto a 50 vaquillonas", hoy=HOY)
-    assert "Anotado en 📍 *El Ombú*" in bot.manejar_mensaje(db, vet.telefono, "y vacuné 20 vacas", hoy=HOY)
+    assert "ANOTADO*\n📍 La Esperanza" in bot.manejar_mensaje(db, vet.telefono, "vacuné 20 vacas", hoy=HOY)
+    assert "ANOTADO*\n📍 El Ombú" in bot.manejar_mensaje(db, vet.telefono, "en El Ombú hice tacto a 50 vaquillonas", hoy=HOY)
+    assert "ANOTADO*\n📍 El Ombú" in bot.manejar_mensaje(db, vet.telefono, "y vacuné 20 vacas", hoy=HOY)
 
     # Consulta por establecimiento, escrito distinto ("estancia", minúsculas, sin tilde).
     respuestas["¿qué hice en la estancia el ombu?"] = {
         "intencion": "consultar", "consulta": {"establecimiento": "estancia el ombu"}}
     r = bot.manejar_mensaje(db, vet.telefono, "¿qué hice en la estancia el ombu?", hoy=HOY)
-    assert "*2 registros*" in r and "Tacto" in r and "📍 El Ombú" in r and "La Esperanza" not in r
+    assert "📍 El Ombú · 2 registros" in r and "Tacto" in r and "La Esperanza" not in r
 
 
 def test_sin_establecimiento_lo_aclara(db, fake_llm):
@@ -313,7 +313,7 @@ def test_sin_establecimiento_lo_aclara(db, fake_llm):
     u = _con_campo(db)
     respuestas["llovieron 30 mm"] = {"intencion": "registrar", "eventos": [
         {"categoria": "campo", "tipo": "lluvia", "valor": 30, "unidad": "mm"}]}
-    assert "Anotado (sin establecimiento)" in bot.manejar_mensaje(db, u.telefono, "llovieron 30 mm", hoy=HOY)
+    assert "📍 _sin establecimiento_" in bot.manejar_mensaje(db, u.telefono, "llovieron 30 mm", hoy=HOY)
 
 
 def test_el_dueno_no_ve_lo_que_anoto_el_veterinario(db, fake_llm):
@@ -327,7 +327,7 @@ def test_el_dueno_no_ve_lo_que_anoto_el_veterinario(db, fake_llm):
     bot.manejar_mensaje(db, vet.telefono, "en La Esperanza vacuné 20 vacas", hoy=HOY)
 
     respuestas["¿qué pasó en La Esperanza?"] = {"intencion": "consultar", "consulta": {"establecimiento": "La Esperanza"}}
-    assert bot.manejar_mensaje(db, dueno.telefono, "¿qué pasó en La Esperanza?", hoy=HOY) == "No encontré registros para esa consulta."
+    assert bot.manejar_mensaje(db, dueno.telefono, "¿qué pasó en La Esperanza?", hoy=HOY) == "🔍 No encontré registros para esa consulta."
     # y "borrar" del dueño no toca lo del veterinario
     assert "nada anotado" in bot.manejar_mensaje(db, dueno.telefono, "borrar", hoy=HOY)
     assert db.scalar(select(Evento)) is not None
@@ -350,8 +350,8 @@ def test_corregir_completa_el_registro_en_vez_de_crear_otro(db, fake_llm):
         "cambios": {"producto": "ivermectina"}}}
 
     r = bot.manejar_mensaje(db, u.telefono, texto, hoy=HOY)
-    assert "Antes: Vacunación · 5 vaquillonas · lote 3" in r
-    assert "Ahora: Vacunación (ivermectina) · 5 vaquillonas · lote 3" in r
+    assert "CORREGIDO" in r and "Producto: *ivermectina*" in r
+    assert "💉 *Vacunación* · ivermectina\n      5 vaquillonas · Lote 3" in r
     eventos = db.scalars(select(Evento)).all()
     assert len(eventos) == 1 and eventos[0].producto == "ivermectina"
 
@@ -425,7 +425,7 @@ def test_borrar_registros_puntuales(db, fake_llm):
         {"tipo": "cosecha", "lote": "5", "establecimiento": "la pastora"},
     ]}}
     r = bot.manejar_mensaje(db, u.telefono, texto, hoy=HOY)
-    assert "Borré:" in r and "Vacunación · 5 vaquillonas" in r and "Cosecha" in r
+    assert "BORRADO" in r and "*Vacunación*\n      5 vaquillonas" in r and "Cosecha" in r
     assert sorted(e.valor for e in db.scalars(select(Evento)).all()) == [12, 30]  # quedan las lluvias
 
 
@@ -436,7 +436,7 @@ def test_borrar_la_lluvia_de_la_pastora(db, fake_llm):
     respuestas["borrá la lluvia de la pastora"] = {"intencion": "borrar", "borrado": {"registros": [
         {"tipo": "lluvia", "establecimiento": "La Pastora"}]}}
     r = bot.manejar_mensaje(db, u.telefono, "borrá la lluvia de la pastora", hoy=HOY)
-    assert "Borré:" in r and "La Pastora" in r
+    assert "BORRADO" in r and "La Pastora" in r
     lluvias = db.scalars(select(Evento).where(Evento.tipo == "lluvia")).all()
     assert [e.establecimiento for e in lluvias] == ["El Ombú"]
 
@@ -447,7 +447,7 @@ def test_borrar_ambiguo_no_borra_y_muestra_opciones(db, fake_llm):
     _anotar_en_la_pastora(respuestas, db, u)
     respuestas["borrá la lluvia"] = {"intencion": "borrar", "borrado": {"registros": [{"tipo": "lluvia"}]}}
     r = bot.manejar_mensaje(db, u.telefono, "borrá la lluvia", hoy=HOY)
-    assert "Hay 2 registros" in r and "no borré ninguno" in r and "El Ombú" in r and "La Pastora" in r
+    assert "*Hay 2 registros*" in r and "No borré ninguno" in r and "El Ombú" in r and "La Pastora" in r
     assert len(db.scalars(select(Evento)).all()) == 4
 
     respuestas["borrá todas las lluvias"] = {"intencion": "borrar", "borrado": {"registros": [
@@ -474,7 +474,7 @@ def test_lista_de_lo_anotado(db, fake_llm):
     _anotar_en_la_pastora(respuestas, db, u)
     respuestas["¿qué tengo anotado en La Pastora?"] = {"intencion": "consultar", "consulta": {"establecimiento": "La Pastora"}}
     r = bot.manejar_mensaje(db, u.telefono, "¿qué tengo anotado en La Pastora?", hoy=HOY)
-    assert "*3 registros*" in r and "Cosecha" in r and "El Ombú" not in r
+    assert "📍 La Pastora · 3 registros" in r and "Cosecha" in r and "El Ombú" not in r
 
 
 def test_reintenta_el_numero_argentino_sin_el_9(monkeypatch):
@@ -518,10 +518,10 @@ def test_la_ia_recibe_la_charla_reciente_solo_del_mismo_usuario(db, monkeypatch)
     otro = _con_campo(db, "5491100000002")
     bot.manejar_mensaje(db, otro.telefono, "hola", hoy=HOY)
 
-    assert bot.manejar_mensaje(db, u.telefono, "vacuné 5 vaquillonas", hoy=HOY) == bot.PREGUNTAS["establecimiento"]
-    assert "Anotado en 📍 *La Pastora*" in bot.manejar_mensaje(db, u.telefono, "La Pastora", hoy=HOY)
+    assert bot.manejar_mensaje(db, u.telefono, "vacuné 5 vaquillonas", hoy=HOY) == "🤔 " + bot.PREGUNTAS["establecimiento"]
+    assert "ANOTADO*\n📍 La Pastora" in bot.manejar_mensaje(db, u.telefono, "La Pastora", hoy=HOY)
     assert vistos["La Pastora"] == [
-        ("usuario", "vacuné 5 vaquillonas"), ("bot", bot.PREGUNTAS["establecimiento"])]
+        ("usuario", "vacuné 5 vaquillonas"), ("bot", "🤔 " + bot.PREGUNTAS["establecimiento"])]
     assert vistos["vacuné 5 vaquillonas"] == []  # no ve lo que charló el otro usuario
 
 
@@ -556,7 +556,7 @@ def test_borrar_todo_lo_de_la_lista_pide_confirmacion(db, fake_llm):
         {"establecimiento": "La Pastora", "todos": True}]}}
 
     r = bot.manejar_mensaje(db, u.telefono, "borrá todo de la lista", hoy=HOY)
-    assert "Voy a borrar *5 registros*" in r and "¿Confirmás?" in r
+    assert "VOY A BORRAR 5 REGISTROS" in r and "¿Confirmás?" in r
     assert len(db.scalars(select(Evento)).all()) == 6  # todavía no borró nada
 
     assert "borré 5 registros" in bot.manejar_mensaje(db, u.telefono, "Sí", hoy=HOY)
@@ -569,8 +569,8 @@ def test_borrar_todo_se_puede_cancelar_o_se_descarta(db, fake_llm):
     _cinco_en_la_pastora(respuestas, db, u)
     respuestas["borrá todo"] = {"intencion": "borrar", "borrado": {"registros": [{"todos": True}]}}
 
-    assert "Voy a borrar *6 registros*" in bot.manejar_mensaje(db, u.telefono, "borrá todo", hoy=HOY)
-    assert bot.manejar_mensaje(db, u.telefono, "no", hoy=HOY) == "Listo, no borré nada."
+    assert "VOY A BORRAR 6 REGISTROS" in bot.manejar_mensaje(db, u.telefono, "borrá todo", hoy=HOY)
+    assert bot.manejar_mensaje(db, u.telefono, "no", hoy=HOY) == "👌 Listo, no borré nada."
     assert len(db.scalars(select(Evento)).all()) == 6
 
     # Otro mensaje en el medio descarta el pendiente: un "sí" posterior no borra.
@@ -621,7 +621,7 @@ def test_anotar_borrar_y_corregir_en_un_mismo_mensaje(db, fake_llm):
             {"categoria": "movimiento", "tipo": "nacimiento", "cantidad_animales": 3, "categoria_animal": "terneros"}]},
     ]}
     r = bot.manejar_mensaje(db, u.telefono, texto, hoy=HOY)
-    assert r.index("Borré") < r.index("Corregido") < r.index("Anotado")
+    assert r.index("BORRADO") < r.index("CORREGIDO") < r.index("ANOTADO")
     tipos = sorted(e.tipo for e in db.scalars(select(Evento)).all())
     assert tipos == ["lluvia", "lluvia", "nacimiento", "vacunacion"]
     assert db.scalar(select(Evento).where(Evento.tipo == "vacunacion")).producto == "ivermectina"

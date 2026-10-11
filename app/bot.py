@@ -14,63 +14,70 @@ from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app import config, llm, precios, senasa, usuarios
+from app import config, formato, llm, precios, senasa, usuarios
 from app.consultas import buscar, normalizar_lote, totales
+from app.formato import SEPARADOR as LINEA
 from app.models import BorradoPendiente, Evento, MensajeChat, Usuario, UsoDiario
 
 log = logging.getLogger(__name__)
 
 CATEGORIAS = {"sanidad", "movimiento", "pesada", "reproduccion", "campo"}
 
-AYUDA = """🐄 *Tu asistente de campo*
+AYUDA = """🐄 *TU ASISTENTE DE CAMPO*
+_Tu cuaderno de trabajo, por WhatsApp._
 
-Contame lo que hacés y yo lo anoto en tu cuaderno. Por ejemplo:
-• _Estoy en La Esperanza_
-• _Vacuné 20 vacas contra aftosa en el lote 3_
-• _En El Ombú hice tacto a 50 vaquillonas_
-• _Llovieron 35 mm_
+✍️ *Anotar*
+      › Estoy en La Esperanza
+      › Vacuné 20 vacas contra aftosa en el lote 3
+      › En El Ombú hice tacto a 50 vaquillonas
+      › Llovieron 35 mm
 
-Si algo quedó mal, corregilo o borralo:
-• _A esas vaquillonas las vacuné con ivermectina_
-• _No eran 20, eran 25_
-• _Borrá la lluvia de La Pastora_
+✏️ *Corregir o borrar*
+      › A esas vaquillonas les di ivermectina
+      › No eran 20, eran 25
+      › Borrá la lluvia de La Pastora
 
-Preguntame por lo que anotaste:
-• _¿Qué tengo anotado?_
-• _¿Qué hice hoy?_
-• _¿Qué hice en La Esperanza este mes?_
-• _¿Cuántas vacas vacuné esta semana?_
+🔍 *Consultar*
+      › ¿Qué tengo anotado?
+      › ¿Qué hice en La Esperanza este mes?
+      › ¿Cuántas vacas vacuné esta semana?
 
-Precios de referencia de fuentes oficiales:
-• _¿A cuánto está la soja?_
-• _Precio del novillo_
+💲 *Precios oficiales*
+      › ¿A cuánto está la soja y el maíz?
+      › Precio del novillo
 
-Y si un producto veterinario está registrado en SENASA:
-• _¿La ivermectina está aprobada por SENASA?_
+💊 *Productos en SENASA*
+      › ¿La ivermectina está aprobada?
 
-También podés mandar audios 🎤
-Lo que anotás es solo tuyo: nadie más lo ve.
+────────────
+🎤 También podés mandar audios.
+🔒 Lo que anotás es solo tuyo.
 
-Comandos:
-• *borrar*: deshace lo último que anotaste
-• *ayuda*: este mensaje"""
+*borrar* → deshace lo último que anotaste
+*ayuda* → muestra este menú"""
 
-NO_AUTORIZADO = """Hola 👋 Este número todavía no tiene acceso al asistente.
+NO_AUTORIZADO = """👋 *¡Hola!*
+
+Este número todavía no tiene acceso al asistente.
 Pedile al administrador que te habilite."""
 
-FUERA_DE_ALCANCE = """Eso no lo puedo responder. Solo puedo:
-• Anotar lo que hacés en el campo
-• Responder sobre lo que vos anotaste
-• Mostrar precios de referencia de granos y hacienda de fuentes oficiales
-• Verificar si un producto veterinario está registrado en SENASA
+FUERA_DE_ALCANCE = """🚫 *Eso no lo puedo responder*
 
-No doy recomendaciones, indicaciones de uso ni precios de medicamentos, y no respondo otros temas. Mandá *ayuda* para ver ejemplos."""
+Puedo ayudarte con:
+      ✍️ Anotar lo que hacés en el campo
+      🔍 Consultar lo que anotaste
+      💲 Precios oficiales de granos y hacienda
+      💊 Verificar productos en SENASA
+
+_No doy recomendaciones, indicaciones de uso ni precios de medicamentos._
+Mandá *ayuda* para ver ejemplos."""
 
 AYUDA_ADMIN = """
-Comandos de administrador:
-• *autorizar 5492494123456*: le da acceso a ese número
-• *quitar 5492494123456*: le saca el acceso (sus registros se conservan)
-• *autorizados*: lista de números con acceso"""
+
+🔑 *Administrador*
+*autorizar 5492494123456* → le da acceso
+*quitar 5492494123456* → le saca el acceso
+*autorizados* → lista de números con acceso"""
 
 
 def _hoy() -> date:
@@ -119,7 +126,7 @@ HISTORIAL_MENSAJES = 6
 HISTORIAL_MINUTOS = 30
 HISTORIAL_LARGO = 600  # caracteres por mensaje guardado
 
-SALUDO = "¡Hola! 👋 Contame qué hiciste y lo anoto, o preguntame por lo que tenés anotado. Mandá *ayuda* para ver ejemplos."
+SALUDO = "👋 *¡Hola!*\n\nContame qué hiciste y lo anoto, o preguntame por lo que tenés anotado.\nMandá *ayuda* para ver ejemplos."
 GRACIAS = "¡De nada! 👍"
 
 # Preguntas fijas para cuando falta un dato. La IA elige cuáles faltan; el texto es del código.
@@ -182,15 +189,15 @@ def _responder(db: Session, usuario: Usuario, telefono: str, texto: str, hoy: da
         return _borrar_ultimo(db, usuario)
 
     if len(texto) > config.MAX_LARGO_MENSAJE:
-        return "El mensaje es muy largo. Mandalo en partes más cortas, de a un tema por vez."
+        return "✋ El mensaje es muy largo.\nMandalo en partes más cortas, de a un tema por vez."
     if not consumir_cupo(db, usuario, hoy):
-        return "Llegaste al límite de mensajes por hoy. Mañana podés seguir."
+        return "⏳ Llegaste al límite de mensajes por hoy.\nMañana podés seguir."
 
     try:
         interpretado = llm.interpretar(texto, hoy, _historial(db, usuario))
     except Exception:
         log.exception("Error interpretando mensaje")
-        return "Uy, no pude procesar el mensaje. Probá de nuevo en un ratito."
+        return "😕 Uy, no pude procesar el mensaje.\nProbá de nuevo en un ratito."
     if not isinstance(interpretado, dict):
         return FUERA_DE_ALCANCE
     # Un mensaje puede traer varios pedidos ("¿cuánto está la soja y el maíz?", "anotá la
@@ -201,8 +208,8 @@ def _responder(db: Session, usuario: Usuario, telefono: str, texto: str, hoy: da
 
 
 MAX_ACCIONES = 6
-SEPARADOR = "\n\n"
-FUERA_PARCIAL = "Lo demás que pediste no lo puedo responder: no doy recomendaciones ni respondo temas que no sean de tu cuaderno, precios oficiales o SENASA."
+SEPARADOR = "\n\n━━━━━━━━━━━━━━━\n\n"  # entre pedidos distintos de un mismo mensaje
+FUERA_PARCIAL = "🚫 Lo demás que pediste no lo puedo responder.\n_No doy recomendaciones ni respondo temas que no sean de tu cuaderno, precios oficiales o SENASA._"
 
 
 def _ejecutar_acciones(db: Session, usuario: Usuario, texto: str, acciones: list[dict], hoy: date) -> str:
@@ -256,10 +263,10 @@ def _ejecutar(db: Session, usuario: Usuario, texto: str, accion: dict, hoy: date
         return GRACIAS if accion.get("agradece") is True else SALUDO
     if intencion == "aclarar":
         faltan = [PREGUNTAS[f] for f in accion.get("falta") or [] if f in PREGUNTAS]
-        return "\n".join(dict.fromkeys(faltan)) or PREGUNTAS["que_paso"]
+        return "🤔 " + ("\n".join(dict.fromkeys(faltan)) or PREGUNTAS["que_paso"])
     if intencion == "establecimiento" and establecimiento:
         usuario.establecimiento_actual = establecimiento
-        return f"📍 Listo. Lo próximo que anotes lo guardo en *{establecimiento}*."
+        return f"📍 *{establecimiento}*\n\nListo, lo próximo que anotes queda guardado acá."
     if intencion == "registrar" and isinstance(accion.get("eventos"), list):
         return _registrar(db, usuario, texto, accion["eventos"], establecimiento, hoy)
     if intencion == "borrar" and isinstance(accion.get("borrado"), dict):
@@ -269,7 +276,7 @@ def _ejecutar(db: Session, usuario: Usuario, texto: str, accion: dict, hoy: date
     if intencion == "consultar" and isinstance(accion.get("consulta"), dict):
         return _consultar(db, usuario, accion["consulta"])
     if intencion == "precio":
-        return PREGUNTAS["que_producto_precio"]
+        return "🤔 " + PREGUNTAS["que_producto_precio"]
     if intencion == "producto_veterinario" and isinstance(accion.get("producto_veterinario"), dict):
         nombre_producto = _texto(accion["producto_veterinario"].get("nombre"), 80)
         if not nombre_producto:
@@ -435,64 +442,17 @@ def _registrar(
         guardados.append(evento)
 
     if not guardados:
-        return (
-            "No me quedó claro qué querés anotar 🤔. Probá con algo como: "
-            "_hoy vacunamos 20 vacas en el lote 3_"
-        )
+        return "🤔 No me quedó claro qué querés anotar.\nProbá con algo como: _vacuné 20 vacas en el lote 3_"
 
     db.flush()
-    donde = f" en 📍 *{establecimiento}*" if establecimiento else " (sin establecimiento)"
-    lineas = [f"✅ Anotado{donde}:"] + [f"• {resumen(e)}" for e in guardados]
+    donde = f"📍 {establecimiento}" if establecimiento else "📍 _sin establecimiento_"
+    cantidad = f"{len(guardados)} registros" if len(guardados) > 1 else "1 registro"
+    partes = [f"✅ *ANOTADO*\n{donde} · {cantidad}", formato.tarjetas(guardados, lugar=False)]
     if any(e.confianza == "baja" for e in guardados):
-        lineas.append("\n⚠️ No estoy seguro de haber entendido bien. Si algo está mal, mandá *borrar* y repetilo.")
+        partes.append(f"{LINEA}\n⚠️ No estoy seguro de haber entendido bien.\n_Si algo está mal, corregilo o mandá *borrar*._")
     else:
-        lineas.append("\n_Si algo está mal, mandá *borrar*._")
-    return "\n".join(lineas)
-
-
-def _singular(palabra: str) -> str:
-    """"vacas" -> "vaca", "animales" -> "animal". Alcanza para las categorías que usamos."""
-    if palabra.endswith("es") and len(palabra) > 3:
-        return palabra[:-2]
-    if palabra.endswith("s") and len(palabra) > 2:
-        return palabra[:-1]
-    return palabra
-
-
-_NOMBRES_TIPO = {
-    "vacunacion": "Vacunación",
-    "desparasitacion": "Desparasitación",
-    "inseminacion": "Inseminación",
-    "paricion": "Parición",
-    "fumigacion": "Fumigación",
-    "fertilizacion": "Fertilización",
-}
-
-
-def resumen(e: Evento) -> str:
-    partes = [_NOMBRES_TIPO.get(e.tipo, e.tipo.capitalize())]
-    if e.producto:
-        partes[0] += f" ({e.producto})"
-    if e.cantidad_animales:
-        nombre = e.categoria_animal or "animales"
-        partes.append(f"{e.cantidad_animales} {_singular(nombre) if e.cantidad_animales == 1 else nombre}")
-    elif e.categoria_animal:
-        partes.append(e.categoria_animal)
-    if e.caravana:
-        partes.append(f"caravana {e.caravana}")
-    if e.lote and e.lote_destino:
-        partes.append(f"lote {e.lote} → {e.lote_destino}")
-    elif e.lote_destino:
-        partes.append(f"→ lote {e.lote_destino}")
-    elif e.lote:
-        partes.append(f"lote {e.lote}")
-    if e.dosis:
-        partes.append(e.dosis)
-    if e.valor is not None:
-        valor = int(e.valor) if float(e.valor).is_integer() else e.valor
-        partes.append(f"{valor} {e.unidad or ''}".strip())
-    partes.append(e.fecha_evento.strftime("%d/%m/%Y"))
-    return " · ".join(partes)
+        partes.append(f"{LINEA}\n_¿Algo mal? Corregilo o mandá *borrar*._")
+    return "\n\n".join(partes)
 
 
 # Cuántos registros recientes se revisan para encontrar el que se quiere corregir.
@@ -509,7 +469,7 @@ def _coincide(e: Evento, referencia: dict) -> bool:
             if e.cantidad_animales != _a_int(valor):
                 return False
         elif clave == "categoria_animal":
-            if not e.categoria_animal or _singular(texto) not in e.categoria_animal.lower():
+            if not e.categoria_animal or formato.singular(texto) not in e.categoria_animal.lower():
                 return False
         elif clave in ("lote", "lote_destino"):
             if getattr(e, clave) != normalizar_lote(valor):
@@ -553,11 +513,11 @@ def _corregir(db: Session, usuario: Usuario, correccion: dict, hoy: date) -> str
     evento = next((e for e in recientes if _coincide(e, referencia)), None)
     if evento is None:
         return (
-            "No encontré cuál de tus registros querés corregir 🤔. "
-            "Si es el último, mandá *borrar* y anotalo de nuevo completo."
+            "🤔 No encontré cuál de tus registros querés corregir.\n"
+            "Con *¿qué tengo anotado?* ves la lista, o mandá *borrar* y anotalo de nuevo."
         )
 
-    antes = resumen(evento)
+    antes = formato.foto(evento)
     aplicados = 0
     for clave, valor in cambios.items():
         if clave == "establecimiento":
@@ -572,11 +532,18 @@ def _corregir(db: Session, usuario: Usuario, correccion: dict, hoy: date) -> str
         setattr(evento, clave, _CORREGIBLES[clave](valor, hoy))
         aplicados += 1
     if not aplicados:
-        return "No entendí qué querés cambiar. Probá con algo como: _eran 30, no 20_"
+        return "🤔 No entendí qué querés cambiar.\nProbá con algo como: _eran 30, no 20_"
 
     db.flush()
-    donde = f" · 📍 {evento.establecimiento}" if evento.establecimiento else ""
-    return f"✏️ Corregido:\nAntes: {antes}\nAhora: {resumen(evento)}{donde}\n\n_Si algo está mal, mandá *borrar*._"
+    cambios_hechos = formato.cambios(antes, evento)
+    if not cambios_hechos:
+        return "👌 Ese registro ya tenía esos datos, no cambié nada.\n\n" + formato.tarjeta(evento)
+    return "\n\n".join([
+        "✏️ *CORREGIDO*",
+        "\n".join(cambios_hechos),
+        "*Así quedó:*\n" + formato.tarjeta(evento),
+        f"{LINEA}\n_¿Algo mal? Corregilo de nuevo o mandá *borrar*._",
+    ])
 
 
 # Qué se puede corregir y cómo se limpia cada valor (igual que al registrar).
@@ -633,19 +600,19 @@ def _borrar(db: Session, usuario: Usuario, borrado: dict) -> str:
         filtro = {k: v for k, v in ref.items() if k != "todos"}
         hay_filtro = any(v not in (None, "") for v in filtro.values())
         if not hay_filtro and not todos:
-            avisos.append("Una de las cosas que pediste borrar no la pude identificar.")
+            avisos.append("🤔 Una de las cosas que pediste borrar no la pude identificar.")
             continue
         # Sin filtro y con "todos": es todo el cuaderno (siempre pide confirmación).
         coinciden = [e for e in recientes if _coincide(e, filtro)] if hay_filtro else list(recientes)
         if not coinciden:
-            avisos.append(f"No encontré: {_describir(filtro)}." if hay_filtro else "No tenés nada anotado.")
+            avisos.append(f"🔍 No encontré: {_describir(filtro)}." if hay_filtro else "📭 No tenés nada anotado.")
         elif len(coinciden) > 1 and not todos:
-            opciones = "\n".join(f"   • {_linea(e)}" for e in coinciden[:8])
-            mas = f"\n   _...y {len(coinciden) - 8} más_" if len(coinciden) > 8 else ""
+            opciones = "\n".join(f"      › {formato.linea(e)}" for e in coinciden[:8])
+            mas = f"\n      _...y {len(coinciden) - 8} más_" if len(coinciden) > 8 else ""
             avisos.append(
-                f"Hay {len(coinciden)} registros que coinciden con {_describir(filtro)} y no borré ninguno:\n"
-                f"{opciones}{mas}\n   Decime cuál (con la fecha, el lote o el establecimiento), "
-                "o pedí borrar *todos*."
+                f"🤔 *Hay {len(coinciden)} registros* que coinciden con {_describir(filtro)}.\n"
+                f"No borré ninguno:\n\n{opciones}{mas}\n\n"
+                "Decime cuál (con la fecha, el lote o el campo), o pedí borrar *todos*."
             )
         else:
             a_borrar.update({e.id: e for e in coinciden})
@@ -654,20 +621,20 @@ def _borrar(db: Session, usuario: Usuario, borrado: dict) -> str:
     if len(a_borrar) >= CONFIRMAR_DESDE:
         db.merge(BorradoPendiente(usuario_id=usuario.id, ids=list(a_borrar), creado=datetime.now(timezone.utc)))
         lista = list(a_borrar.values())
-        lineas.append(f"⚠️ Voy a borrar *{len(lista)} registros*:")
-        lineas += [f"• {_linea(e)}" for e in lista[:10]]
+        lineas.append(f"⚠️ *VOY A BORRAR {len(lista)} REGISTROS*\n")
+        lineas += [f"      › {formato.linea(e)}" for e in lista[:10]]
         if len(lista) > 10:
-            lineas.append(f"_...y {len(lista) - 10} más_")
-        lineas.append("\n¿Confirmás? Respondé *sí* para borrarlos o *no* para cancelar. Esto no se puede deshacer.")
+            lineas.append(f"      _...y {len(lista) - 10} más_")
+        lineas.append(f"\n{LINEA}\n¿Confirmás? Respondé *sí* para borrarlos o *no* para cancelar.\n_Esto no se puede deshacer._")
     elif a_borrar:
-        lineas.append("🗑️ Borré:")
-        lineas += [f"• {_linea(e)}" for e in a_borrar.values()]
+        lineas.append("🗑️ *BORRADO*\n")
+        lineas.append(formato.tarjetas(list(a_borrar.values())))
         db.execute(delete(Evento).where(Evento.id.in_(list(a_borrar)), Evento.usuario_id == usuario.id))
     if avisos:
         if lineas:
             lineas.append("")
         lineas += avisos
-    return "\n".join(lineas) or "No entendí qué querés borrar."
+    return "\n".join(lineas) or "🤔 No entendí qué querés borrar."
 
 
 def _resolver_borrado_pendiente(db: Session, usuario: Usuario, comando: str) -> str | None:
@@ -681,26 +648,22 @@ def _resolver_borrado_pendiente(db: Session, usuario: Usuario, comando: str) -> 
     creado = pendiente.creado if pendiente.creado.tzinfo else pendiente.creado.replace(tzinfo=timezone.utc)
     vigente = datetime.now(timezone.utc) - creado <= timedelta(minutes=CONFIRMAR_MINUTOS)
     if comando in NO:
-        return "Listo, no borré nada."
+        return "👌 Listo, no borré nada."
     if comando not in SI:
         return None
     if not vigente:
-        return "Pasó mucho tiempo desde que lo pediste y no borré nada. Si querés, pedilo de nuevo."
+        return "⏱️ Pasó mucho tiempo desde que lo pediste y no borré nada.\nSi querés, pedilo de nuevo."
     resultado = db.execute(
         delete(Evento).where(Evento.id.in_(pendiente.ids), Evento.usuario_id == usuario.id)
     )
-    return f"🗑️ Listo, borré {resultado.rowcount} registros."
-
-
-def _linea(e: Evento) -> str:
-    return resumen(e) + (f" · 📍 {e.establecimiento}" if e.establecimiento else "")
+    return f"🗑️ *BORRADO*\n\nListo, borré {resultado.rowcount} registros."
 
 
 def _describir(filtro: dict) -> str:
     """Texto armado por el código (no por la IA) para describir lo que se buscó."""
     partes = []
     if filtro.get("tipo"):
-        partes.append(_NOMBRES_TIPO.get(str(filtro["tipo"]).lower(), str(filtro["tipo"]).capitalize()))
+        partes.append(formato.nombre_tipo(str(filtro["tipo"]).lower()))
     if filtro.get("cantidad_animales") is not None and _a_int(filtro["cantidad_animales"]):
         partes.append(str(_a_int(filtro["cantidad_animales"])))
     if filtro.get("categoria_animal"):
@@ -720,7 +683,7 @@ def _borrar_ultimo(db: Session, usuario: Usuario) -> str:
         .limit(1)
     )
     if ultimo is None:
-        return "No tenés nada anotado para borrar."
+        return "📭 No tenés nada anotado para borrar."
     if ultimo.mensaje_id is None:
         # Registros anteriores a la columna: sin id no hay forma de agruparlos, y un
         # "mensaje_id IS NULL" borraría todos los viejos de una.
@@ -733,29 +696,42 @@ def _borrar_ultimo(db: Session, usuario: Usuario) -> str:
                 Evento.usuario_id == usuario.id, Evento.mensaje_id == ultimo.mensaje_id
             )
         ).all()
-    lineas = [f"• {resumen(e)}" for e in borrados]
+    texto = formato.tarjetas(list(borrados))
     db.execute(delete(Evento).where(Evento.id.in_([e.id for e in borrados])))
-    return "🗑️ Borré:\n" + "\n".join(lineas)
+    return "🗑️ *BORRADO*\n\n" + texto
 
 
-MAX_LINEAS_CONSULTA = 25
+MAX_LINEAS_CONSULTA = 15
 
 
 def _consultar(db: Session, usuario: Usuario, filtros: dict) -> str:
-    filtros = {**filtros, "establecimiento": clave_establecimiento(_texto(filtros.get("establecimiento"), 120))}
+    nombre_lugar = _texto(filtros.get("establecimiento"), 120)
+    filtros = {**filtros, "establecimiento": clave_establecimiento(nombre_lugar)}
     eventos = buscar(db, usuario.id, filtros)
     if not eventos:
-        return "No encontré registros para esa consulta."
+        return "🔍 No encontré registros para esa consulta."
 
-    lineas = [f"📋 *{len(eventos)} registro{'s' if len(eventos) != 1 else ''}*"]
+    lugares = {e.establecimiento for e in eventos}
+    subtitulo = [f"📍 {eventos[0].establecimiento}"] if len(lugares) == 1 and eventos[0].establecimiento else []
+    subtitulo.append(f"{len(eventos)} registro{'s' if len(eventos) != 1 else ''}")
+    partes = ["📋 *TUS REGISTROS*\n" + " · ".join(subtitulo)]
+
     animales, valores = totales(eventos)
-    for tipo, cantidad in animales.items():
-        lineas.append(f"Total {_NOMBRES_TIPO.get(tipo, tipo.capitalize()).lower()}: *{cantidad} animales*")
-    for (tipo, unidad), suma in valores.items():
-        suma = int(suma) if float(suma).is_integer() else round(suma, 2)
-        lineas.append(f"Total {_NOMBRES_TIPO.get(tipo, tipo.capitalize()).lower()}: *{suma} {unidad}*")
-    lineas.append("")
-    lineas += [f"• {_linea(e)}" for e in eventos[:MAX_LINEAS_CONSULTA]]
+    if animales or valores:
+        filas = [f"      {formato.icono(t)} {formato.nombre_tipo(t)}: *{c}* animales" for t, c in animales.items()]
+        filas += [
+            f"      {formato.icono(t)} {formato.nombre_tipo(t)}: *{formato.numero(v)} {u}*"
+            for (t, u), v in valores.items()
+        ]
+        partes.append("📊 *Totales*\n" + "\n".join(filas))
+
+    partes.append(LINEA)
+    mostrados = eventos[:MAX_LINEAS_CONSULTA]
+    # Si todos son del mismo lugar, ya figura arriba: no se repite en cada registro.
+    partes.append(formato.por_dia(mostrados, lugar=len(lugares) > 1))
     if len(eventos) > MAX_LINEAS_CONSULTA:
-        lineas.append(f"_...y {len(eventos) - MAX_LINEAS_CONSULTA} más. Pedí un período, lote o establecimiento más chico para verlos._")
-    return "\n".join(lineas)
+        partes.append(
+            f"_...y {len(eventos) - MAX_LINEAS_CONSULTA} más. "
+            "Pedí un período, lote o campo más chico para verlos._"
+        )
+    return "\n\n".join(partes)

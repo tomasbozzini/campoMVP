@@ -104,10 +104,10 @@ def test_sin_principio_activo_ni_estado_dice_no_informado(db):
     senasa.reemplazar_registro(db, FILAS, FECHA, senasa.URL_OFICIAL)
     respuesta = senasa.responder(db, "ivermectina")
     assert "*IVERMECTINA 1% ROSENBUSCH*" in respuesta
-    assert "Registro SENASA N° 04-125" in respuesta
+    assert "N° de registro: *04-125*" in respuesta
     assert "Estado: no informado" in respuesta
     # No inventa un principio activo que la consulta pública no publica.
-    assert "Principio activo" not in respuesta
+    assert "🧪" not in respuesta
     assert f"datos al {FECHA.strftime('%d/%m/%Y')}" in respuesta
     assert senasa.URL_OFICIAL in respuesta
     assert senasa.AVISO in respuesta

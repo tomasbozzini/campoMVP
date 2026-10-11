@@ -413,21 +413,27 @@ def _costos(c: Cotizacion) -> str:
     return " ".join(partes)
 
 
+_ICONOS = {"soja": "🫘", "maiz": "🌽", "trigo": "🌾", "girasol": "🌻", "sorgo": "🌾", "cebada": "🌾"}
+
+
 def _lineas_cotizacion(c: Cotizacion, hoy: date) -> list[str]:
-    plaza = f" ({c.plaza})" if c.plaza else ""
+    plaza = f" · {c.plaza}" if c.plaza else ""
     nombre = _NOMBRES.get(c.producto, c.producto.capitalize())
+    icono = _ICONOS.get(c.producto, "🐂" if c.rubro == "hacienda" else "📈")
     dias = (hoy - c.fecha).days
-    viejo = f" ⚠️ dato de hace {dias} días, puede no estar actualizado" if dias > config.DIAS_PRECIO_VIGENTE else ""
+    viejo = f"\n      ⚠️ _Dato de hace {dias} días, puede no estar actualizado_" if dias > config.DIAS_PRECIO_VIGENTE else ""
     return [
-        f"• {nombre}{plaza}: *{MONEDAS[c.moneda]} {_numero(c.valor)} por {c.unidad}* ({c.moneda})",
-        f"  Publicado el {c.fecha.strftime('%d/%m/%Y')}{viejo}",
-        f"  {_costos(c)}",
+        f"{icono} *{nombre}*{plaza}",
+        f"      *{MONEDAS[c.moneda]} {_numero(c.valor)}* por {c.unidad} ({c.moneda})",
+        f"      📅 Publicado el {c.fecha.strftime('%d/%m/%Y')}{viejo}",
+        f"      ℹ️ _{_costos(c)}_",
+        "",
     ]
 
 
 SIN_PRECIOS = (
-    "No tengo precios cargados de ese producto de una fuente oficial. "
-    "Solo informo precios que publican organismos oficiales o mercados regulados."
+    "🔍 No tengo precios cargados de ese producto de una fuente oficial.\n"
+    "_Solo informo precios que publican organismos oficiales o mercados regulados._"
 )
 
 
@@ -449,19 +455,20 @@ def responder_varios(db: Session, pedidos: list[tuple[str | None, str | None]], 
     if not cotizaciones:
         return SIN_PRECIOS
 
-    lineas = []
+    lineas = ["💲 *PRECIOS DE REFERENCIA*", ""]
     por_fuente: dict[tuple[str, str], list[Cotizacion]] = {}
     for c in cotizaciones.values():
         por_fuente.setdefault((c.fuente, c.url), []).append(c)
+    fuentes = []
     for (fuente, url), lista in por_fuente.items():
         for c in lista[:20]:
             lineas += _lineas_cotizacion(c, hoy)
-        lineas.append(f"Fuente: {fuente}\n{url}\n")
+        fuentes.append(f"📰 _Fuente: {fuente}_\n🔗 {url}")
     if faltan:
         nombres = ", ".join(f for f in faltan if f)
-        lineas.append(f"No tengo precios oficiales cargados de: {nombres}.\n" if nombres else
-                      "De algún producto que pediste no tengo precios oficiales cargados.\n")
-    return "\n".join(lineas) + "\n" + AVISO
+        lineas.append(f"🔍 No tengo precios oficiales cargados de: {nombres}.\n" if nombres else
+                      "🔍 De algún producto que pediste no tengo precios oficiales cargados.\n")
+    return "\n".join(lineas) + "────────────\n" + "\n\n".join(fuentes) + "\n\n" + AVISO
 
 
 def _cargar_csv(db: Session, ruta: str) -> None:

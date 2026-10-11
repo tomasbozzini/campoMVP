@@ -169,13 +169,13 @@ def test_responder_con_los_datos_de_los_fixtures(db, pizarra, hacienda):
     assert precios.guardar(db, canuelas.nombre, canuelas.url, canuelas.rubro, hacienda) == 6
 
     soja = precios.responder(db, "soja", None, HOY)
-    assert "Soja (Rosario): *$ 560.000 por t* (ARS)" in soja
+    assert "🫘 *Soja* · Rosario\n      *$ 560.000* por t (ARS)" in soja
     assert "Publicado el 08/10/2026" in soja
     assert "https://www.cac.bcr.com.ar/es/precios-de-pizarra" in soja
     assert precios.AVISO in soja
 
     novillo = precios.responder(db, "novillo", None, HOY)
-    assert "Novillo (Cañuelas): *$ 4.448,53 por kg vivo* (ARS)" in novillo
+    assert "🐂 *Novillo* · Cañuelas\n      *$ 4.448,53* por kg vivo (ARS)" in novillo
     assert "Publicado el 09/10/2026" in novillo
     # "novillo" no tiene que traer los novillitos
     assert "Novillito" not in novillo

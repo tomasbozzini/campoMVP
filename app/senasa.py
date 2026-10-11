@@ -199,30 +199,33 @@ def responder(db: Session, texto: str | None) -> str:
     productos = buscar(db, texto or "")
     hay_registro = db.scalar(select(ProductoVeterinario).limit(1))
     if hay_registro is None:
-        return "Todavía no tengo cargado el registro de productos veterinarios de SENASA."
+        return "📭 Todavía no tengo cargado el registro de productos veterinarios de SENASA."
     if not productos:
         # Mensaje fijo: no repetimos lo que escribió la IA.
         return (
-            "No encontré ese producto en el registro de SENASA que tengo cargado "
+            "🔍 No encontré ese producto en el registro de SENASA que tengo cargado "
             f"(datos al {hay_registro.fecha_datos.strftime('%d/%m/%Y')}).\n"
             "Que no aparezca acá no confirma que no esté registrado. Podés verificarlo en:\n"
             f"{hay_registro.url}"
         )
-    lineas = []
+    lineas = ["🔎 *REGISTRO SENASA*", ""]
     for p in productos[:MAX_RESULTADOS]:
-        lineas.append(f"• *{p.nombre}*")
-        lineas.append(f"  Registro SENASA N° {p.registro}")
+        lineas.append(f"💊 *{p.nombre}*")
+        lineas.append(f"      N° de registro: *{p.registro}*")
         if p.titular:
-            lineas.append(f"  Titular: {p.titular}")
+            lineas.append(f"      🏭 {p.titular}")
         if p.principio_activo:
-            lineas.append(f"  Principio activo: {p.principio_activo}")
-        lineas.append(f"  Estado: {p.estado or 'no informado'}")
+            lineas.append(f"      🧪 {p.principio_activo}")
+        estado = (p.estado or "").lower()
+        icono = "✅" if estado == "vigente" else ("❔" if not estado else "⚠️")
+        lineas.append(f"      {icono} Estado: {p.estado or 'no informado'}")
+        lineas.append("")
     if len(productos) > MAX_RESULTADOS:
-        lineas.append("_Hay más coincidencias. Escribí el nombre más completo._")
+        lineas.append("_Hay más coincidencias. Escribí el nombre más completo._\n")
     primero = productos[0]
-    lineas.append(
-        f"\nFuente: {primero.fuente}, datos al {primero.fecha_datos.strftime('%d/%m/%Y')}\n{primero.url}\n"
-    )
+    lineas.append("────────────")
+    lineas.append(f"📰 _Fuente: {primero.fuente}, datos al {primero.fecha_datos.strftime('%d/%m/%Y')}_")
+    lineas.append(f"🔗 {primero.url}\n")
     return "\n".join(lineas) + "\n" + AVISO
 
 

@@ -67,7 +67,7 @@ def test_limite_diario(db, respuestas, monkeypatch):
     # al otro día se renueva
     assert bot.manejar_mensaje(db, u.telefono, "x", hoy=date(2026, 10, 10)) == bot.FUERA_DE_ALCANCE
     # los comandos no gastan cupo
-    assert "Tu asistente de campo" in bot.manejar_mensaje(db, u.telefono, "ayuda", hoy=HOY)
+    assert "TU ASISTENTE DE CAMPO" in bot.manejar_mensaje(db, u.telefono, "ayuda", hoy=HOY)
 
 
 def test_usuario_sin_campo_no_usa_la_ia(db, respuestas):
@@ -89,7 +89,7 @@ def test_precio_con_fuente_y_fecha(db, respuestas):
     respuestas["¿a cuánto está la soja?"] = {"intencion": "precio", "precio": {"rubro": "granos", "producto": "soja"}}
 
     r = bot.manejar_mensaje(db, u.telefono, "¿a cuánto está la soja?", hoy=HOY)
-    assert "Soja (Rosario): *$ 310.000 por t* (ARS)" in r
+    assert "🫘 *Soja* · Rosario\n      *$ 310.000* por t (ARS)" in r
     assert "Publicado el 08/10/2026" in r
     assert "La fuente no informa si incluye impuestos u otros costos." in r
     assert "300.000" not in r  # solo el último
@@ -100,7 +100,7 @@ def test_precio_con_fuente_y_fecha(db, respuestas):
 
 def test_precio_viejo_avisa(db):
     _cargar_soja(db, date(2026, 9, 1))
-    assert "dato de hace 38 días, puede no estar actualizado" in precios.responder(db, "soja", None, HOY)
+    assert "Dato de hace 38 días, puede no estar actualizado" in precios.responder(db, "soja", None, HOY)
 
 
 def test_precio_aclara_costos_adicionales(db):
@@ -155,8 +155,8 @@ def test_senasa_por_principio_activo(db, respuestas):
     respuestas["¿la ivermectina está aprobada?"] = {
         "intencion": "producto_veterinario", "producto_veterinario": {"nombre": "IVERMECTINA"}}
     r = bot.manejar_mensaje(db, u.telefono, "¿la ivermectina está aprobada?", hoy=HOY)
-    assert "*Ivomec 1%*" in r and "Registro SENASA N° 12.345" in r and "Titular: Lab Uno SA" in r
-    assert "Estado: vigente" in r
+    assert "*Ivomec 1%*" in r and "N° de registro: *12.345*" in r and "🏭 Lab Uno SA" in r
+    assert "✅ Estado: vigente" in r
     assert "datos al 01/10/2026" in r and URL_SENASA in r
     assert "$" not in r  # nunca precios
 
@@ -178,7 +178,7 @@ def test_senasa_solo_acepta_gob_ar(db):
 def test_precio_sin_producto_repregunta(db, respuestas):
     u = _usuario(db)
     respuestas["precio"] = {"intencion": "precio", "precio": {}}
-    assert bot.manejar_mensaje(db, u.telefono, "precio", hoy=HOY) == bot.PREGUNTAS["que_producto_precio"]
+    assert bot.manejar_mensaje(db, u.telefono, "precio", hoy=HOY) == "🤔 " + bot.PREGUNTAS["que_producto_precio"]
 
 
 def test_saludo_y_gracias(db, respuestas):
@@ -192,10 +192,10 @@ def test_saludo_y_gracias(db, respuestas):
 def test_aclarar_usa_solo_preguntas_fijas(db, respuestas):
     u = _usuario(db)
     respuestas["anotá"] = {"intencion": "aclarar", "falta": ["que_paso", "texto libre inventado", "que_paso"]}
-    assert bot.manejar_mensaje(db, u.telefono, "anotá", hoy=HOY) == bot.PREGUNTAS["que_paso"]
+    assert bot.manejar_mensaje(db, u.telefono, "anotá", hoy=HOY) == "🤔 " + bot.PREGUNTAS["que_paso"]
     respuestas["corregí eso"] = {"intencion": "aclarar", "falta": ["cual_registro", "que_cambiar"]}
     r = bot.manejar_mensaje(db, u.telefono, "corregí eso", hoy=HOY)
-    assert r == bot.PREGUNTAS["cual_registro"] + "\n" + bot.PREGUNTAS["que_cambiar"]
+    assert r == "🤔 " + bot.PREGUNTAS["cual_registro"] + "\n" + bot.PREGUNTAS["que_cambiar"]
 
 
 def _maiz(db):
@@ -212,7 +212,7 @@ def test_varios_precios_en_un_mensaje_agrupados_por_fuente(db, respuestas):
         {"intencion": "precio", "precio": {"rubro": "granos", "producto": "maiz"}},
     ]}
     r = bot.manejar_mensaje(db, u.telefono, "¿cuánto está la soja y el maíz?", hoy=HOY)
-    assert "Soja (Rosario)" in r and "Maíz (Rosario)" in r
+    assert "*Soja* · Rosario" in r and "*Maíz* · Rosario" in r
     assert r.count("Fuente:") == 1 and r.count("No son una recomendación") == 1
 
 
@@ -224,7 +224,7 @@ def test_precio_que_falta_se_aclara_sin_perder_el_resto(db, respuestas):
         {"intencion": "precio", "precio": {"producto": "girasol"}},
     ]}
     r = bot.manejar_mensaje(db, u.telefono, "soja y girasol", hoy=HOY)
-    assert "Soja (Rosario)" in r and "No tengo precios oficiales cargados de: Girasol." in r
+    assert "*Soja* · Rosario" in r and "No tengo precios oficiales cargados de: Girasol." in r
 
 
 def test_mezcla_de_pedidos_se_responde_en_orden(db, respuestas):
@@ -238,7 +238,7 @@ def test_mezcla_de_pedidos_se_responde_en_orden(db, respuestas):
         {"intencion": "fuera_de_alcance"},
     ]}
     r = bot.manejar_mensaje(db, u.telefono, texto, hoy=HOY)
-    assert r.index("Anotado") < r.index("Soja (Rosario)") < r.index(bot.FUERA_PARCIAL)
+    assert r.index("ANOTADO") < r.index("*Soja* · Rosario") < r.index(bot.FUERA_PARCIAL)
     assert bot.SALUDO not in r and bot.FUERA_DE_ALCANCE not in r
 
 
