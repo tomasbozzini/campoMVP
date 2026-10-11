@@ -475,3 +475,26 @@ def test_lista_de_lo_anotado(db, fake_llm):
     respuestas["¿qué tengo anotado en La Pastora?"] = {"intencion": "consultar", "consulta": {"establecimiento": "La Pastora"}}
     r = bot.manejar_mensaje(db, u.telefono, "¿qué tengo anotado en La Pastora?", hoy=HOY)
     assert "*3 registros*" in r and "Cosecha" in r and "El Ombú" not in r
+
+
+def test_reintenta_el_numero_argentino_sin_el_9(monkeypatch):
+    enviados = []
+
+    class Resp:
+        def __init__(self, status, cuerpo):
+            self.status_code, self._cuerpo, self.text = status, cuerpo, json.dumps(cuerpo)
+
+        def json(self):
+            return self._cuerpo
+
+    def post(url, headers, json, timeout):
+        enviados.append(json["to"])
+        if json["to"] == "5492494123456":
+            return Resp(400, {"error": {"code": 131030}})
+        return Resp(200, {})
+
+    monkeypatch.setattr(config, "WA_AR_QUITAR_9", False)
+    monkeypatch.setattr(whatsapp.httpx, "post", post)
+    whatsapp.enviar_texto("5492494123456", "hola")
+    whatsapp.enviar_texto("5492494123456", "chau")
+    assert enviados == ["5492494123456", "542494123456", "5492494123456", "542494123456"]

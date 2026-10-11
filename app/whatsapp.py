@@ -38,21 +38,53 @@ def numero_para_envio(telefono: str) -> str:
     return telefono
 
 
+def _otra_forma_argentina(numero: str) -> str | None:
+    """549XXXXXXXXXX <-> 54XXXXXXXXXX. WhatsApp manda los celulares argentinos con el 9,
+    pero la lista de destinatarios de prueba de Meta a veces los guarda sin él."""
+    if numero.startswith("549"):
+        return "54" + numero[3:]
+    if numero.startswith("54") and len(numero) == 12:
+        return "549" + numero[2:]
+    return None
+
+
+# Meta: "Recipient phone number not in allowed list" (número de prueba sin ese destinatario)
+NO_PERMITIDO = 131030
+
+
+def _post_mensaje(numero: str, texto: str) -> httpx.Response:
+    return httpx.post(
+        _url(f"{config.WA_PHONE_NUMBER_ID}/messages"),
+        headers=_headers(),
+        json={"messaging_product": "whatsapp", "to": numero, "type": "text", "text": {"body": texto}},
+        timeout=20,
+    )
+
+
+def _codigo_error(r: httpx.Response) -> int | None:
+    try:
+        return r.json().get("error", {}).get("code")
+    except ValueError:
+        return None
+
+
 def enviar_texto(telefono: str, texto: str) -> None:
+    numero = numero_para_envio(telefono)
     for i in range(0, len(texto), LIMITE_TEXTO):
-        r = httpx.post(
-            _url(f"{config.WA_PHONE_NUMBER_ID}/messages"),
-            headers=_headers(),
-            json={
-                "messaging_product": "whatsapp",
-                "to": numero_para_envio(telefono),
-                "type": "text",
-                "text": {"body": texto[i : i + LIMITE_TEXTO]},
-            },
-            timeout=20,
-        )
+        parte = texto[i : i + LIMITE_TEXTO]
+        r = _post_mensaje(numero, parte)
+        if _codigo_error(r) == NO_PERMITIDO and (otro := _otra_forma_argentina(numero)):
+            r2 = _post_mensaje(otro, parte)
+            if r2.status_code < 400:
+                log.info("Meta aceptó %s en vez de %s; se usa ese formato", otro, numero)
+                numero = otro
+                continue
         if r.status_code >= 400:
-            log.error("Error enviando mensaje a WhatsApp: %s %s", r.status_code, r.text)
+            log.error(
+                "Error enviando mensaje a WhatsApp al número %s: %s %s. Si el código es 131030, "
+                "agregá ese número en Meta > WhatsApp > API Setup > To.",
+                numero, r.status_code, r.text,
+            )
 
 
 def descargar_media(media_id: str) -> bytes:
