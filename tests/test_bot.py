@@ -401,3 +401,77 @@ def test_corregir_no_acepta_fechas_futuras_ni_campos_raros(db, fake_llm):
     bot.manejar_mensaje(db, u.telefono, "x", hoy=HOY)
     e = db.scalar(select(Evento))
     assert e.fecha_evento == HOY and e.usuario_id == u.id
+
+
+def _anotar_en_la_pastora(respuestas, db, u):
+    respuestas["varios"] = {"intencion": "registrar", "establecimiento": "La Pastora", "eventos": [
+        {"categoria": "sanidad", "tipo": "vacunacion", "cantidad_animales": 5, "categoria_animal": "vaquillonas", "lote": "3"},
+        {"categoria": "campo", "tipo": "cosecha", "lote": "5", "valor": 40, "unidad": "ha"},
+        {"categoria": "campo", "tipo": "lluvia", "valor": 30, "unidad": "mm"},
+    ]}
+    bot.manejar_mensaje(db, u.telefono, "varios", hoy=HOY)
+    respuestas["llovio en el ombu"] = {"intencion": "registrar", "establecimiento": "El Ombú", "eventos": [
+        {"categoria": "campo", "tipo": "lluvia", "valor": 12, "unidad": "mm"}]}
+    bot.manejar_mensaje(db, u.telefono, "llovio en el ombu", hoy=HOY)
+
+
+def test_borrar_registros_puntuales(db, fake_llm):
+    respuestas, _ = fake_llm
+    u = _con_campo(db)
+    _anotar_en_la_pastora(respuestas, db, u)
+    texto = "borrá las 5 vaquillonas y la cosecha del lote 5, ambos de La Pastora"
+    respuestas[texto] = {"intencion": "borrar", "borrado": {"registros": [
+        {"cantidad_animales": 5, "categoria_animal": "vaquillonas", "establecimiento": "La Pastora"},
+        {"tipo": "cosecha", "lote": "5", "establecimiento": "la pastora"},
+    ]}}
+    r = bot.manejar_mensaje(db, u.telefono, texto, hoy=HOY)
+    assert "Borré:" in r and "Vacunación · 5 vaquillonas" in r and "Cosecha" in r
+    assert sorted(e.valor for e in db.scalars(select(Evento)).all()) == [12, 30]  # quedan las lluvias
+
+
+def test_borrar_la_lluvia_de_la_pastora(db, fake_llm):
+    respuestas, _ = fake_llm
+    u = _con_campo(db)
+    _anotar_en_la_pastora(respuestas, db, u)
+    respuestas["borrá la lluvia de la pastora"] = {"intencion": "borrar", "borrado": {"registros": [
+        {"tipo": "lluvia", "establecimiento": "La Pastora"}]}}
+    r = bot.manejar_mensaje(db, u.telefono, "borrá la lluvia de la pastora", hoy=HOY)
+    assert "Borré:" in r and "La Pastora" in r
+    lluvias = db.scalars(select(Evento).where(Evento.tipo == "lluvia")).all()
+    assert [e.establecimiento for e in lluvias] == ["El Ombú"]
+
+
+def test_borrar_ambiguo_no_borra_y_muestra_opciones(db, fake_llm):
+    respuestas, _ = fake_llm
+    u = _con_campo(db)
+    _anotar_en_la_pastora(respuestas, db, u)
+    respuestas["borrá la lluvia"] = {"intencion": "borrar", "borrado": {"registros": [{"tipo": "lluvia"}]}}
+    r = bot.manejar_mensaje(db, u.telefono, "borrá la lluvia", hoy=HOY)
+    assert "Hay 2 registros" in r and "no borré ninguno" in r and "El Ombú" in r and "La Pastora" in r
+    assert len(db.scalars(select(Evento)).all()) == 4
+
+    respuestas["borrá todas las lluvias"] = {"intencion": "borrar", "borrado": {"registros": [
+        {"tipo": "lluvia", "todos": True}]}}
+    bot.manejar_mensaje(db, u.telefono, "borrá todas las lluvias", hoy=HOY)
+    assert db.scalar(select(Evento).where(Evento.tipo == "lluvia")) is None
+
+
+def test_borrar_no_encontrado_y_ajeno(db, fake_llm):
+    respuestas, _ = fake_llm
+    u = _con_campo(db, "5491100000001")
+    otro = _con_campo(db, "5491100000002")
+    _anotar_en_la_pastora(respuestas, db, otro)
+    respuestas["borrá la cosecha de La Pastora"] = {"intencion": "borrar", "borrado": {"registros": [
+        {"tipo": "cosecha", "establecimiento": "La Pastora"}]}}
+    r = bot.manejar_mensaje(db, u.telefono, "borrá la cosecha de La Pastora", hoy=HOY)
+    assert "No encontré" in r
+    assert len(db.scalars(select(Evento)).all()) == 4  # lo del otro usuario sigue intacto
+
+
+def test_lista_de_lo_anotado(db, fake_llm):
+    respuestas, _ = fake_llm
+    u = _con_campo(db)
+    _anotar_en_la_pastora(respuestas, db, u)
+    respuestas["¿qué tengo anotado en La Pastora?"] = {"intencion": "consultar", "consulta": {"establecimiento": "La Pastora"}}
+    r = bot.manejar_mensaje(db, u.telefono, "¿qué tengo anotado en La Pastora?", hoy=HOY)
+    assert "*3 registros*" in r and "Cosecha" in r and "El Ombú" not in r

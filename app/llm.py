@@ -34,10 +34,11 @@ La fecha de hoy es {hoy} ({dia_semana}).
 Devolvé ÚNICAMENTE un objeto JSON con esta estructura:
 
 {{
-  "intencion": "registrar" | "corregir" | "consultar" | "establecimiento" | "precio" | "producto_veterinario" | "fuera_de_alcance",
+  "intencion": "registrar" | "corregir" | "borrar" | "consultar" | "establecimiento" | "precio" | "producto_veterinario" | "fuera_de_alcance",
   "establecimiento": string | null, // establecimiento/estancia/campo que NOMBRA el mensaje, tal como lo escribió (ej: "La Esperanza"). null si no nombra ninguno
   "eventos": [ EVENTO, ... ],      // solo si intencion = "registrar"; un mensaje puede traer varios eventos
   "correccion": CORRECCION | null, // solo si intencion = "corregir"
+  "borrado": BORRADO | null,       // solo si intencion = "borrar"
   "consulta": CONSULTA | null,     // solo si intencion = "consultar"
   "precio": PRECIO | null,         // solo si intencion = "precio"
   "producto_veterinario": {{ "nombre": string }} | null  // solo si intencion = "producto_veterinario"
@@ -49,7 +50,10 @@ Qué es cada intención:
   porque se refiere a un registro anterior: "a esas 5 vaquillonas las vacuné con ivermectina",
   "eran 30, no 20", "me equivoqué, fue en el lote 4", "lo de recién fue ayer", "corregí: ...".
   Si cuenta algo que hizo además de lo anterior ("también desparasité 10 terneros"), es "registrar".
-- "consultar": pregunta por cosas que ÉL MISMO anotó antes ("¿qué hice hoy?", "¿qué hice en La Esperanza?").
+- "borrar": pide borrar o eliminar uno o varios registros que anotó ("borrá la lluvia de La Pastora",
+  "eliminá las 5 vaquillonas y la cosecha del lote 5", "sacá lo último").
+- "consultar": pregunta por cosas que ÉL MISMO anotó antes, o pide la lista de lo que tiene
+  anotado ("¿qué tengo anotado?", "pasame la lista de La Pastora") ("¿qué hice hoy?", "¿qué hice en La Esperanza?").
 - "establecimiento": solo avisa dónde está o a qué campo llegó, sin registrar nada
   ("estoy en La Esperanza", "llegué a El Ombú"). Completá "establecimiento".
 - "precio": pide el precio o cotización actual de un grano o de hacienda (soja, maíz, trigo,
@@ -98,7 +102,19 @@ CORRECCION:
                             // que EVENTO (más "establecimiento"). No repitas lo que no cambia.
 }}
 
-CONSULTA (filtros para buscar en la base; poné null en lo que no se pida):
+BORRADO:
+{{
+  "registros": [ REFERENCIA, ... ]  // una por cada cosa que pide borrar; [] si dice "lo último"
+}}
+REFERENCIA: mismas claves que EVENTO (solo las que menciona para identificarlo) más
+  "establecimiento" y "todos": true SOLO si pide explícitamente borrar todos los que coincidan.
+  Si una frase aplica a varias cosas ("ambos del campo La Pastora"), repetí ese dato en cada una.
+  Ej: "borrá las 5 vaquillonas y la cosecha del lote 5, ambos de La Pastora" ->
+  [{{"cantidad_animales": 5, "categoria_animal": "vaquillonas", "establecimiento": "La Pastora"}},
+   {{"tipo": "cosecha", "lote": "5", "establecimiento": "La Pastora"}}]
+
+CONSULTA (filtros para buscar en la base; poné null en lo que no se pida; si pide "todo lo
+anotado", dejá todos los filtros en null):
 {{
   "categoria": string | null,
   "tipo": string | null,

@@ -30,11 +30,13 @@ Contame lo que hacés y yo lo anoto en tu cuaderno. Por ejemplo:
 • _En El Ombú hice tacto a 50 vaquillonas_
 • _Llovieron 35 mm_
 
-Si algo quedó mal, corregilo:
+Si algo quedó mal, corregilo o borralo:
 • _A esas vaquillonas las vacuné con ivermectina_
 • _No eran 20, eran 25_
+• _Borrá la lluvia de La Pastora_
 
 Preguntame por lo que anotaste:
+• _¿Qué tengo anotado?_
 • _¿Qué hice hoy?_
 • _¿Qué hice en La Esperanza este mes?_
 • _¿Cuántas vacas vacuné esta semana?_
@@ -152,6 +154,8 @@ def manejar_mensaje(
         return f"📍 Listo. Lo próximo que anotes lo guardo en *{establecimiento}*."
     if intencion == "registrar" and isinstance(interpretado.get("eventos"), list):
         return _registrar(db, usuario, texto, interpretado["eventos"], establecimiento, hoy)
+    if intencion == "borrar" and isinstance(interpretado.get("borrado"), dict):
+        return _borrar(db, usuario, interpretado["borrado"])
     if intencion == "corregir" and isinstance(interpretado.get("correccion"), dict):
         return _corregir(db, usuario, interpretado["correccion"], hoy)
     if intencion == "consultar" and isinstance(interpretado.get("consulta"), dict):
@@ -416,6 +420,15 @@ def _coincide(e: Evento, referencia: dict) -> bool:
         elif clave == "producto":
             if texto not in (e.producto or "").lower():
                 return False
+        elif clave == "categoria":
+            if e.categoria != texto:
+                return False
+        elif clave == "fecha_evento":
+            try:
+                if e.fecha_evento != date.fromisoformat(texto):
+                    return False
+            except ValueError:
+                pass
         # el resto de las claves (descripcion, confianza...) no sirve para identificar
     return True
 
@@ -473,6 +486,82 @@ _CORREGIBLES = {
 }
 
 
+# Cuántos registros se revisan para encontrar lo que se quiere borrar.
+BORRADO_ULTIMOS = 500
+MAX_REFERENCIAS_BORRADO = 10
+
+
+def _borrar(db: Session, usuario: Usuario, borrado: dict) -> str:
+    """Borra registros puntuales que la persona describe ("la lluvia de La Pastora").
+
+    Cada descripción tiene que señalar UN solo registro. Si coincide con varios, no se
+    borra nada de esa descripción y se muestran las opciones para que precise, salvo
+    que haya pedido explícitamente borrar todos ("todas las lluvias de La Pastora").
+    """
+    referencias = borrado.get("registros")
+    if not isinstance(referencias, list) or not referencias:
+        return _borrar_ultimo(db, usuario)
+    recientes = db.scalars(
+        select(Evento).where(Evento.usuario_id == usuario.id)
+        .order_by(Evento.id.desc()).limit(BORRADO_ULTIMOS)
+    ).all()
+
+    a_borrar: dict[int, Evento] = {}
+    avisos: list[str] = []
+    for ref in referencias[:MAX_REFERENCIAS_BORRADO]:
+        if not isinstance(ref, dict):
+            continue
+        todos = ref.get("todos") is True
+        filtro = {k: v for k, v in ref.items() if k != "todos"}
+        if not any(v not in (None, "") for v in filtro.values()):
+            avisos.append("Una de las cosas que pediste borrar no la pude identificar.")
+            continue
+        coinciden = [e for e in recientes if _coincide(e, filtro)]
+        if not coinciden:
+            avisos.append(f"No encontré: {_describir(filtro)}.")
+        elif len(coinciden) > 1 and not todos:
+            opciones = "\n".join(f"   • {_linea(e)}" for e in coinciden[:8])
+            mas = f"\n   _...y {len(coinciden) - 8} más_" if len(coinciden) > 8 else ""
+            avisos.append(
+                f"Hay {len(coinciden)} registros que coinciden con {_describir(filtro)} y no borré ninguno:\n"
+                f"{opciones}{mas}\n   Decime cuál (con la fecha, el lote o el establecimiento), "
+                "o pedí borrar *todos*."
+            )
+        else:
+            a_borrar.update({e.id: e for e in coinciden})
+
+    lineas = []
+    if a_borrar:
+        lineas.append("🗑️ Borré:")
+        lineas += [f"• {_linea(e)}" for e in a_borrar.values()]
+        db.execute(delete(Evento).where(Evento.id.in_(list(a_borrar)), Evento.usuario_id == usuario.id))
+    if avisos:
+        if lineas:
+            lineas.append("")
+        lineas += avisos
+    return "\n".join(lineas) or "No entendí qué querés borrar."
+
+
+def _linea(e: Evento) -> str:
+    return resumen(e) + (f" · 📍 {e.establecimiento}" if e.establecimiento else "")
+
+
+def _describir(filtro: dict) -> str:
+    """Texto armado por el código (no por la IA) para describir lo que se buscó."""
+    partes = []
+    if filtro.get("tipo"):
+        partes.append(_NOMBRES_TIPO.get(str(filtro["tipo"]).lower(), str(filtro["tipo"]).capitalize()))
+    if filtro.get("cantidad_animales") is not None and _a_int(filtro["cantidad_animales"]):
+        partes.append(str(_a_int(filtro["cantidad_animales"])))
+    if filtro.get("categoria_animal"):
+        partes.append(_texto(filtro["categoria_animal"], 40))
+    if lote := normalizar_lote(filtro.get("lote")):
+        partes.append(f"lote {lote}")
+    if filtro.get("establecimiento"):
+        partes.append(f"en {_texto(filtro['establecimiento'], 60)}")
+    return "_" + (" ".join(p for p in partes if p) or "eso") + "_"
+
+
 def _borrar_ultimo(db: Session, usuario: Usuario) -> str:
     ultimo = db.scalar(
         select(Evento)
@@ -499,7 +588,7 @@ def _borrar_ultimo(db: Session, usuario: Usuario) -> str:
     return "🗑️ Borré:\n" + "\n".join(lineas)
 
 
-MAX_LINEAS_CONSULTA = 15
+MAX_LINEAS_CONSULTA = 25
 
 
 def _consultar(db: Session, usuario: Usuario, filtros: dict) -> str:
@@ -516,10 +605,7 @@ def _consultar(db: Session, usuario: Usuario, filtros: dict) -> str:
         suma = int(suma) if float(suma).is_integer() else round(suma, 2)
         lineas.append(f"Total {_NOMBRES_TIPO.get(tipo, tipo.capitalize()).lower()}: *{suma} {unidad}*")
     lineas.append("")
-    lineas += [
-        f"• {resumen(e)}" + (f" · 📍 {e.establecimiento}" if e.establecimiento else "")
-        for e in eventos[:MAX_LINEAS_CONSULTA]
-    ]
+    lineas += [f"• {_linea(e)}" for e in eventos[:MAX_LINEAS_CONSULTA]]
     if len(eventos) > MAX_LINEAS_CONSULTA:
         lineas.append(f"_...y {len(eventos) - MAX_LINEAS_CONSULTA} más. Pedí un período, lote o establecimiento más chico para verlos._")
     return "\n".join(lineas)
