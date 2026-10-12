@@ -172,15 +172,46 @@ pytest                      # tests (no usan la IA real)
 
 ## Ponerlo en producción (Railway + Postgres)
 
-1. **Railway**: entrá a [railway.app](https://railway.app), creá un proyecto con *Deploy from GitHub repo* y elegí este repo. Detecta el `Dockerfile` solo.
-2. Dentro del proyecto, agregá una base: *New → Database → PostgreSQL*. En el servicio del bot, agregá la variable `DATABASE_URL` con el valor `${{Postgres.DATABASE_URL}}`.
-3. Cargá las demás variables de `.env.example` en *Variables*.
-4. En *Settings → Networking → Generate Domain* vas a obtener una URL tipo `https://campo-bot.up.railway.app`.
-5. **Meta**: entrá a [developers.facebook.com](https://developers.facebook.com) → tu app → *WhatsApp → Configuration → Webhook*:
-   - Callback URL: `https://TU-DOMINIO/webhook`
-   - Verify token: el mismo valor que pusiste en `WA_VERIFY_TOKEN`
-   - Suscribite al campo **messages**.
-6. Mandale `hola` al número del bot.
+En Railway el proyecto queda armado con **tres servicios**, todos dentro del mismo proyecto:
+
+```
+┌──────────────────────── Proyecto en Railway ────────────────────────┐
+│                                                                     │
+│  [ bot ]  ← Meta llama a https://tu-bot.up.railway.app/webhook      │
+│   Dockerfile · prendido siempre · se redeploya con cada push        │
+│      │ lee y escribe                                                │
+│      ▼                                                              │
+│  [ Postgres ]  base administrada, con backups                       │
+│      ▲                                                              │
+│      │ carga precios y SENASA                                       │
+│  [ actualizar-precios ]  cron: lunes a viernes 18:30 (Argentina)    │
+│   corre, actualiza y se apaga                                       │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+| Servicio | Qué es | Configuración |
+|---|---|---|
+| **bot** | El servidor (`app/main.py`) | Rama del repo · variables de `.env.example` · `DATABASE_URL=${{Postgres.DATABASE_URL}}` · dominio público |
+| **Postgres** | La base de datos | Se crea con *New → Database → PostgreSQL* · activar *Backups* |
+| **actualizar-precios** | Mismo repo, otro comando | Start command `sh -c "python -m app.precios actualizar && python -m app.senasa actualizar"` · Cron `30 21 * * 1-5` (UTC) · solo `DATABASE_URL` · sin dominio |
+
+### Paso a paso
+
+1. Entrá a [railway.com](https://railway.com) con tu cuenta de GitHub → *New Project* → *Deploy from GitHub repo* → este repo. En *Settings → Source → Branch* elegí la rama del bot.
+2. *New → Database → PostgreSQL*.
+3. En el servicio del bot → *Variables* → *Raw Editor*: `DATABASE_URL=${{Postgres.DATABASE_URL}}` y el resto de las variables de `.env.example` (`GROQ_API_KEY`, `WA_TOKEN`, `WA_PHONE_NUMBER_ID`, `META_APP_SECRET`, `WA_VERIFY_TOKEN`, `ADMIN_TELEFONOS`, `PRIVACIDAD_*`).
+4. *Settings → Networking → Generate Domain*. Abrí `https://tu-bot.up.railway.app/`: tiene que responder `{"ok": true}`.
+5. Creá el servicio **actualizar-precios** (*New → GitHub Repo*, mismo repo y rama) con el start command y el cron de la tabla, y la variable `DATABASE_URL`. Ejecutalo una vez a mano para cargar los datos iniciales.
+6. En Meta → *WhatsApp → Configuration → Webhook*: Callback URL `https://tu-bot.up.railway.app/webhook`, el mismo verify token, y suscripción a **messages**. La política de privacidad queda en `https://tu-bot.up.railway.app/privacidad`.
+7. Mandale `hola` al bot. Los logs se ven en el servicio del bot → *Deployments* → *View logs*.
+
+### Uso diario
+
+- **Subir cambios**: hacés `git push` a la rama y Railway vuelve a construir y prender el bot solo.
+- **Cambiar una clave** (por ejemplo, el token de Meta): editás la variable en *Variables* y se redeploya solo.
+- **Ver qué pasa**: *View logs* del bot muestra lo mismo que la terminal de uvicorn.
+- **Copias de la base**: Postgres → *Backups*, o `pg_dump` con la `DATABASE_URL`.
+- **Costo**: plan Hobby, alrededor de USD 5 por mes para este tamaño (revisá el precio vigente).
 
 ### Dónde está cada dato en Meta
 
