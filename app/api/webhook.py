@@ -12,7 +12,7 @@ from app.ia import interprete
 from app.infra.config import config
 from app.infra.db import SessionLocal
 from app.infra.modelos import MensajeProcesado
-from app.nucleo import bot
+from app.nucleo import acceso, pipeline
 
 log = logging.getLogger(__name__)
 
@@ -67,9 +67,9 @@ def procesar_mensaje(mensaje: MensajeEntrante) -> None:
             texto = mensaje.texto
         elif mensaje.tipo == "audio" and mensaje.audio_id:
             with SessionLocal() as db:
-                habilitado = bot.puede_usar_ia(db, telefono)
+                habilitado = acceso.puede_usar_ia(db, telefono)
             if not habilitado:
-                whatsapp.enviar_texto(telefono, bot.NO_AUTORIZADO)
+                whatsapp.enviar_texto(telefono, acceso.NO_AUTORIZADO)
                 return
             audio = whatsapp.descargar_media(mensaje.audio_id)
             if len(audio) > config.max_audio_bytes:
@@ -82,7 +82,7 @@ def procesar_mensaje(mensaje: MensajeEntrante) -> None:
             return
 
         with SessionLocal() as db:
-            respuesta = bot.manejar_mensaje(db, telefono, texto, nombre=mensaje.nombre)
+            respuesta = pipeline.manejar_mensaje(db, telefono, texto, nombre=mensaje.nombre)
             db.commit()
     except Exception:
         log.exception("Error procesando mensaje %s", mensaje.wamid)

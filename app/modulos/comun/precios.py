@@ -6,15 +6,21 @@ Cada precio sale con su fuente, la fecha de publicación, la moneda y el link.
 
 import re
 from datetime import date
+from typing import Annotated
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.fuentes.precios import MONEDAS, normalizar_producto
+from app.ia.esquemas import Esquema, EsquemaAccion, Rubro, SiNoNada, texto
 from app.infra.config import config
 from app.infra.modelos import Cotizacion
+from app.modulos.comun.conversacion import PREGUNTAS
+from app.nucleo.acciones import Accion
+from app.nucleo.contexto import Contexto
 from app.salidas.whatsapp import numero
 
+PREGUNTA_PRODUCTO = PREGUNTAS["que_producto_precio"]
 AVISO = "_Valores de referencia publicados por la fuente. No son una recomendación de compra o venta._"
 
 
@@ -123,3 +129,33 @@ def responder_varios(db: Session, pedidos: list[tuple[str | None, str | None]], 
             else "🔍 De algún producto que pediste no tengo precios oficiales cargados.\n"
         )
     return "\n".join(lineas) + "────────────\n" + "\n\n".join(fuentes) + "\n\n" + AVISO
+
+
+# --- Acción "precio" ---------------------------------------------------------
+
+
+class PedidoPrecio(Esquema):
+    rubro: Rubro = None
+    # En singular y minúscula, sin tildes: "soja", "maiz", "novillo"...
+    producto: Annotated[str | None, texto(40)] = None
+
+
+class Precio(EsquemaAccion):
+    precio: Annotated[PedidoPrecio | None, SiNoNada] = None
+
+
+def _completo(datos: Precio) -> bool:
+    return datos.precio is not None and bool(datos.precio.producto or datos.precio.rubro)
+
+
+def repreguntar(_ctx: Contexto, _datos: Precio) -> str:
+    """Pidió un precio sin decir de qué."""
+    return "🤔 " + PREGUNTA_PRODUCTO
+
+
+def responder_juntos(ctx: Contexto, pedidos: list[Precio]) -> str:
+    """Todos los precios del mensaje en una sola respuesta, para no repetir la fuente."""
+    return responder_varios(ctx.db, [(p.precio.producto, p.precio.rubro) for p in pedidos if p.precio], ctx.hoy)
+
+
+ACCION = Accion("precio", Precio, repreguntar, juntar=responder_juntos, se_junta=_completo)

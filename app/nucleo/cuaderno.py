@@ -6,25 +6,31 @@ se abrió el cuaderno, así que no hay forma de leer ni tocar lo de otra persona
 id venga mal. Fuera de este módulo nadie filtra por `usuario_id` a mano.
 """
 
+from dataclasses import dataclass
 from datetime import date, datetime
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.infra.modelos import BorradoPendiente, Evento, MensajeChat, UsoDiario
-from app.nucleo.normalizar import normalizar_lote
 
 # Tope de registros que devuelve una búsqueda.
 MAX_EVENTOS = 5000
 
 
-def _fecha(valor: object) -> date | None:
-    if not valor:
-        return None
-    try:
-        return date.fromisoformat(str(valor))
-    except ValueError:
-        return None
+@dataclass(frozen=True)
+class Filtros:
+    """Filtros de búsqueda en el cuaderno. Los vacíos no filtran."""
+
+    establecimiento_clave: str | None = None  # ya normalizado (normalizar.clave_establecimiento)
+    categoria: str | None = None
+    tipo: str | None = None
+    lote: str | None = None  # ya normalizado (normalizar.normalizar_lote); busca origen o destino
+    caravana: str | None = None
+    categoria_animal: str | None = None
+    producto: str | None = None  # en el producto o en la descripción
+    desde: date | None = None
+    hasta: date | None = None
 
 
 class Cuaderno:
@@ -61,31 +67,30 @@ class Cuaderno:
         resultado = self.db.execute(delete(Evento).where(Evento.id.in_(ids), Evento.usuario_id == self.usuario_id))
         return int(getattr(resultado, "rowcount", 0) or 0)
 
-    def buscar(self, filtros: dict) -> list[Evento]:
-        """Busca con los filtros que arma el modelo. El modelo nunca escribe SQL ni ve los
-        resultados: solo devuelve filtros. `establecimiento` ya viene normalizado
-        (normalizar.clave_establecimiento)."""
+    def buscar(self, filtros: Filtros) -> list[Evento]:
+        """Busca con los filtros que armó el código a partir de lo que pidió la IA. El
+        modelo nunca escribe SQL ni ve los resultados."""
         q = select(Evento).where(Evento.usuario_id == self.usuario_id)
-        if filtros.get("establecimiento"):
-            q = q.where(Evento.establecimiento_clave == filtros["establecimiento"])
-        if filtros.get("categoria"):
-            q = q.where(Evento.categoria == str(filtros["categoria"]).lower())
-        if filtros.get("tipo"):
-            q = q.where(Evento.tipo == str(filtros["tipo"]).lower())
-        if lote := normalizar_lote(filtros.get("lote")):
-            q = q.where((Evento.lote == lote) | (Evento.lote_destino == lote))
-        if filtros.get("caravana"):
-            q = q.where(func.lower(Evento.caravana) == str(filtros["caravana"]).lower())
-        if filtros.get("categoria_animal"):
-            raiz = str(filtros["categoria_animal"]).lower().rstrip("s")
+        if filtros.establecimiento_clave:
+            q = q.where(Evento.establecimiento_clave == filtros.establecimiento_clave)
+        if filtros.categoria:
+            q = q.where(Evento.categoria == filtros.categoria.lower())
+        if filtros.tipo:
+            q = q.where(Evento.tipo == filtros.tipo.lower())
+        if filtros.lote:
+            q = q.where((Evento.lote == filtros.lote) | (Evento.lote_destino == filtros.lote))
+        if filtros.caravana:
+            q = q.where(func.lower(Evento.caravana) == filtros.caravana.lower())
+        if filtros.categoria_animal:
+            raiz = filtros.categoria_animal.lower().rstrip("s")
             q = q.where(func.lower(Evento.categoria_animal).like(f"%{raiz}%"))
-        if filtros.get("producto"):
-            texto = f"%{str(filtros['producto']).lower()}%"
+        if filtros.producto:
+            texto = f"%{filtros.producto.lower()}%"
             q = q.where(func.lower(Evento.producto).like(texto) | func.lower(Evento.descripcion).like(texto))
-        if desde := _fecha(filtros.get("desde")):
-            q = q.where(Evento.fecha_evento >= desde)
-        if hasta := _fecha(filtros.get("hasta")):
-            q = q.where(Evento.fecha_evento <= hasta)
+        if filtros.desde:
+            q = q.where(Evento.fecha_evento >= filtros.desde)
+        if filtros.hasta:
+            q = q.where(Evento.fecha_evento <= filtros.hasta)
         q = q.order_by(Evento.fecha_evento.desc(), Evento.id.desc()).limit(MAX_EVENTOS)
         return list(self.db.scalars(q).all())
 

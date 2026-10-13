@@ -26,7 +26,7 @@ from app.infra.config import config
 from app.infra.db import SessionLocal, crear_tablas
 from app.infra.logs import configurar_logs
 from app.modulos.comun import precios, senasa
-from app.nucleo import bot, usuarios
+from app.nucleo import pipeline, usuarios
 
 TELEFONO_CHAT = "5490000000000"
 
@@ -51,7 +51,7 @@ def _chat(_db: Session, args: argparse.Namespace) -> None:
         if not texto:
             continue
         with SessionLocal() as db:
-            respuesta = bot.manejar_mensaje(db, telefono, texto)
+            respuesta = pipeline.manejar_mensaje(db, telefono, texto)
             db.commit()
         print(f"\nbot> {respuesta}\n")
 

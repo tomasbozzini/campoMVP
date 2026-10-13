@@ -5,33 +5,38 @@ solo dice si un producto figura en el registro de SENASA, con su número de regi
 titular y estado, y de qué fecha son los datos.
 """
 
+from typing import Annotated
+
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.fuentes.senasa import normalizar
-from app.infra.modelos import ProductoVeterinario
+from app.ia.esquemas import Esquema, EsquemaAccion, texto
+from app.infra import modelos
+from app.nucleo.acciones import Accion
+from app.nucleo.contexto import Contexto
 
 MAX_RESULTADOS = 5
 AVISO = "_Solo verifica el registro en SENASA. No es una indicación de uso ni una recomendación._"
 
 
-def buscar(db: Session, texto: str) -> list[ProductoVeterinario]:
+def buscar(db: Session, texto: str) -> list[modelos.ProductoVeterinario]:
     clave = normalizar(texto)
     if not clave or len(clave) < 3:
         return []
     patron = f"%{clave}%"
-    q = select(ProductoVeterinario).where(
+    q = select(modelos.ProductoVeterinario).where(
         or_(
-            ProductoVeterinario.nombre_busqueda.like(patron),
-            ProductoVeterinario.principio_busqueda.like(patron),
+            modelos.ProductoVeterinario.nombre_busqueda.like(patron),
+            modelos.ProductoVeterinario.principio_busqueda.like(patron),
         )
     )
-    return list(db.scalars(q.order_by(ProductoVeterinario.nombre).limit(MAX_RESULTADOS + 1)).all())
+    return list(db.scalars(q.order_by(modelos.ProductoVeterinario.nombre).limit(MAX_RESULTADOS + 1)).all())
 
 
 def responder(db: Session, texto: str | None) -> str:
     productos = buscar(db, texto or "")
-    hay_registro = db.scalar(select(ProductoVeterinario).limit(1))
+    hay_registro = db.scalar(select(modelos.ProductoVeterinario).limit(1))
     if hay_registro is None:
         return "📭 Todavía no tengo cargado el registro de productos veterinarios de SENASA."
     if not productos:
@@ -61,3 +66,24 @@ def responder(db: Session, texto: str | None) -> str:
     lineas.append(f"📰 _Fuente: {primero.fuente}, datos al {primero.fecha_datos.strftime('%d/%m/%Y')}_")
     lineas.append(f"🔗 {primero.url}\n")
     return "\n".join(lineas) + "\n" + AVISO
+
+
+# --- Acción "producto_veterinario" ---------------------------------------------
+
+
+class Producto(Esquema):
+    # Nombre comercial o principio activo, tal como lo escribió.
+    nombre: Annotated[str | None, texto(80)] = None
+
+
+class ProductoVeterinario(EsquemaAccion):
+    producto_veterinario: Producto
+
+
+def manejar(ctx: Contexto, datos: ProductoVeterinario) -> str:
+    if not datos.producto_veterinario.nombre:
+        return "¿Qué producto querés verificar en SENASA? Decime el nombre comercial o el principio activo."
+    return responder(ctx.db, datos.producto_veterinario.nombre)
+
+
+ACCION = Accion("producto_veterinario", ProductoVeterinario, manejar)

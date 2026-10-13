@@ -11,7 +11,7 @@ from sqlalchemy.orm import sessionmaker
 from app.infra.db import Base
 from app.infra.modelos import BorradoPendiente, Evento, MensajeChat, UsoDiario
 from app.nucleo import usuarios
-from app.nucleo.cuaderno import Cuaderno
+from app.nucleo.cuaderno import Cuaderno, Filtros
 
 HOY = date(2026, 10, 13)
 
@@ -41,7 +41,7 @@ def _ids(db, usuario_id):
 def test_cada_cuaderno_lee_solo_lo_suyo(db, dos):
     a, b = dos
     assert [e.valor for e in a.recientes(10)] == [10]
-    assert [e.valor for e in a.buscar({})] == [10]
+    assert [e.valor for e in a.buscar(Filtros())] == [10]
     assert [e.valor for e in a.del_mensaje("m1")] == [10]  # mismo mensaje_id, otra persona
     assert a.ultimo() is not None and a.ultimo().valor == 10
     assert a.cantidad() == 1 and b.cantidad() == 1
