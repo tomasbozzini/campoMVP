@@ -5,7 +5,7 @@ import logging
 from functools import partial
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request, Response
+from fastapi import APIRouter, HTTPException, Query, Request, Response
 from sqlalchemy.exc import IntegrityError
 
 from app.canales import whatsapp
@@ -40,15 +40,16 @@ def verificar_webhook(
 
 
 @rutas.post("/webhook")
-async def recibir_webhook(request: Request, tareas: BackgroundTasks) -> dict[str, Any]:
+async def recibir_webhook(request: Request) -> dict[str, Any]:
     cuerpo = await request.body()
     if not whatsapp.firma_valida(cuerpo, request.headers.get("X-Hub-Signature-256")):
         raise HTTPException(status_code=401, detail="Firma inválida")
     # Respondemos 200 enseguida (si no, Meta reintenta) y procesamos aparte, de a un
-    # mensaje por persona y en el orden en que los escribió.
+    # mensaje por persona y en el orden en que los escribió. Se encolan todos acá, antes
+    # de responder, para que un webhook que llegue después no se meta en el medio.
     mensajes = sorted(whatsapp.leer_webhook(json.loads(cuerpo or b"{}")), key=lambda m: m.timestamp)
     for mensaje in mensajes:
-        tareas.add_task(fila.ejecutar, mensaje.telefono, partial(procesar_mensaje, mensaje))
+        fila.encolar(mensaje.telefono, partial(procesar_mensaje, mensaje))
     return {"ok": True}
 
 

@@ -2,6 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import main
+from app.api import webhook
 from app.canales import whatsapp
 from app.ia import interprete
 from app.infra.config import config
@@ -13,6 +14,8 @@ def cliente(servidor, monkeypatch):
     monkeypatch.setattr(config, "meta_app_secret", "")
     with TestClient(main.app) as c:
         c.enviados = servidor
+        # Los mensajes se procesan aparte: esto espera a que terminen.
+        c.esperar = lambda: webhook.fila.esperar(5)
         yield c
 
 
@@ -46,6 +49,7 @@ def test_mensaje_de_texto_y_reintento_duplicado(cliente, monkeypatch):
     monkeypatch.setattr(config, "admin_telefonos", {"5491100000001"})
     cliente.post("/webhook", json=_payload("wamid.1", "ayuda"))
     cliente.post("/webhook", json=_payload("wamid.1", "ayuda"))  # reintento de Meta
+    assert cliente.esperar()
     assert len(cliente.enviados) == 1
     assert "TU ASISTENTE" in cliente.enviados[0][1]
 
@@ -72,6 +76,7 @@ def test_audio_de_numero_sin_acceso_no_se_transcribe(cliente, monkeypatch):
         ]
     }
     cliente.post("/webhook", json=payload)
+    assert cliente.esperar()
     assert "no tiene acceso" in cliente.enviados[-1][1]
 
 

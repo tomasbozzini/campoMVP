@@ -1,5 +1,6 @@
 """Servidor web: arma la app de FastAPI con sus rutas.  uvicorn app.main:app"""
 
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -11,6 +12,11 @@ from app.infra.config import config
 from app.infra.logs import configurar_logs
 
 configurar_logs()
+log = logging.getLogger(__name__)
+
+# Al apagarse (por ejemplo, en un redeploy), cuánto se espera a que terminen los mensajes
+# que ya se recibieron: Meta no los vuelve a mandar porque ya respondimos 200.
+ESPERA_AL_CERRAR = 30  # segundos
 
 
 def verificar_configuracion() -> None:
@@ -28,6 +34,8 @@ async def _ciclo_de_vida(_app: FastAPI) -> AsyncIterator[None]:
     verificar_configuracion()
     db.preparar_base()
     yield
+    if not webhook.fila.esperar(ESPERA_AL_CERRAR):
+        log.warning("El servidor se apaga con %d personas con mensajes sin procesar", webhook.fila.en_curso())
 
 
 app = FastAPI(title="Asistente de campo", lifespan=_ciclo_de_vida)
