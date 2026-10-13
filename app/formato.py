@@ -7,6 +7,7 @@ líneas separadoras. Todo el texto lo arma el código: la IA no escribe nada de 
 
 from collections import defaultdict
 from datetime import date
+from typing import Any
 
 from app.models import Evento
 
@@ -146,7 +147,7 @@ def por_dia(eventos: list[Evento], lugar: bool = True) -> str:
     return "\n\n".join(bloques)
 
 
-def cambios(antes: dict, despues: Evento) -> list[str]:
+def cambios(antes: dict[str, Any], despues: Evento) -> list[str]:
     """Qué campos cambió una corrección, para mostrar solo eso."""
     etiquetas = {
         "tipo": "Tipo", "producto": "Producto", "dosis": "Dosis", "cantidad_animales": "Cantidad",
@@ -156,7 +157,8 @@ def cambios(antes: dict, despues: Evento) -> list[str]:
     }
     lineas = []
     for campo, etiqueta in etiquetas.items():
-        viejo, nuevo = antes.get(campo), getattr(despues, campo)
+        viejo: Any = antes.get(campo)
+        nuevo: Any = getattr(despues, campo)
         if viejo == nuevo:
             continue
         if campo == "fecha_evento":

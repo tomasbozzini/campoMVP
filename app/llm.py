@@ -194,7 +194,7 @@ def _chat_json(system: str, usuario: str) -> dict:
         temperature=0.1,
         max_completion_tokens=3000,
     )
-    return json.loads(respuesta.choices[0].message.content)
+    return json.loads(respuesta.choices[0].message.content or "{}")
 
 
 _DIAS = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]

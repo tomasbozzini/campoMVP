@@ -86,7 +86,7 @@ def test_campos_del_formulario_falla_si_la_pagina_cambio(formulario):
 def test_descargar_falla_si_la_exportacion_no_es_un_excel(formulario):
     cliente = _ClienteFalso(formulario, b"nombre,registro\nalgo,1\n")
     with pytest.raises(ValueError, match="no es un Excel"):
-        senasa.descargar(cliente)
+        senasa.descargar(cliente)  # type: ignore[arg-type]
     assert cliente.posts == 2  # consultó y exportó antes de darse cuenta
 
 

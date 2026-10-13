@@ -1,7 +1,7 @@
 import hashlib
 import hmac
 import json
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from sqlalchemy import create_engine, select
@@ -255,7 +255,7 @@ def test_borrar_no_toca_mensajes_que_cayeron_en_el_mismo_timestamp(db, fake_llm)
     bot.manejar_mensaje(db, usuario.telefono, "dos", hoy=HOY)
 
     # Lo que pasaba en Windows: los dos mensajes con el mismo timestamp al milisegundo.
-    mismo = datetime(2026, 10, 9, 12, 0, 0, tzinfo=timezone.utc)
+    mismo = datetime(2026, 10, 9, 12, 0, 0, tzinfo=UTC)
     for e in db.scalars(select(Evento)).all():
         e.creado = mismo
     db.flush()
@@ -272,7 +272,6 @@ def test_borrar_no_toca_mensajes_que_cayeron_en_el_mismo_timestamp(db, fake_llm)
 
 def test_borrar_registro_viejo_sin_mensaje_id(db, fake_llm):
     """Filas de antes de la columna: se borra solo esa, no todas las que tengan NULL."""
-    respuestas, _ = fake_llm
     usuario = _con_campo(db)
     for valor in (10, 20):
         db.add(Evento(usuario_id=usuario.id, categoria="campo",
@@ -534,7 +533,7 @@ def test_la_charla_vieja_no_se_usa_y_no_se_acumula(db, fake_llm):
     assert len(db.scalars(select(MensajeChat)).all()) == bot.HISTORIAL_MENSAJES * 2
 
     for m in db.scalars(select(MensajeChat)).all():
-        m.creado = datetime.now(timezone.utc) - timedelta(minutes=bot.HISTORIAL_MINUTOS + 1)
+        m.creado = datetime.now(UTC) - timedelta(minutes=bot.HISTORIAL_MINUTOS + 1)
     db.flush()
     assert bot._historial(db, u) == []
 
@@ -589,7 +588,7 @@ def test_confirmacion_vencida_no_borra(db, fake_llm):
     respuestas["borrá todo"] = {"intencion": "borrar", "borrado": {"registros": [{"todos": True}]}}
     bot.manejar_mensaje(db, u.telefono, "borrá todo", hoy=HOY)
     pendiente = db.get(BorradoPendiente, u.id)
-    pendiente.creado = datetime.now(timezone.utc) - timedelta(minutes=bot.CONFIRMAR_MINUTOS + 1)
+    pendiente.creado = datetime.now(UTC) - timedelta(minutes=bot.CONFIRMAR_MINUTOS + 1)
     db.flush()
     assert "no borré nada" in bot.manejar_mensaje(db, u.telefono, "sí", hoy=HOY)
     assert len(db.scalars(select(Evento)).all()) == 6

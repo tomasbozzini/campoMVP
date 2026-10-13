@@ -35,6 +35,7 @@ import sys
 import unicodedata
 from datetime import date, datetime, timedelta
 from html import unescape
+from typing import ClassVar
 from urllib.parse import urlparse
 
 import httpx
@@ -133,10 +134,10 @@ class PizarraRosario(Fuente):
         return self.leer(respuesta.content.decode("utf-8"))
 
     def leer(self, pagina: str) -> list[dict]:
-        fecha = re.search(r"Precios Pizarra del d[ií]a\s*(\d{2}/\d{2}/\d{4})", pagina)
-        if not fecha:
+        encontrada = re.search(r"Precios Pizarra del d[ií]a\s*(\d{2}/\d{2}/\d{4})", pagina)
+        if not encontrada:
             raise ValueError("No encontré la fecha de la pizarra; la página cambió")
-        fecha = datetime.strptime(fecha.group(1), "%d/%m/%Y").date()
+        fecha = datetime.strptime(encontrada.group(1), "%d/%m/%Y").date()
 
         pie = re.search(r'class="price-board-footer">\s*<div>(.*?)</div>', pagina, re.S)
         if not pie:
@@ -205,7 +206,7 @@ class HaciendaCanuelas(Fuente):
     plaza = "Cañuelas"
     DIAS_ATRAS = 8
     # El formulario de la página manda estos campos; sin identificarse alcanza.
-    CAMPOS = {"ID": "", "CP": "", "FLASH": "", "USUARIO": "SIN IDENTIFICAR",
+    CAMPOS: ClassVar[dict[str, str]] = {"ID": "", "CP": "", "FLASH": "", "USUARIO": "SIN IDENTIFICAR",
               "OPCIONMENU": "", "OPCIONSUBMENU": ""}
 
     def obtener(self, cliente: httpx.Client) -> list[dict]:

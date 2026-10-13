@@ -1,0 +1,41 @@
+[project]
+name = "campo-mvp"
+version = "0.1.0"
+description = "Asistente por WhatsApp para profesionales del campo"
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["venv"]
+
+[tool.ruff.lint]
+# E/W: estilo, F: errores, I: orden de imports, B: errores comunes, UP: sintaxis moderna,
+# SIM: simplificaciones, RUF: reglas propias de ruff.
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "RUF"]
+ignore = [
+    "E501",  # el largo de línea lo maneja el formateador; los textos largos se dejan enteros
+    "RUF001", "RUF002", "RUF003",  # el código está en castellano: tildes, "×", "→" son intencionales
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B011"]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["app", "tests"]
+plugins = ["pydantic.mypy"]
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+check_untyped_defs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = [
+    # Aviso de starlette sobre su cliente de prueba; no es de este proyecto.
+    "ignore::DeprecationWarning:fastapi.testclient",
+    "ignore:Using `httpx` with `starlette.testclient`",
+]

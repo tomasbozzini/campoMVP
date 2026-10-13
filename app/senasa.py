@@ -69,11 +69,11 @@ def reemplazar_registro(db: Session, filas: list[dict], fecha_datos: date, url: 
         principio = (f.get("principio_activo") or "").strip() or None
         productos.append(ProductoVeterinario(
             nombre=nombre[:200],
-            nombre_busqueda=normalizar(nombre)[:200],
+            nombre_busqueda=(normalizar(nombre) or "")[:200],
             registro=registro[:40],
             titular=((f.get("titular") or "").strip() or None),
             principio_activo=principio and principio[:300],
-            principio_busqueda=normalizar(principio) and normalizar(principio)[:300],
+            principio_busqueda=(normalizar(principio) or "")[:300] or None,
             estado=((f.get("estado") or "").strip().lower() or None),
             fecha_datos=fecha_datos,
             fuente=FUENTE,

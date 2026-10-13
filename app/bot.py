@@ -9,7 +9,7 @@ import logging
 import re
 import unicodedata
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from app import config, formato, llm, precios, senasa, usuarios
 from app.consultas import buscar, normalizar_lote, totales
 from app.formato import SEPARADOR as LINEA
-from app.models import BorradoPendiente, Evento, MensajeChat, Usuario, UsoDiario
+from app.models import BorradoPendiente, Evento, MensajeChat, UsoDiario, Usuario
 
 log = logging.getLogger(__name__)
 
@@ -218,7 +218,7 @@ def _privacidad() -> str:
 
 
 def _historial(db: Session, usuario: Usuario) -> list[tuple[str, str]]:
-    desde = datetime.now(timezone.utc) - timedelta(minutes=HISTORIAL_MINUTOS)
+    desde = datetime.now(UTC) - timedelta(minutes=HISTORIAL_MINUTOS)
     filas = db.scalars(
         select(MensajeChat)
         .where(MensajeChat.usuario_id == usuario.id, MensajeChat.creado >= desde)
@@ -267,8 +267,9 @@ def _responder(db: Session, usuario: Usuario, telefono: str, texto: str, hoy: da
         return FUERA_DE_ALCANCE
     # Un mensaje puede traer varios pedidos ("¿cuánto está la soja y el maíz?", "anotá la
     # lluvia y borrá la cosecha"). Se aceptan también respuestas viejas de una sola acción.
-    acciones = interpretado.get("acciones") if isinstance(interpretado.get("acciones"), list) else [interpretado]
-    acciones = [a for a in acciones if isinstance(a, dict)][:MAX_ACCIONES]
+    crudas = interpretado.get("acciones")
+    lista = crudas if isinstance(crudas, list) else [interpretado]
+    acciones = [a for a in lista if isinstance(a, dict)][:MAX_ACCIONES]
     return _ejecutar_acciones(db, usuario, texto, acciones, hoy)
 
 
@@ -569,8 +570,12 @@ def _coincide(e: Evento, referencia: dict) -> bool:
 
 
 def _corregir(db: Session, usuario: Usuario, correccion: dict, hoy: date) -> str:
-    referencia = correccion.get("referencia") if isinstance(correccion.get("referencia"), dict) else {}
-    cambios = correccion.get("cambios") if isinstance(correccion.get("cambios"), dict) else {}
+    referencia = correccion.get("referencia")
+    cambios = correccion.get("cambios")
+    if not isinstance(referencia, dict):
+        referencia = {}
+    if not isinstance(cambios, dict):
+        cambios = {}
     recientes = db.scalars(
         select(Evento).where(Evento.usuario_id == usuario.id)
         .order_by(Evento.id.desc()).limit(CORRECCION_ULTIMOS)
@@ -684,7 +689,7 @@ def _borrar(db: Session, usuario: Usuario, borrado: dict) -> str:
 
     lineas = []
     if len(a_borrar) >= CONFIRMAR_DESDE:
-        db.merge(BorradoPendiente(usuario_id=usuario.id, ids=list(a_borrar), creado=datetime.now(timezone.utc)))
+        db.merge(BorradoPendiente(usuario_id=usuario.id, ids=list(a_borrar), creado=datetime.now(UTC)))
         lista = list(a_borrar.values())
         lineas.append(f"⚠️ *VOY A BORRAR {len(lista)} REGISTROS*\n")
         lineas += [f"      › {formato.linea(e)}" for e in lista[:10]]
@@ -710,8 +715,8 @@ def _resolver_borrado_pendiente(db: Session, usuario: Usuario, comando: str) -> 
         return None
     db.delete(pendiente)
     db.flush()
-    creado = pendiente.creado if pendiente.creado.tzinfo else pendiente.creado.replace(tzinfo=timezone.utc)
-    vigente = datetime.now(timezone.utc) - creado <= timedelta(minutes=CONFIRMAR_MINUTOS)
+    creado = pendiente.creado if pendiente.creado.tzinfo else pendiente.creado.replace(tzinfo=UTC)
+    vigente = datetime.now(UTC) - creado <= timedelta(minutes=CONFIRMAR_MINUTOS)
     if comando in NO:
         return "👌 Listo, no borré nada."
     if comando not in SI:
@@ -721,12 +726,13 @@ def _resolver_borrado_pendiente(db: Session, usuario: Usuario, comando: str) -> 
     resultado = db.execute(
         delete(Evento).where(Evento.id.in_(pendiente.ids), Evento.usuario_id == usuario.id)
     )
-    return f"🗑️ *BORRADO*\n\nListo, borré {resultado.rowcount} registros."
+    borrados = getattr(resultado, "rowcount", 0)
+    return f"🗑️ *BORRADO*\n\nListo, borré {borrados} registros."
 
 
 def _describir(filtro: dict) -> str:
     """Texto armado por el código (no por la IA) para describir lo que se buscó."""
-    partes = []
+    partes: list[str | None] = []
     if filtro.get("tipo"):
         partes.append(formato.nombre_tipo(str(filtro["tipo"]).lower()))
     if filtro.get("cantidad_animales") is not None and _a_int(filtro["cantidad_animales"]):
@@ -756,11 +762,11 @@ def _borrar_ultimo(db: Session, usuario: Usuario) -> str:
     else:
         # Por mensaje_id y no por fecha: dos mensajes seguidos pueden caer en el mismo
         # timestamp (en Windows el reloj salta cada ~15 ms) y se borraban los dos.
-        borrados = db.scalars(
+        borrados = list(db.scalars(
             select(Evento).where(
                 Evento.usuario_id == usuario.id, Evento.mensaje_id == ultimo.mensaje_id
             )
-        ).all()
+        ).all())
     texto = formato.tarjetas(list(borrados))
     db.execute(delete(Evento).where(Evento.id.in_([e.id for e in borrados])))
     return "🗑️ *BORRADO*\n\n" + texto

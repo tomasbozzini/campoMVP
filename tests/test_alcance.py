@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app import bot, config, llm, precios, senasa, usuarios
 from app.db import Base
-from app.models import Cotizacion, Usuario
+from app.models import Cotizacion
 
 HOY = date(2026, 10, 9)
 URL_PIZARRA = "https://www.cac.bcr.com.ar/es/precios-de-pizarra"

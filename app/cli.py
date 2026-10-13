@@ -3,6 +3,7 @@
 El número con el que chateás se autoriza solo, porque es una prueba local.
 """
 
+import io
 import sys
 
 from app import bot, usuarios
@@ -11,8 +12,9 @@ from app.db import SessionLocal, crear_tablas
 
 def main() -> None:
     # La consola de Windows usa cp1252 y se rompe con los emojis de las respuestas.
-    sys.stdout.reconfigure(encoding="utf-8")
-    sys.stdin.reconfigure(encoding="utf-8")
+    for flujo in (sys.stdout, sys.stdin):
+        if isinstance(flujo, io.TextIOWrapper):
+            flujo.reconfigure(encoding="utf-8")
     telefono = sys.argv[1] if len(sys.argv) > 1 else "5490000000000"
     crear_tablas()
     with SessionLocal() as db:
