@@ -142,7 +142,7 @@ class MensajeChat(Base):
     """Últimos mensajes de cada persona con el bot, para que la IA entienda el contexto
     ("sí", "esa", "la de ayer", la respuesta a una pregunta del bot).
 
-    Solo se usan los de la misma persona y de los últimos minutos (ver bot.HISTORIAL_*).
+    Solo se usan los de la misma persona y de los últimos minutos (ver app/nucleo/charla.py).
     """
 
     __tablename__ = "mensajes_chat"

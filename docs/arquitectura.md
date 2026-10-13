@@ -35,6 +35,9 @@ y Excel/CSV. **Un solo bot**: el perfil de cada usuario define qué módulos usa
 
 ## 3. Estructura del código (objetivo)
 
+Desde la etapa 0 el código sigue esta estructura; las carpetas sin contenido todavía
+(`calculos/`, `parametros/`, `modulos/ganaderia/`, `modulos/agricultura/`) se crean en su etapa.
+
 ```
 app/
   api/            rutas web finas: webhook, /privacidad, salud
@@ -88,25 +91,57 @@ del perfil del usuario (menos tokens, menos latencia, más precisión).
 
 ## 6. Plan por etapas
 
-### Etapa 0 · Refactor de base (sin funciones nuevas)
+### Etapa 0 · Refactor de base (sin funciones nuevas) ✅
 
 Objetivo: la estructura nueva con **el mismo comportamiento** que hoy y todos los tests en verde.
 
-- [ ] Reorganizar el código en `api/`, `canales/`, `nucleo/`, `ia/`, `modulos/comun/`,
+- [x] Reorganizar el código en `api/`, `canales/`, `nucleo/`, `ia/`, `modulos/comun/`,
       `fuentes/`, `salidas/`, `infra/`; partir `bot.py` en piezas con una sola responsabilidad.
-- [ ] Registro de acciones: cada acción con esquema, manejador y formato; el núcleo las despacha.
-- [ ] Esquemas Pydantic para la salida de la IA (reemplazan las validaciones a mano).
-- [ ] Proveedor de IA detrás de una interfaz (Groq como primera implementación).
-- [ ] Capa de acceso a datos con aislamiento por usuario/cuenta.
-- [ ] Configuración con `pydantic-settings`; firma de Meta obligatoria fuera de desarrollo.
-- [ ] Alembic con una migración inicial equivalente al esquema actual.
-- [ ] Logs con teléfonos enmascarados.
-- [ ] Procesamiento en orden por usuario.
-- [ ] Herramientas: `ruff` (lint y formato), `mypy`, `pytest`; GitHub Actions que los corre.
-- [ ] Actualizar README y este documento.
+- [x] Registro de acciones: cada acción con esquema, manejador y formato; el núcleo las despacha.
+- [x] Esquemas Pydantic para la salida de la IA (reemplazan las validaciones a mano).
+- [x] Proveedor de IA detrás de una interfaz (Groq como primera implementación).
+- [x] Capa de acceso a datos con aislamiento por usuario/cuenta.
+- [x] Configuración con `pydantic-settings`; firma de Meta obligatoria fuera de desarrollo.
+- [x] Alembic con una migración inicial equivalente al esquema actual.
+- [x] Logs con teléfonos enmascarados.
+- [x] Procesamiento en orden por usuario.
+- [x] Herramientas: `ruff` (lint y formato), `mypy`, `pytest`; GitHub Actions que los corre.
+- [x] Actualizar README y este documento.
 
 **Terminado cuando:** todos los tests actuales pasan sin cambiar lo que verifican, el bot se
 comporta igual desde WhatsApp y el CI está en verde.
+
+**Cómo quedó:**
+
+- **Camino del mensaje** (`nucleo/pipeline.py`): acceso → comandos fijos → límites → IA →
+  validación con el esquema de cada acción → manejador. El núcleo busca la acción en el
+  registro (`nucleo/acciones.py`) por su `intencion`; no conoce las acciones.
+- **Acciones** (`modulos/comun/`): un archivo por acción con su esquema Pydantic, su
+  manejador y su formato. `modulos.cargar()` registra las de cada módulo de `MODULOS`.
+  El formato de los registros sigue compartido en `salidas/whatsapp.py`.
+- **Datos por persona** (`nucleo/cuaderno.py`): única puerta a registros, charla, cupo y
+  borrados pendientes; un test falla si otro módulo filtra por usuario a mano. Hoy el
+  dueño es el usuario; cuando existan las **cuentas** (etapa 1), el cuaderno pasa a
+  filtrar por cuenta en este único lugar.
+- **IA** (`ia/`): `ProveedorIA` (interfaz), `ProveedorGroq`, el prompt (el mismo texto de
+  antes) y los tipos que limpian la salida.
+- **Configuración** (`infra/config.py`): `ENTORNO=produccion` por defecto. En producción el
+  servidor no arranca sin `META_APP_SECRET`, `WA_VERIFY_TOKEN`, `WA_TOKEN`,
+  `WA_PHONE_NUMBER_ID` y `GROQ_API_KEY`. Con secreto, la firma se valida siempre.
+- **Migraciones** (`infra/migraciones/`, `infra/migrar.py`): la `0001` es el esquema de
+  siempre. Una base creada antes de Alembic se adopta con *stamp* si coincide; si no, no se
+  toca y se informa la diferencia.
+- **Orden** (`infra/orden.py`): una fila por número dentro del proceso. Alcanza con una
+  instancia; con varias habrá que llevarla a la base o a una cola externa.
+- **Terminal**: un solo punto de entrada, `python -m app <comando>` (`chat`, `usuarios`,
+  `precios`, `senasa`, `db`).
+
+**Quedó para las etapas siguientes:**
+
+- Armar el prompt según el perfil del usuario: hoy es uno solo, en `ia/prompt.py`, y cada
+  acción nueva se describe ahí. Pasa a armarse por módulo con los perfiles (etapa 1).
+- Las carpetas `calculos/` y `parametros/`, y los módulos `ganaderia/` y `agricultura/`, se
+  crean cuando tengan su primer contenido (etapas 2 y 3).
 
 ### Etapa 1 · Núcleo profesional
 

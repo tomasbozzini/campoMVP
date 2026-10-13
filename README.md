@@ -64,34 +64,40 @@ También desde la terminal: `python -m app usuarios autorizar 5492494123456` (o 
 ## Cómo funciona
 
 ```
-WhatsApp ──► Meta Cloud API ──► POST /webhook (FastAPI)
+WhatsApp ──► Meta Cloud API ──► POST /webhook (api/webhook.py)
                                    │  verifica la firma y responde 200 enseguida
                                    ▼
-                             audio? ──► Whisper (Groq) ──► texto
+                  fila por número: de a un mensaje por persona, en orden
+                                   ▼
+                             audio? ──► Whisper (ia/) ──► texto
                                    ▼
            ¿número autorizado? ── no ──► "no tenés acceso" (sin IA)
                                    ▼
-                  comandos (borrar / ayuda / autorizar...)
+            comandos fijos (borrar / ayuda / privacidad / autorizar...)
                                    ▼
-   el modelo (Groq) SOLO clasifica: registrar | consultar | establecimiento | precio | ... | fuera_de_alcance
-                │                     │                         │                │
-       guarda Evento(s)     filtros ──► busca SOLO en   último precio de   mensaje fijo
-                            el cuaderno del usuario     tabla cotizaciones
-                                   ▼                          ▼
-                     la respuesta la arma el código, con plantillas fijas
+       la IA SOLO clasifica ──► JSON con acciones ──► se valida con el esquema de cada acción
+                                   │                     (lo que no valida: fuera de alcance)
+                                   ▼
+        registro de acciones: registrar | corregir | borrar | consultar | precio | ...
+                                   ▼
+          cada manejador usa el cuaderno de la persona y arma la respuesta con textos fijos
 ```
 
-| Archivo | Qué tiene |
+### Estructura del código
+
+| Carpeta | Qué tiene |
 |---|---|
-| `app/main.py` | Webhook de WhatsApp: verificación, firma, deduplicación de reintentos y audios |
-| `app/bot.py` | Lógica del asistente: comandos, registrar, consultar, borrar |
-| `app/llm.py` | Prompt del clasificador y llamadas a Groq (interpretar, transcribir) |
-| `app/precios.py` | Fuentes oficiales de precios, carga y respuesta con fuente y fecha |
-| `app/senasa.py` | Registro de productos veterinarios de SENASA: carga y verificación |
-| `app/consultas.py` | Búsqueda con filtros y totales precalculados |
-| `app/models.py` | Tablas: `usuarios`, `eventos`, `cotizaciones`, `productos_veterinarios`, `uso_diario`, `mensajes_procesados` |
-| `app/whatsapp.py` | Envío de mensajes y descarga de audios desde Meta |
-| `app/cli.py` | Chat por terminal para probar sin WhatsApp |
+| `app/api/` | Rutas web finas: webhook de WhatsApp (firma, deduplicación, audios, orden), salud y `/privacidad` |
+| `app/canales/` | WhatsApp: lectura del webhook, envío de mensajes, descarga de audios, firma |
+| `app/nucleo/` | El camino del mensaje (`pipeline.py`), acceso, comandos fijos, charla reciente, registro de acciones y el `Cuaderno`: la única puerta a los datos de cada persona |
+| `app/ia/` | El proveedor de IA detrás de una interfaz (hoy Groq), el prompt y los tipos que validan su salida |
+| `app/modulos/comun/` | Las acciones: registrar, corregir, borrar, consultar, establecimiento, saludo/aclarar, precios y SENASA. Cada una con su esquema y su manejador |
+| `app/fuentes/` | Descarga y carga de precios oficiales y del registro de SENASA |
+| `app/salidas/` | Formato de los mensajes de WhatsApp y la página de privacidad |
+| `app/infra/` | Configuración, base de datos, modelos, migraciones (Alembic), logs y la fila por número |
+| `app/terminal.py` | Los comandos `python -m app ...` |
+
+**Para sumar una acción**: un archivo en el módulo con su esquema (qué puede devolver la IA), su manejador (qué hace el código) y `ACCION = Accion("intencion", Esquema, manejar)`; se agrega a `ACCIONES` del módulo y se describe en el prompt (`app/ia/prompt.py`). El núcleo no se toca.
 
 ## Alcance estricto y seguridad
 
@@ -101,20 +107,23 @@ El bot no es un chat de IA. Está armado para que no se pueda usar para otra cos
 - **La IA no consulta la base de datos.** Recibe el mensaje y, como contexto, los últimos mensajes de esa misma persona con el bot (de los últimos 30 minutos, tabla `mensajes_chat`), para entender respuestas cortas como "sí", "la de ayer" o "La Pastora" después de una pregunta. Nunca ve lo de otras personas.
 - **Interpreta con flexibilidad, pero sin salirse del tema.** Si el mensaje tiene que ver con el trabajo en el campo, los registros, precios o SENASA, la IA busca la interpretación más razonable; si falta un dato imprescindible, el bot repregunta con preguntas fijas ("¿En qué establecimiento fue?"). Saludos y agradecimientos tienen una respuesta corta. Solo rechaza recomendaciones, temas ajenos e intentos de manipularla.
 - **Todo lo demás es "fuera de alcance"**: consejos ("¿conviene vender?"), preguntas generales, pedidos de textos o código, datos de otras personas, intentos de cambiarle las instrucciones. A todo eso responde con un mensaje fijo.
-- **Búsquedas aisladas por campo:** la IA nunca escribe SQL, solo filtros, y toda búsqueda se limita a los registros de quien pregunta.
+- **Lo que devuelve la IA se valida:** cada acción tiene un esquema (Pydantic). Los datos se limpian (textos recortados, números y fechas convertidos) y lo que no entra en el esquema se descarta.
+- **Datos aislados por persona:** la IA nunca escribe SQL, solo filtros. Todo acceso a los datos de una persona pasa por una sola capa (`app/nucleo/cuaderno.py`) que filtra por su usuario; un test verifica que ningún otro módulo lo haga a mano.
 - **Límites de uso** (configurables con variables de entorno): `MAX_LARGO_MENSAJE` (800 caracteres), `MAX_AUDIO_BYTES` (~3-4 min de audio) y `LIMITE_DIARIO_IA` (80 mensajes por usuario y por día).
 - Los números no autorizados no llegan a la IA: no se transcriben sus audios ni se interpretan sus mensajes.
-- El webhook valida la firma `X-Hub-Signature-256` de Meta.
+- **Firma de Meta obligatoria**: el webhook valida `X-Hub-Signature-256`. Con `ENTORNO=produccion` (el valor si no se define) el servidor no arranca sin `META_APP_SECRET`, `WA_VERIFY_TOKEN`, `WA_TOKEN`, `WA_PHONE_NUMBER_ID` y `GROQ_API_KEY`, y el error dice cuáles faltan. Si `META_APP_SECRET` está definido, la firma se valida siempre, también en desarrollo; solo con `ENTORNO=desarrollo` y sin secreto se acepta sin firma, para probar en tu compu.
+- **Mensajes en orden**: los de una misma persona se procesan de a uno y en el orden en que los escribió (por ejemplo, "borrá todo" y después "sí"). Los reintentos de Meta se descartan por su id.
+- **Logs sin teléfonos**: los números salen enmascarados (`549*******456`).
 
 ## Privacidad y datos personales
 
-- **Política de privacidad**: el bot la publica en `/privacidad` (por ejemplo `https://tu-bot.up.railway.app/privacidad`). Esa es la URL que pide Meta para publicar la app. Completá `PRIVACIDAD_RESPONSABLE` (nombre o razón social) y `PRIVACIDAD_CONTACTO` (email) en el `.env`. El texto está en `app/privacidad.py` y es un **borrador**: revisalo con alguien que sepa de protección de datos (Ley 25.326) antes de tener clientes.
+- **Política de privacidad**: el bot la publica en `/privacidad` (por ejemplo `https://tu-bot.up.railway.app/privacidad`). Esa es la URL que pide Meta para publicar la app. Completá `PRIVACIDAD_RESPONSABLE` (nombre o razón social) y `PRIVACIDAD_CONTACTO` (email) en el `.env`. El texto está en `app/salidas/privacidad.py` y es un **borrador**: revisalo con alguien que sepa de protección de datos (Ley 25.326) antes de tener clientes.
 - **`privacidad`**: el usuario recibe un resumen de cómo se usan sus datos y, si está configurada `PRIVACIDAD_URL`, el link a la política completa.
 - **`borrar mis datos`**: el bot muestra qué se va a borrar y pide confirmar con `confirmo borrar mis datos`. Al confirmar se eliminan el cuaderno, los mensajes recientes, el uso diario y el número de la persona, que pierde el acceso hasta que el administrador la habilite de nuevo. Nada de esto pasa por la IA.
 
 ## Precios de fuentes oficiales
 
-Los precios **no** los busca la IA en internet: los descarga un proceso aparte desde fuentes registradas en `app/precios.py`, los guarda en la tabla `cotizaciones` y el bot responde solo con eso, siempre con la fuente, la fecha y el link. Si un dato tiene más de `DIAS_PRECIO_VIGENTE` días (7 por defecto), avisa que no está actualizado. Si no hay datos, lo dice y no inventa.
+Los precios **no** los busca la IA en internet: los descarga un proceso aparte desde fuentes registradas en `app/fuentes/precios.py`, los guarda en la tabla `cotizaciones` y el bot responde solo con eso, siempre con la fuente, la fecha y el link. Si un dato tiene más de `DIAS_PRECIO_VIGENTE` días (7 por defecto), avisa que no está actualizado. Si no hay datos, lo dice y no inventa.
 
 Solo se aceptan links `https` de dominios oficiales o de mercados regulados (`DOMINIOS_OFICIALES`): `*.gob.ar` (Secretaría de Agricultura, SENASA, INTA), Bolsa de Comercio de Rosario, Mercado Agroganadero de Cañuelas, Matba Rofex / A3, Bolsa de Cereales de Buenos Aires y Bolsa de Cereales de Bahía Blanca.
 
@@ -164,13 +173,55 @@ Como `DOMINIOS_OFICIALES` solo acepta `*.gob.ar` para SENASA y la consulta vive 
 
 ## Probarlo en tu compu
 
-```bash
-python -m venv venv && source venv/bin/activate
+Los comandos son para la terminal de Windows (cmd), desde la carpeta del proyecto:
+
+```bat
+python -m venv venv
+venv\Scripts\activate
 pip install -r requirements-dev.txt
-cp .env.example .env        # completá al menos GROQ_API_KEY
-python -m app chat           # chat por terminal, usa SQLite
-pytest                      # tests (no usan la IA real)
+copy .env.example .env
 ```
+
+Completá en `.env` al menos `GROQ_API_KEY` y dejá `ENTORNO=desarrollo`. Después:
+
+```bat
+python -m app db migrar
+python -m app chat
+```
+
+`db migrar` crea la base (`campo.db`, SQLite) o la pone al día. `chat` abre un chat por terminal con el bot, sin WhatsApp.
+
+### Probar con el celular (ngrok)
+
+1. En `.env`: `ENTORNO=desarrollo`, `GROQ_API_KEY`, `WA_TOKEN`, `WA_PHONE_NUMBER_ID`, `WA_VERIFY_TOKEN`, `META_APP_SECRET` y tu número en `ADMIN_TELEFONOS`. Con `META_APP_SECRET` puesto, la firma de Meta se valida igual que en producción.
+2. Terminal 1: `uvicorn app.main:app --port 8000`
+3. Terminal 2: `ngrok http 8000`. Copiá la URL `https://....ngrok-free.app` que muestra.
+4. En Meta → *WhatsApp → Configuration → Webhook*: Callback URL `https://....ngrok-free.app/webhook`, Verify token el de `WA_VERIFY_TOKEN`, y suscripción a **messages**. (Con el plan gratis de ngrok la URL cambia cada vez que lo abrís: hay que actualizarla en Meta.)
+5. Mandale `ayuda` al número de prueba desde tu celular. En la terminal 1 ves los logs (con los teléfonos enmascarados).
+
+### Antes de subir cambios
+
+```bat
+ruff check .
+ruff format .
+mypy
+pytest
+```
+
+Son los mismos chequeos que corre GitHub Actions en cada push (`.github/workflows/ci.yml`). Los tests no usan la IA real ni internet.
+
+## Base de datos y migraciones
+
+Las tablas se crean y cambian con migraciones de **Alembic** (`app/infra/migraciones/`), así los datos sobreviven a cada cambio. El servidor y los comandos de terminal ponen la base al día solos al arrancar; a mano:
+
+```bat
+python -m app db estado
+python -m app db migrar
+```
+
+- **Base vacía**: se crea con todas las migraciones.
+- **Base creada antes de Alembic** (con versiones anteriores del bot): si sus tablas coinciden con la migración base (`0001`), se marca como en esa versión sin tocar los datos (es lo que hace `alembic stamp`) y se aplica lo que falte. Si no coinciden, no se toca nada y `db estado` dice qué difiere. Antes de migrar una base con datos, hacé una copia: `copy campo.db campo.db.bak`.
+- **Cambiar una tabla**: modificá `app/infra/modelos.py` y generá la migración con `alembic revision --autogenerate -m "qué cambia"`. Revisala, probala con `python -m app db migrar` y subila junto con el cambio.
 
 ## Ponerlo en producción (Railway + Postgres)
 
@@ -201,7 +252,7 @@ En Railway el proyecto queda armado con **tres servicios**, todos dentro del mis
 
 1. Entrá a [railway.com](https://railway.com) con tu cuenta de GitHub → *New Project* → *Deploy from GitHub repo* → este repo. En *Settings → Source → Branch* elegí la rama del bot.
 2. *New → Database → PostgreSQL*.
-3. En el servicio del bot → *Variables* → *Raw Editor*: `DATABASE_URL=${{Postgres.DATABASE_URL}}` y el resto de las variables de `.env.example` (`GROQ_API_KEY`, `WA_TOKEN`, `WA_PHONE_NUMBER_ID`, `META_APP_SECRET`, `WA_VERIFY_TOKEN`, `ADMIN_TELEFONOS`, `PRIVACIDAD_*`).
+3. En el servicio del bot → *Variables* → *Raw Editor*: `DATABASE_URL=${{Postgres.DATABASE_URL}}`, `ENTORNO=produccion` y el resto de las variables de `.env.example` (`GROQ_API_KEY`, `WA_TOKEN`, `WA_PHONE_NUMBER_ID`, `META_APP_SECRET`, `WA_VERIFY_TOKEN`, `ADMIN_TELEFONOS`, `PRIVACIDAD_*`). Si falta alguna obligatoria, el deploy falla y el log dice cuál.
 4. *Settings → Networking → Generate Domain*. Abrí `https://tu-bot.up.railway.app/`: tiene que responder `{"ok": true}`.
 5. Creá el servicio **actualizar-precios** (*New → GitHub Repo*, mismo repo y rama) con el start command y el cron de la tabla, y la variable `DATABASE_URL`. Ejecutalo una vez a mano para cargar los datos iniciales.
 6. En Meta → *WhatsApp → Configuration → Webhook*: Callback URL `https://tu-bot.up.railway.app/webhook`, el mismo verify token, y suscripción a **messages**. La política de privacidad queda en `https://tu-bot.up.railway.app/privacidad`.
@@ -227,7 +278,8 @@ En Railway el proyecto queda armado con **tres servicios**, todos dentro del mis
 
 ## Próximos pasos posibles
 
-- Migraciones con Alembic, cuando haya que cambiar tablas con datos reales.
+El plan por etapas está en [`docs/arquitectura.md`](docs/arquitectura.md). Además:
+
 - Stock por lote calculado a partir de nacimientos, muertes, compras, ventas y traslados.
 - Recordatorios, por ejemplo: "en 21 días toca la segunda dosis".
 - Exportar a Excel y un panel web para el dueño.
