@@ -31,7 +31,6 @@ Para agregar una fuente:
 import csv
 import logging
 import re
-import unicodedata
 from datetime import date, datetime, timedelta
 from html import unescape
 from typing import ClassVar
@@ -43,6 +42,7 @@ from sqlalchemy.orm import Session
 from app.fuentes.oficiales import es_oficial
 from app.infra.config import config
 from app.infra.modelos import Cotizacion
+from app.infra.texto import sin_tildes
 
 log = logging.getLogger(__name__)
 
@@ -51,8 +51,7 @@ def normalizar_producto(texto: str | None) -> str | None:
     """ "Maíz" -> "maiz", "Novillos" -> "novillo"."""
     if not texto:
         return None
-    texto = unicodedata.normalize("NFKD", str(texto).strip().lower())
-    texto = "".join(c for c in texto if not unicodedata.combining(c))
+    texto = sin_tildes(str(texto).strip().lower())
     if texto.endswith("s") and len(texto) > 3:
         texto = texto[:-1]
     return texto or None

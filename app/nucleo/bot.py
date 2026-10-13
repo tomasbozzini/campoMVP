@@ -7,19 +7,21 @@ de un campo anota en su propio cuaderno. Los datos nunca se comparten entre pers
 
 import logging
 import re
-import unicodedata
 import uuid
 from datetime import UTC, date, datetime, timedelta
 
-from sqlalchemy import delete, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.ia import interprete
 from app.infra.config import config
-from app.infra.modelos import BorradoPendiente, Evento, MensajeChat, UsoDiario, Usuario
+from app.infra.modelos import Evento, Usuario
+from app.infra.texto import sin_tildes
 from app.modulos.comun import precios, senasa
 from app.nucleo import usuarios
-from app.nucleo.consultas import buscar, normalizar_lote, totales
+from app.nucleo.consultas import totales
+from app.nucleo.cuaderno import Cuaderno
+from app.nucleo.normalizar import clave_establecimiento, normalizar_lote
 from app.salidas import whatsapp as formato
 from app.salidas.whatsapp import SEPARADOR as LINEA
 
@@ -154,8 +156,7 @@ def manejar_mensaje(db: Session, telefono: str, texto: str, nombre: str | None =
 
 
 def _comando(texto: str) -> str:
-    texto = unicodedata.normalize("NFKD", texto.lower().strip(" !.¡¿?"))
-    return " ".join("".join(c for c in texto if not unicodedata.combining(c)).split())
+    return " ".join(sin_tildes(texto.lower().strip(" !.¡¿?")).split())
 
 
 # Derecho de supresión (Ley 25.326): la persona puede borrar todo lo suyo desde el chat.
@@ -164,7 +165,7 @@ CONFIRMAR_BORRAR_DATOS = "confirmo borrar mis datos"
 
 
 def _pedir_borrar_datos(db: Session, usuario: Usuario) -> str:
-    registros = len(db.scalars(select(Evento.id).where(Evento.usuario_id == usuario.id)).all())
+    registros = Cuaderno(db, usuario.id).cantidad()
     return (
         "⚠️ *BORRAR TODOS TUS DATOS*\n\n"
         "Se van a eliminar para siempre:\n"
@@ -179,8 +180,7 @@ def _pedir_borrar_datos(db: Session, usuario: Usuario) -> str:
 
 
 def _borrar_datos(db: Session, usuario: Usuario) -> str:
-    for modelo in (Evento, MensajeChat, UsoDiario, BorradoPendiente):
-        db.execute(delete(modelo).where(modelo.usuario_id == usuario.id))
+    Cuaderno(db, usuario.id).borrar_todo()
     db.delete(usuario)
     db.flush()
     log.info("Usuario %s borró todos sus datos", usuario.id)
@@ -210,28 +210,14 @@ def _privacidad() -> str:
 
 def _historial(db: Session, usuario: Usuario) -> list[tuple[str, str]]:
     desde = datetime.now(UTC) - timedelta(minutes=HISTORIAL_MINUTOS)
-    filas = db.scalars(
-        select(MensajeChat)
-        .where(MensajeChat.usuario_id == usuario.id, MensajeChat.creado >= desde)
-        .order_by(MensajeChat.id.desc())
-        .limit(HISTORIAL_MENSAJES)
-    ).all()
-    return [(f.rol, f.texto) for f in reversed(filas)]
+    return [(f.rol, f.texto) for f in Cuaderno(db, usuario.id).charla(desde, HISTORIAL_MENSAJES)]
 
 
 def _guardar_charla(db: Session, usuario: Usuario, texto: str, respuesta: str) -> None:
-    db.add(MensajeChat(usuario_id=usuario.id, rol="usuario", texto=texto[:HISTORIAL_LARGO]))
-    db.add(MensajeChat(usuario_id=usuario.id, rol="bot", texto=respuesta[:HISTORIAL_LARGO]))
     # No hace falta guardar más que lo que se usa como contexto.
-    viejos = db.scalars(
-        select(MensajeChat.id)
-        .where(MensajeChat.usuario_id == usuario.id)
-        .order_by(MensajeChat.id.desc())
-        .offset(HISTORIAL_MENSAJES * 2)
-    ).all()
-    if viejos:
-        db.execute(delete(MensajeChat).where(MensajeChat.id.in_(viejos)))
-    db.flush()
+    Cuaderno(db, usuario.id).guardar_charla(
+        [("usuario", texto[:HISTORIAL_LARGO]), ("bot", respuesta[:HISTORIAL_LARGO])], conservar=HISTORIAL_MENSAJES * 2
+    )
 
 
 def _responder(db: Session, usuario: Usuario, telefono: str, texto: str, hoy: date) -> str:
@@ -368,27 +354,7 @@ def _comando_admin(db: Session, texto: str) -> str | None:
 
 
 def consumir_cupo(db: Session, usuario: Usuario, hoy: date) -> bool:
-    uso = db.scalar(select(UsoDiario).where(UsoDiario.usuario_id == usuario.id, UsoDiario.fecha == hoy))
-    if uso is None:
-        uso = UsoDiario(usuario_id=usuario.id, fecha=hoy, cantidad=0)
-        db.add(uso)
-    if uso.cantidad >= config.limite_diario_ia:
-        return False
-    uso.cantidad += 1
-    db.flush()
-    return True
-
-
-def clave_establecimiento(nombre: str | None) -> str | None:
-    """ "Estancia La Esperanza", "la esperanza" y "La Esperanza" son el mismo lugar."""
-    if not nombre:
-        return None
-    texto = unicodedata.normalize("NFKD", nombre.strip().lower())
-    texto = "".join(c for c in texto if not unicodedata.combining(c))
-    for prefijo in ("estancia ", "establecimiento ", "campo ", "el campo "):
-        if texto.startswith(prefijo):
-            texto = texto[len(prefijo) :]
-    return " ".join(texto.split()) or None
+    return Cuaderno(db, usuario.id).consumir_cupo(hoy, config.limite_diario_ia)
 
 
 def _a_int(valor) -> int | None:
@@ -476,7 +442,6 @@ def _registrar(db: Session, usuario: Usuario, texto: str, eventos: list, estable
         if categoria not in CATEGORIAS:
             continue
         evento = Evento(
-            usuario_id=usuario.id,
             establecimiento=establecimiento,
             establecimiento_clave=clave_establecimiento(establecimiento),
             categoria=categoria,
@@ -496,13 +461,12 @@ def _registrar(db: Session, usuario: Usuario, texto: str, eventos: list, estable
             mensaje_original=texto,
             mensaje_id=mensaje_id,
         )
-        db.add(evento)
         guardados.append(evento)
 
     if not guardados:
         return "🤔 No me quedó claro qué querés anotar.\nProbá con algo como: _vacuné 20 vacas en el lote 3_"
 
-    db.flush()
+    Cuaderno(db, usuario.id).agregar(guardados)
     donde = f"📍 {establecimiento}" if establecimiento else "📍 _sin establecimiento_"
     cantidad = f"{len(guardados)} registros" if len(guardados) > 1 else "1 registro"
     partes = [f"✅ *ANOTADO*\n{donde} · {cantidad}", formato.tarjetas(guardados, lugar=False)]
@@ -570,9 +534,7 @@ def _corregir(db: Session, usuario: Usuario, correccion: dict, hoy: date) -> str
         referencia = {}
     if not isinstance(cambios, dict):
         cambios = {}
-    recientes = db.scalars(
-        select(Evento).where(Evento.usuario_id == usuario.id).order_by(Evento.id.desc()).limit(CORRECCION_ULTIMOS)
-    ).all()
+    recientes = Cuaderno(db, usuario.id).recientes(CORRECCION_ULTIMOS)
     evento = next((e for e in recientes if _coincide(e, referencia)), None)
     if evento is None:
         return (
@@ -648,12 +610,11 @@ def _borrar(db: Session, usuario: Usuario, borrado: dict) -> str:
     que haya pedido explícitamente borrar todos ("todas las lluvias de La Pastora").
     Si en total se van a borrar muchos registros, se pide confirmación antes.
     """
+    cuaderno = Cuaderno(db, usuario.id)
     referencias = borrado.get("registros")
     if not isinstance(referencias, list) or not referencias:
         return _borrar_ultimo(db, usuario)
-    recientes = db.scalars(
-        select(Evento).where(Evento.usuario_id == usuario.id).order_by(Evento.id.desc()).limit(BORRADO_ULTIMOS)
-    ).all()
+    recientes = cuaderno.recientes(BORRADO_ULTIMOS)
 
     a_borrar: dict[int, Evento] = {}
     avisos: list[str] = []
@@ -683,7 +644,7 @@ def _borrar(db: Session, usuario: Usuario, borrado: dict) -> str:
 
     lineas = []
     if len(a_borrar) >= CONFIRMAR_DESDE:
-        db.merge(BorradoPendiente(usuario_id=usuario.id, ids=list(a_borrar), creado=datetime.now(UTC)))
+        cuaderno.guardar_borrado_pendiente(list(a_borrar), datetime.now(UTC))
         lista = list(a_borrar.values())
         lineas.append(f"⚠️ *VOY A BORRAR {len(lista)} REGISTROS*\n")
         lineas += [f"      › {formato.linea(e)}" for e in lista[:10]]
@@ -695,7 +656,7 @@ def _borrar(db: Session, usuario: Usuario, borrado: dict) -> str:
     elif a_borrar:
         lineas.append("🗑️ *BORRADO*\n")
         lineas.append(formato.tarjetas(list(a_borrar.values())))
-        db.execute(delete(Evento).where(Evento.id.in_(list(a_borrar)), Evento.usuario_id == usuario.id))
+        cuaderno.borrar(list(a_borrar))
     if avisos:
         if lineas:
             lineas.append("")
@@ -706,11 +667,10 @@ def _borrar(db: Session, usuario: Usuario, borrado: dict) -> str:
 def _resolver_borrado_pendiente(db: Session, usuario: Usuario, comando: str) -> str | None:
     """Si hay un borrado esperando confirmación: "sí" lo hace, "no" lo cancela, y
     cualquier otro mensaje lo descarta (y sigue el flujo normal)."""
-    pendiente = db.get(BorradoPendiente, usuario.id)
+    cuaderno = Cuaderno(db, usuario.id)
+    pendiente = cuaderno.tomar_borrado_pendiente()
     if pendiente is None:
         return None
-    db.delete(pendiente)
-    db.flush()
     creado = pendiente.creado if pendiente.creado.tzinfo else pendiente.creado.replace(tzinfo=UTC)
     vigente = datetime.now(UTC) - creado <= timedelta(minutes=CONFIRMAR_MINUTOS)
     if comando in NO:
@@ -719,8 +679,7 @@ def _resolver_borrado_pendiente(db: Session, usuario: Usuario, comando: str) -> 
         return None
     if not vigente:
         return "⏱️ Pasó mucho tiempo desde que lo pediste y no borré nada.\nSi querés, pedilo de nuevo."
-    resultado = db.execute(delete(Evento).where(Evento.id.in_(pendiente.ids), Evento.usuario_id == usuario.id))
-    borrados = getattr(resultado, "rowcount", 0)
+    borrados = cuaderno.borrar(pendiente.ids)
     return f"🗑️ *BORRADO*\n\nListo, borré {borrados} registros."
 
 
@@ -741,23 +700,17 @@ def _describir(filtro: dict) -> str:
 
 
 def _borrar_ultimo(db: Session, usuario: Usuario) -> str:
-    ultimo = db.scalar(select(Evento).where(Evento.usuario_id == usuario.id).order_by(Evento.id.desc()).limit(1))
+    cuaderno = Cuaderno(db, usuario.id)
+    ultimo = cuaderno.ultimo()
     if ultimo is None:
         return "📭 No tenés nada anotado para borrar."
-    if ultimo.mensaje_id is None:
-        # Registros anteriores a la columna: sin id no hay forma de agruparlos, y un
-        # "mensaje_id IS NULL" borraría todos los viejos de una.
-        borrados = [ultimo]
-    else:
-        # Por mensaje_id y no por fecha: dos mensajes seguidos pueden caer en el mismo
-        # timestamp (en Windows el reloj salta cada ~15 ms) y se borraban los dos.
-        borrados = list(
-            db.scalars(
-                select(Evento).where(Evento.usuario_id == usuario.id, Evento.mensaje_id == ultimo.mensaje_id)
-            ).all()
-        )
-    texto = formato.tarjetas(list(borrados))
-    db.execute(delete(Evento).where(Evento.id.in_([e.id for e in borrados])))
+    # Por mensaje_id y no por fecha: dos mensajes seguidos pueden caer en el mismo
+    # timestamp (en Windows el reloj salta cada ~15 ms) y se borraban los dos.
+    # Los registros anteriores a la columna no tienen id: se borra solo ese, porque un
+    # "mensaje_id IS NULL" borraría todos los viejos de una.
+    borrados = [ultimo] if ultimo.mensaje_id is None else cuaderno.del_mensaje(ultimo.mensaje_id)
+    texto = formato.tarjetas(borrados)
+    cuaderno.borrar([e.id for e in borrados])
     return "🗑️ *BORRADO*\n\n" + texto
 
 
@@ -767,7 +720,7 @@ MAX_LINEAS_CONSULTA = 15
 def _consultar(db: Session, usuario: Usuario, filtros: dict) -> str:
     nombre_lugar = _texto(filtros.get("establecimiento"), 120)
     filtros = {**filtros, "establecimiento": clave_establecimiento(nombre_lugar)}
-    eventos = buscar(db, usuario.id, filtros)
+    eventos = Cuaderno(db, usuario.id).buscar(filtros)
     if not eventos:
         return "🔍 No encontré registros para esa consulta."
 

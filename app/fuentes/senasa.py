@@ -26,7 +26,6 @@ En Railway eso se programa como Cron Job, igual que los precios.
 
 import logging
 import re
-import unicodedata
 from datetime import date
 from urllib.parse import urlparse
 
@@ -37,6 +36,7 @@ from sqlalchemy.orm import Session
 
 from app.fuentes.oficiales import es_oficial
 from app.infra.modelos import ProductoVeterinario
+from app.infra.texto import sin_tildes
 
 log = logging.getLogger(__name__)
 
@@ -46,8 +46,7 @@ FUENTE = "SENASA - Vademécum de Productos Veterinarios"
 def normalizar(texto: str | None) -> str | None:
     if not texto:
         return None
-    texto = unicodedata.normalize("NFKD", str(texto).strip().lower())
-    return "".join(c for c in texto if not unicodedata.combining(c)) or None
+    return sin_tildes(str(texto).strip().lower()) or None
 
 
 def reemplazar_registro(db: Session, filas: list[dict], fecha_datos: date, url: str) -> int:
