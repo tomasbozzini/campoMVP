@@ -1,24 +1,11 @@
-"""Todo lo que habla con el modelo de lenguaje (Groq)."""
+"""Instrucciones para el modelo y armado del mensaje que recibe.
 
-import json
-import logging
+La IA solo clasifica: convierte el mensaje en un JSON con acciones. Nunca escribe lo que
+ve el usuario (eso lo arma el código) ni ve datos guardados, salvo la charla reciente de
+la misma persona como contexto.
+"""
+
 from datetime import date
-
-from groq import Groq
-
-from app.infra.config import config
-
-log = logging.getLogger(__name__)
-
-_cliente: Groq | None = None
-
-
-def _groq() -> Groq:
-    global _cliente
-    if _cliente is None:
-        _cliente = Groq(api_key=config.groq_api_key)
-    return _cliente
-
 
 PROMPT_INTERPRETAR = """Sos el intérprete de mensajes de un cuaderno personal de trabajo en el campo (Argentina).
 Lo usan productores, encargados, peones y veterinarios que recorren varios establecimientos.
@@ -186,17 +173,6 @@ Reglas:
 """
 
 
-def _chat_json(system: str, usuario: str) -> dict:
-    respuesta = _groq().chat.completions.create(
-        model=config.groq_modelo,
-        messages=[{"role": "system", "content": system}, {"role": "user", "content": usuario}],
-        response_format={"type": "json_object"},
-        temperature=0.1,
-        max_completion_tokens=3000,
-    )
-    return json.loads(respuesta.choices[0].message.content or "{}")
-
-
 _DIAS = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
 
 
@@ -205,19 +181,14 @@ def _limpiar(texto: str) -> str:
     return texto.replace("<<<", "").replace(">>>", "")
 
 
-def interpretar(texto: str, hoy: date, historial: list[tuple[str, str]] | None = None) -> dict:
-    system = PROMPT_INTERPRETAR.format(hoy=hoy.isoformat(), dia_semana=_DIAS[hoy.weekday()])
+def sistema(hoy: date) -> str:
+    return PROMPT_INTERPRETAR.format(hoy=hoy.isoformat(), dia_semana=_DIAS[hoy.weekday()])
+
+
+def mensaje(texto: str, historial: list[tuple[str, str]] | None = None) -> str:
+    """El mensaje del usuario entre marcas, con la charla reciente antes, si la hay."""
     contexto = ""
     if historial:
         lineas = [f"{'Persona' if rol == 'usuario' else 'Sistema'}: {_limpiar(t)}" for rol, t in historial]
         contexto = "<<<CONVERSACION_RECIENTE\n" + "\n".join(lineas) + "\nCONVERSACION_RECIENTE>>>\n\n"
-    return _chat_json(system, f"{contexto}<<<MENSAJE\n{_limpiar(texto)}\nMENSAJE>>>")
-
-
-def transcribir(audio: bytes, nombre_archivo: str = "audio.ogg") -> str:
-    resultado = _groq().audio.transcriptions.create(
-        file=(nombre_archivo, audio),
-        model=config.groq_modelo_audio,
-        language="es",
-    )
-    return resultado.text.strip()
+    return f"{contexto}<<<MENSAJE\n{_limpiar(texto)}\nMENSAJE>>>"

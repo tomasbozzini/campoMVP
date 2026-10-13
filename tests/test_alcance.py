@@ -9,7 +9,7 @@ from sqlalchemy.orm import sessionmaker
 from app.fuentes import oficiales
 from app.fuentes import precios as fuentes_precios
 from app.fuentes import senasa as fuentes_senasa
-from app.ia import llm
+from app.ia import interprete
 from app.infra.config import config
 from app.infra.db import Base
 from app.infra.modelos import Cotizacion
@@ -32,7 +32,7 @@ def db():
 @pytest.fixture
 def respuestas(monkeypatch):
     datos: dict[str, object] = {}
-    monkeypatch.setattr(llm, "interpretar", lambda texto, hoy, historial=None: datos[texto])
+    monkeypatch.setattr(interprete, "interpretar", lambda texto, hoy, historial=None: datos[texto])
     return datos
 
 

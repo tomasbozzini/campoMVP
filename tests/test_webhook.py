@@ -54,7 +54,7 @@ def test_audio_de_numero_sin_acceso_no_se_transcribe(cliente, monkeypatch):
         raise AssertionError("no debería descargar ni transcribir")
 
     monkeypatch.setattr(webhook.whatsapp, "descargar_media", no_llamar)
-    monkeypatch.setattr(webhook.llm, "transcribir", no_llamar)
+    monkeypatch.setattr(webhook.interprete, "transcribir", no_llamar)
     payload = {
         "entry": [
             {

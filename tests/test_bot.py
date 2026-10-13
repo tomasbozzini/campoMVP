@@ -8,7 +8,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
 from app.canales import whatsapp
-from app.ia import llm
+from app.ia import interprete
 from app.infra.config import config
 from app.infra.db import Base
 from app.infra.modelos import BorradoPendiente, Evento, MensajeChat, Usuario
@@ -35,7 +35,7 @@ def fake_llm(monkeypatch):
         llamadas.append(texto)
         return respuestas[texto]
 
-    monkeypatch.setattr(llm, "interpretar", interpretar)
+    monkeypatch.setattr(interprete, "interpretar", interpretar)
     return respuestas, llamadas
 
 
@@ -647,7 +647,7 @@ def test_la_ia_recibe_la_charla_reciente_solo_del_mismo_usuario(db, monkeypatch)
         vistos[texto] = historial
         return respuestas[texto]
 
-    monkeypatch.setattr(llm, "interpretar", interpretar)
+    monkeypatch.setattr(interprete, "interpretar", interpretar)
     u = _con_campo(db, "5491100000001")
     otro = _con_campo(db, "5491100000002")
     bot.manejar_mensaje(db, otro.telefono, "hola", hoy=HOY)

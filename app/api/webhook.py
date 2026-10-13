@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.canales import whatsapp
 from app.canales.whatsapp import MensajeEntrante
-from app.ia import llm
+from app.ia import interprete
 from app.infra.config import config
 from app.infra.db import SessionLocal
 from app.infra.modelos import MensajeProcesado
@@ -75,7 +75,7 @@ def procesar_mensaje(mensaje: MensajeEntrante) -> None:
             if len(audio) > config.max_audio_bytes:
                 whatsapp.enviar_texto(telefono, AUDIO_LARGO)
                 return
-            texto = llm.transcribir(audio)
+            texto = interprete.transcribir(audio)
             prefijo = f"🎤 _{texto[: config.max_largo_mensaje]}_\n\n"
         else:
             whatsapp.enviar_texto(telefono, TIPO_NO_SOPORTADO)

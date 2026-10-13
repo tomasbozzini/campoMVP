@@ -1,0 +1,34 @@
+"""Interfaz con el modelo de lenguaje. El resto del código no sabe qué proveedor se usa.
+
+Para cambiar de proveedor alcanza con escribir otra clase que cumpla `ProveedorIA` y
+devolverla en `obtener()`.
+"""
+
+from typing import Protocol
+
+
+class ProveedorIA(Protocol):
+    def completar_json(self, sistema: str, mensaje: str) -> object:
+        """Respuesta del modelo como JSON ya leído (sin validar: lo valida quien la usa)."""
+        ...
+
+    def transcribir(self, audio: bytes, nombre_archivo: str) -> str: ...
+
+
+_proveedor: ProveedorIA | None = None
+
+
+def obtener() -> ProveedorIA:
+    global _proveedor
+    if _proveedor is None:
+        from app.ia.proveedor_groq import ProveedorGroq
+        from app.infra.config import config
+
+        _proveedor = ProveedorGroq(config.groq_api_key, config.groq_modelo, config.groq_modelo_audio)
+    return _proveedor
+
+
+def usar(proveedor: ProveedorIA | None) -> None:
+    """Reemplaza el proveedor (por ejemplo, uno falso en los tests). None vuelve al de la configuración."""
+    global _proveedor
+    _proveedor = proveedor

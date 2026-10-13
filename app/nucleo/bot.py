@@ -14,7 +14,7 @@ from datetime import UTC, date, datetime, timedelta
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app.ia import llm
+from app.ia import interprete
 from app.infra.config import config
 from app.infra.modelos import BorradoPendiente, Evento, MensajeChat, UsoDiario, Usuario
 from app.modulos.comun import precios, senasa
@@ -253,7 +253,7 @@ def _responder(db: Session, usuario: Usuario, telefono: str, texto: str, hoy: da
         return "⏳ Llegaste al límite de mensajes por hoy.\nMañana podés seguir."
 
     try:
-        interpretado = llm.interpretar(texto, hoy, _historial(db, usuario))
+        interpretado = interprete.interpretar(texto, hoy, _historial(db, usuario))
     except Exception:
         log.exception("Error interpretando mensaje")
         return "😕 Uy, no pude procesar el mensaje.\nProbá de nuevo en un ratito."
