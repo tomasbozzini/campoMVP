@@ -2,6 +2,7 @@
 
 import json
 import logging
+from functools import partial
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request, Response
 from sqlalchemy.exc import IntegrityError
@@ -12,11 +13,13 @@ from app.ia import interprete
 from app.infra.config import config
 from app.infra.db import SessionLocal
 from app.infra.modelos import MensajeProcesado
+from app.infra.orden import FilaPorClave
 from app.nucleo import acceso, pipeline
 
 log = logging.getLogger(__name__)
 
 rutas = APIRouter()
+fila = FilaPorClave()
 
 AUDIO_LARGO = "✋ El audio es muy largo.\nMandá audios más cortos, de a un tema por vez."
 TIPO_NO_SOPORTADO = "Por ahora solo entiendo mensajes de texto y audios 🙏"
@@ -40,9 +43,11 @@ async def recibir_webhook(request: Request, tareas: BackgroundTasks) -> dict:
     cuerpo = await request.body()
     if not whatsapp.firma_valida(cuerpo, request.headers.get("X-Hub-Signature-256")):
         raise HTTPException(status_code=401, detail="Firma inválida")
-    # Respondemos 200 enseguida (si no, Meta reintenta) y procesamos aparte.
-    for mensaje in whatsapp.leer_webhook(json.loads(cuerpo or b"{}")):
-        tareas.add_task(procesar_mensaje, mensaje)
+    # Respondemos 200 enseguida (si no, Meta reintenta) y procesamos aparte, de a un
+    # mensaje por persona y en el orden en que los escribió.
+    mensajes = sorted(whatsapp.leer_webhook(json.loads(cuerpo or b"{}")), key=lambda m: m.timestamp)
+    for mensaje in mensajes:
+        tareas.add_task(fila.ejecutar, mensaje.telefono, partial(procesar_mensaje, mensaje))
     return {"ok": True}
 
 
