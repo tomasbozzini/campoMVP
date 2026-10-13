@@ -78,7 +78,7 @@ class MensajeProcesado(Base):
 class Cotizacion(Base):
     """Un precio de referencia publicado por una fuente oficial o un mercado regulado.
 
-    Solo lo carga app/precios.py desde las fuentes registradas: el modelo de lenguaje
+    Solo lo carga app/fuentes/precios.py desde las fuentes registradas: el modelo de lenguaje
     nunca escribe ni inventa precios.
     """
 

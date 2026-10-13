@@ -37,7 +37,7 @@ def _fecha(valor) -> date | None:
 def buscar(db: Session, usuario_id: int, filtros: dict) -> list[Evento]:
     q = select(Evento).where(Evento.usuario_id == usuario_id)
 
-    if filtros.get("establecimiento"):  # ya viene normalizado (bot.clave_establecimiento)
+    if filtros.get("establecimiento"):  # ya viene normalizado (nucleo.bot.clave_establecimiento)
         q = q.where(Evento.establecimiento_clave == filtros["establecimiento"])
     if filtros.get("categoria"):
         q = q.where(Evento.categoria == str(filtros["categoria"]).lower())

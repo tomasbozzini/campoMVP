@@ -7,45 +7,40 @@ titular y estado, y de qué fecha son los datos.
 Los datos se cargan en la tabla `productos_veterinarios`, reemplazando todo el registro
 de una vez (es una foto del Vademécum de SENASA a una fecha):
 
-    python -m app.senasa cargar registro.csv
-    python -m app.senasa ver ivermectina
+    python -m app senasa cargar registro.csv
+    python -m app senasa ver ivermectina
 
 Columnas del CSV: nombre,registro,titular,principio_activo,estado
 La fuente, la URL y la fecha de los datos se pasan en la línea de comandos:
 
-    python -m app.senasa cargar registro.csv --fecha 2026-10-10 \\
+    python -m app senasa cargar registro.csv --fecha 2026-10-10 \\
         --url https://www.argentina.gob.ar/senasa/...
 
 También se puede traer el registro solo, desde la consulta pública de SENASA (ver
 `descargar` más abajo para lo que publica y lo que no):
 
-    python -m app.senasa actualizar
+    python -m app senasa actualizar
 
 En Railway eso se programa como Cron Job, igual que los precios.
 """
 
-import argparse
-import csv
 import logging
 import re
 import unicodedata
-from datetime import date, datetime
+from datetime import date
 from urllib.parse import urlparse
 
 import httpx
 import xlrd
-from sqlalchemy import delete, or_, select
+from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
-from app.infra.config import config
+from app.fuentes.oficiales import es_oficial
 from app.infra.modelos import ProductoVeterinario
-from app.precios import es_oficial
 
 log = logging.getLogger(__name__)
 
 FUENTE = "SENASA - Vademécum de Productos Veterinarios"
-MAX_RESULTADOS = 5
-AVISO = "_Solo verifica el registro en SENASA. No es una indicación de uso ni una recomendación._"
 
 
 def normalizar(texto: str | None) -> str | None:
@@ -183,89 +178,3 @@ def actualizar(db: Session, fecha_datos: date, url: str = URL_OFICIAL) -> int:
     with httpx.Client(timeout=180, follow_redirects=True, headers={"User-Agent": "campo-bot/1.0"}) as cliente:
         filas = descargar(cliente)
     return reemplazar_registro(db, filas, fecha_datos, url)
-
-
-def buscar(db: Session, texto: str) -> list[ProductoVeterinario]:
-    clave = normalizar(texto)
-    if not clave or len(clave) < 3:
-        return []
-    patron = f"%{clave}%"
-    q = select(ProductoVeterinario).where(
-        or_(
-            ProductoVeterinario.nombre_busqueda.like(patron),
-            ProductoVeterinario.principio_busqueda.like(patron),
-        )
-    )
-    return list(db.scalars(q.order_by(ProductoVeterinario.nombre).limit(MAX_RESULTADOS + 1)).all())
-
-
-def responder(db: Session, texto: str | None) -> str:
-    productos = buscar(db, texto or "")
-    hay_registro = db.scalar(select(ProductoVeterinario).limit(1))
-    if hay_registro is None:
-        return "📭 Todavía no tengo cargado el registro de productos veterinarios de SENASA."
-    if not productos:
-        # Mensaje fijo: no repetimos lo que escribió la IA.
-        return (
-            "🔍 No encontré ese producto en el registro de SENASA que tengo cargado "
-            f"(datos al {hay_registro.fecha_datos.strftime('%d/%m/%Y')}).\n"
-            "Que no aparezca acá no confirma que no esté registrado. Podés verificarlo en:\n"
-            f"{hay_registro.url}"
-        )
-    lineas = ["🔎 *REGISTRO SENASA*", ""]
-    for p in productos[:MAX_RESULTADOS]:
-        lineas.append(f"💊 *{p.nombre}*")
-        lineas.append(f"      N° de registro: *{p.registro}*")
-        if p.titular:
-            lineas.append(f"      🏭 {p.titular}")
-        if p.principio_activo:
-            lineas.append(f"      🧪 {p.principio_activo}")
-        estado = (p.estado or "").lower()
-        icono = "✅" if estado == "vigente" else ("❔" if not estado else "⚠️")
-        lineas.append(f"      {icono} Estado: {p.estado or 'no informado'}")
-        lineas.append("")
-    if len(productos) > MAX_RESULTADOS:
-        lineas.append("_Hay más coincidencias. Escribí el nombre más completo._\n")
-    primero = productos[0]
-    lineas.append("────────────")
-    lineas.append(f"📰 _Fuente: {primero.fuente}, datos al {primero.fecha_datos.strftime('%d/%m/%Y')}_")
-    lineas.append(f"🔗 {primero.url}\n")
-    return "\n".join(lineas) + "\n" + AVISO
-
-
-def main() -> None:
-    from app.infra.db import SessionLocal, crear_tablas
-    from app.infra.logs import configurar_logs
-
-    configurar_logs()
-    parser = argparse.ArgumentParser(prog="python -m app.senasa")
-    sub = parser.add_subparsers(dest="comando", required=True)
-    cargar = sub.add_parser("cargar")
-    cargar.add_argument("csv")
-    cargar.add_argument("--fecha", required=True, help="fecha de los datos según SENASA, YYYY-MM-DD")
-    cargar.add_argument("--url", required=True, help="página oficial de SENASA de donde salen los datos")
-    traer = sub.add_parser("actualizar", help="descarga la consulta pública de SENASA")
-    traer.add_argument("--fecha", help="fecha de los datos; por defecto, la de hoy")
-    traer.add_argument("--url", default=URL_OFICIAL, help="página oficial que se guarda como fuente")
-    ver = sub.add_parser("ver")
-    ver.add_argument("texto")
-    args = parser.parse_args()
-
-    crear_tablas()
-    with SessionLocal() as db:
-        if args.comando == "actualizar":
-            fecha = date.fromisoformat(args.fecha) if args.fecha else datetime.now(config.zona_horaria).date()
-            n = actualizar(db, fecha, args.url)
-            db.commit()
-            print(f"{n} productos cargados (datos al {fecha.strftime('%d/%m/%Y')})")
-        elif args.comando == "cargar":
-            with open(args.csv, encoding="utf-8") as f:
-                n = reemplazar_registro(db, list(csv.DictReader(f)), date.fromisoformat(args.fecha), args.url)
-            db.commit()
-            print(f"{n} productos cargados")
-        else:
-            print(responder(db, args.texto))
-
-
-if __name__ == "__main__":
-    main()

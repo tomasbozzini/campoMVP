@@ -3,6 +3,7 @@
 import hashlib
 import hmac
 import logging
+from dataclasses import dataclass
 
 import httpx
 
@@ -103,3 +104,44 @@ def descargar_media(media_id: str) -> bytes:
         archivo = cliente.get(info.json()["url"])
         archivo.raise_for_status()
         return archivo.content
+
+
+# --- Entrada ----------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class MensajeEntrante:
+    """Un mensaje de WhatsApp, ya sacado del formato del webhook de Meta."""
+
+    telefono: str
+    wamid: str  # id de Meta, para no procesar dos veces el mismo mensaje
+    tipo: str  # "text", "audio", "image"...
+    texto: str | None = None
+    audio_id: str | None = None
+    nombre: str | None = None  # nombre de perfil de WhatsApp
+    timestamp: int = 0  # segundos, como lo informa Meta
+
+
+def leer_webhook(datos: dict) -> list[MensajeEntrante]:
+    """Los mensajes que trae un webhook. Se descartan los que no tienen remitente o id."""
+    mensajes: list[MensajeEntrante] = []
+    for entrada in datos.get("entry", []):
+        for cambio in entrada.get("changes", []):
+            valor = cambio.get("value", {})
+            nombres = {c.get("wa_id"): c.get("profile", {}).get("name") for c in valor.get("contacts", [])}
+            for m in valor.get("messages", []):
+                telefono, wamid = m.get("from"), m.get("id")
+                if not telefono or not wamid:
+                    continue
+                mensajes.append(
+                    MensajeEntrante(
+                        telefono=telefono,
+                        wamid=wamid,
+                        tipo=m.get("type", ""),
+                        texto=(m.get("text") or {}).get("body"),
+                        audio_id=(m.get("audio") or {}).get("id"),
+                        nombre=nombres.get(telefono),
+                        timestamp=int(m.get("timestamp") or 0),
+                    )
+                )
+    return mensajes

@@ -59,7 +59,7 @@ Los administradores se configuran con la variable `ADMIN_TELEFONOS` (números se
 - `quitar 5492494123456`: le saca el acceso. Sus registros se conservan.
 - `autorizados`: lista los números con acceso.
 
-También desde la terminal: `python -m app.usuarios autorizar 5492494123456` (o `quitar`, `lista`). El chat de prueba `python -m app.cli` autoriza solo el número con el que chateás.
+También desde la terminal: `python -m app usuarios autorizar 5492494123456` (o `quitar`, `lista`). El chat de prueba `python -m app chat` autoriza solo el número con el que chateás.
 
 ## Cómo funciona
 
@@ -119,9 +119,9 @@ Los precios **no** los busca la IA en internet: los descarga un proceso aparte d
 Solo se aceptan links `https` de dominios oficiales o de mercados regulados (`DOMINIOS_OFICIALES`): `*.gob.ar` (Secretaría de Agricultura, SENASA, INTA), Bolsa de Comercio de Rosario, Mercado Agroganadero de Cañuelas, Matba Rofex / A3, Bolsa de Cereales de Buenos Aires y Bolsa de Cereales de Bahía Blanca.
 
 ```bash
-python -m app.precios actualizar        # corre todas las fuentes de FUENTES
-python -m app.precios cargar precios.csv # carga manual (columnas abajo)
-python -m app.precios ver soja          # muestra lo que respondería el bot
+python -m app precios actualizar        # corre todas las fuentes de FUENTES
+python -m app precios cargar precios.csv # carga manual (columnas abajo)
+python -m app precios ver soja          # muestra lo que respondería el bot
 ```
 
 Columnas del CSV: `fuente,url,rubro,producto,plaza,valor,moneda,unidad,fecha,incluye_impuestos,costos_adicionales`.
@@ -145,9 +145,9 @@ Los lectores separan la descarga (`obtener`) de la lectura del HTML (`leer`), y 
 El bot solo verifica si un producto está en el **registro oficial de SENASA** (Vademécum de Productos Veterinarios): número de registro, titular, principio activo y estado, con la fecha de los datos y el link. No informa precios, dosis ni indicaciones. Si un producto no aparece, lo aclara y no lo da por "no registrado".
 
 ```bash
-python -m app.senasa actualizar     # descarga la consulta pública de SENASA
-python -m app.senasa cargar registro.csv --fecha 2026-10-10 --url https://www.argentina.gob.ar/senasa/...
-python -m app.senasa ver ivermectina
+python -m app senasa actualizar     # descarga la consulta pública de SENASA
+python -m app senasa cargar registro.csv --fecha 2026-10-10 --url https://www.argentina.gob.ar/senasa/...
+python -m app senasa ver ivermectina
 ```
 
 Columnas del CSV: `nombre,registro,titular,principio_activo,estado`. Cada carga reemplaza el registro entero. Solo acepta links `https` de `*.gob.ar`.
@@ -168,7 +168,7 @@ Como `DOMINIOS_OFICIALES` solo acepta `*.gob.ar` para SENASA y la consulta vive 
 python -m venv venv && source venv/bin/activate
 pip install -r requirements-dev.txt
 cp .env.example .env        # completá al menos GROQ_API_KEY
-python -m app.cli           # chat por terminal, usa SQLite
+python -m app chat           # chat por terminal, usa SQLite
 pytest                      # tests (no usan la IA real)
 ```
 
@@ -195,7 +195,7 @@ En Railway el proyecto queda armado con **tres servicios**, todos dentro del mis
 |---|---|---|
 | **bot** | El servidor (`app/main.py`) | Rama del repo · variables de `.env.example` · `DATABASE_URL=${{Postgres.DATABASE_URL}}` · dominio público |
 | **Postgres** | La base de datos | Se crea con *New → Database → PostgreSQL* · activar *Backups* |
-| **actualizar-precios** | Mismo repo, otro comando | Start command `sh -c "python -m app.precios actualizar && python -m app.senasa actualizar"` · Cron `30 21 * * 1-5` (UTC) · solo `DATABASE_URL` · sin dominio |
+| **actualizar-precios** | Mismo repo, otro comando | Start command `sh -c "python -m app precios actualizar && python -m app senasa actualizar"` · Cron `30 21 * * 1-5` (UTC) · solo `DATABASE_URL` · sin dominio |
 
 ### Paso a paso
 

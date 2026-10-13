@@ -3,9 +3,9 @@
 Cómo funciona:
 - Cada fuente es una clase con `obtener()` que descarga y lee la página oficial y
   devuelve los precios. Se registran en FUENTES.
-- `python -m app.precios actualizar` corre todas las fuentes y guarda en la tabla
+- `python -m app precios actualizar` corre todas las fuentes y guarda en la tabla
   `cotizaciones` (en producción, como cron de Railway una o dos veces por día).
-- `python -m app.precios cargar archivo.csv` carga precios a mano (para probar o si
+- `python -m app precios cargar archivo.csv` carga precios a mano (para probar o si
   una fuente cambia su página).
 - El bot responde SOLO con lo que está en la tabla, siempre con fuente, fecha y link.
   El modelo de lenguaje nunca escribe ni ve precios: solo detecta qué producto se pide.
@@ -31,39 +31,20 @@ Para agregar una fuente:
 import csv
 import logging
 import re
-import sys
 import unicodedata
 from datetime import date, datetime, timedelta
 from html import unescape
 from typing import ClassVar
-from urllib.parse import urlparse
 
 import httpx
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.fuentes.oficiales import es_oficial
 from app.infra.config import config
 from app.infra.modelos import Cotizacion
 
 log = logging.getLogger(__name__)
-
-# Solo se aceptan precios cuyo link sea de uno de estos dominios (o subdominios).
-DOMINIOS_OFICIALES = (
-    "gob.ar",  # Secretaría de Agricultura, SENASA, INTA, datos.gob.ar...
-    "bcr.com.ar",  # Bolsa de Comercio de Rosario y su Cámara Arbitral
-    "mercadoagroganadero.com.ar",  # Mercado Agroganadero de Cañuelas
-    "matba-rofex.com.ar",
-    "a3mercados.com.ar",
-    "bolsadecereales.com",  # Bolsa de Cereales de Buenos Aires
-    "bcp.org.ar",  # Bolsa de Cereales y Productos de Bahía Blanca
-)
-
-AVISO = "_Valores de referencia publicados por la fuente. No son una recomendación de compra o venta._"
-
-
-def es_oficial(url: str) -> bool:
-    host = (urlparse(url).hostname or "").lower()
-    return urlparse(url).scheme == "https" and any(host == d or host.endswith("." + d) for d in DOMINIOS_OFICIALES)
 
 
 def normalizar_producto(texto: str | None) -> str | None:
@@ -373,119 +354,7 @@ def actualizar(db: Session) -> None:
                 log.exception("Falló la fuente %s", fuente.nombre)
 
 
-def ultimas(db: Session, producto: str | None, rubro: str | None) -> list[Cotizacion]:
-    """El último precio publicado de cada (fuente, producto, plaza)."""
-    filtro = []
-    if producto := normalizar_producto(producto):
-        filtro.append(Cotizacion.producto == producto)
-    elif rubro:
-        filtro.append(Cotizacion.rubro == rubro)
-    ultima_fecha = (
-        select(
-            Cotizacion.fuente,
-            Cotizacion.producto,
-            Cotizacion.plaza,
-            func.max(Cotizacion.fecha).label("fecha"),
-        )
-        .where(*filtro)
-        .group_by(Cotizacion.fuente, Cotizacion.producto, Cotizacion.plaza)
-        .subquery()
-    )
-    q = select(Cotizacion).join(
-        ultima_fecha,
-        (Cotizacion.fuente == ultima_fecha.c.fuente)
-        & (Cotizacion.producto == ultima_fecha.c.producto)
-        & ((Cotizacion.plaza == ultima_fecha.c.plaza) | (Cotizacion.plaza.is_(None) & ultima_fecha.c.plaza.is_(None)))
-        & (Cotizacion.fecha == ultima_fecha.c.fecha),
-    )
-    return list(db.scalars(q.order_by(Cotizacion.producto, Cotizacion.plaza)).all())
-
-
-_NOMBRES = {"maiz": "Maíz", "girasol": "Girasol", "ternero": "Ternero", "vaquillona": "Vaquillona"}
-
-
-def _numero(valor: float) -> str:
-    texto = f"{valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-    return texto.removesuffix(",00")
-
-
-def _costos(c: Cotizacion) -> str:
-    partes = []
-    if c.incluye_impuestos is True:
-        partes.append("Incluye impuestos.")
-    elif c.incluye_impuestos is False:
-        partes.append("No incluye impuestos (IVA).")
-    if c.costos_adicionales:
-        partes.append(c.costos_adicionales.rstrip(".") + ".")
-    if not partes:
-        return "La fuente no informa si incluye impuestos u otros costos."
-    return " ".join(partes)
-
-
-_ICONOS = {"soja": "🫘", "maiz": "🌽", "trigo": "🌾", "girasol": "🌻", "sorgo": "🌾", "cebada": "🌾"}
-
-
-def _lineas_cotizacion(c: Cotizacion, hoy: date) -> list[str]:
-    plaza = f" · {c.plaza}" if c.plaza else ""
-    nombre = _NOMBRES.get(c.producto, c.producto.capitalize())
-    icono = _ICONOS.get(c.producto, "🐂" if c.rubro == "hacienda" else "📈")
-    dias = (hoy - c.fecha).days
-    viejo = (
-        f"\n      ⚠️ _Dato de hace {dias} días, puede no estar actualizado_" if dias > config.dias_precio_vigente else ""
-    )
-    return [
-        f"{icono} *{nombre}*{plaza}",
-        f"      *{MONEDAS[c.moneda]} {_numero(c.valor)}* por {c.unidad} ({c.moneda})",
-        f"      📅 Publicado el {c.fecha.strftime('%d/%m/%Y')}{viejo}",
-        f"      ℹ️ _{_costos(c)}_",
-        "",
-    ]
-
-
-SIN_PRECIOS = (
-    "🔍 No tengo precios cargados de ese producto de una fuente oficial.\n"
-    "_Solo informo precios que publican organismos oficiales o mercados regulados._"
-)
-
-
-def responder(db: Session, producto: str | None, rubro: str | None, hoy: date) -> str:
-    return responder_varios(db, [(producto, rubro)], hoy)
-
-
-def responder_varios(db: Session, pedidos: list[tuple[str | None, str | None]], hoy: date) -> str:
-    """Precios de varios productos en una sola respuesta, agrupados por fuente."""
-    cotizaciones: dict[int, Cotizacion] = {}
-    faltan: list[str] = []
-    for producto, rubro in pedidos:
-        encontradas = ultimas(db, producto, rubro)
-        if not encontradas:
-            nombre = normalizar_producto(producto) or ""
-            # Solo nombramos lo que falta si es una palabra simple (no repetimos texto libre de la IA).
-            faltan.append(_NOMBRES.get(nombre, nombre.capitalize()) if re.fullmatch(r"[a-zñ ]{2,20}", nombre) else "")
-        cotizaciones.update({c.id: c for c in encontradas})
-    if not cotizaciones:
-        return SIN_PRECIOS
-
-    lineas = ["💲 *PRECIOS DE REFERENCIA*", ""]
-    por_fuente: dict[tuple[str, str], list[Cotizacion]] = {}
-    for c in cotizaciones.values():
-        por_fuente.setdefault((c.fuente, c.url), []).append(c)
-    fuentes = []
-    for (fuente, url), lista in por_fuente.items():
-        for c in lista[:20]:
-            lineas += _lineas_cotizacion(c, hoy)
-        fuentes.append(f"📰 _Fuente: {fuente}_\n🔗 {url}")
-    if faltan:
-        nombres = ", ".join(f for f in faltan if f)
-        lineas.append(
-            f"🔍 No tengo precios oficiales cargados de: {nombres}.\n"
-            if nombres
-            else "🔍 De algún producto que pediste no tengo precios oficiales cargados.\n"
-        )
-    return "\n".join(lineas) + "────────────\n" + "\n\n".join(fuentes) + "\n\n" + AVISO
-
-
-def _cargar_csv(db: Session, ruta: str) -> None:
+def cargar_csv(db: Session, ruta: str) -> dict[str, int]:
     """Columnas: fuente,url,rubro,producto,plaza,valor,moneda,unidad,fecha,incluye_impuestos,costos_adicionales.
 
     fecha en YYYY-MM-DD; incluye_impuestos: si / no / vacío si la fuente no lo informa.
@@ -495,34 +364,4 @@ def _cargar_csv(db: Session, ruta: str) -> None:
     grupos: dict[tuple[str, str, str], list[dict]] = {}
     for fila in filas:
         grupos.setdefault((fila["fuente"], fila["url"], fila["rubro"]), []).append(fila)
-    for (fuente, url, rubro), precios in grupos.items():
-        print(f"{fuente}: {guardar(db, fuente, url, rubro, precios)} precios")
-    db.commit()
-
-
-def main() -> None:
-    from app.infra.db import SessionLocal, crear_tablas
-    from app.infra.logs import configurar_logs
-
-    configurar_logs()
-    crear_tablas()
-    comando = sys.argv[1] if len(sys.argv) > 1 else ""
-    with SessionLocal() as db:
-        if comando == "actualizar":
-            if not FUENTES:
-                print("No hay fuentes registradas en app/precios.py (FUENTES está vacía).")
-            actualizar(db)
-        elif comando == "cargar" and len(sys.argv) > 2:
-            _cargar_csv(db, sys.argv[2])
-        elif comando == "ver":
-            print(
-                responder(
-                    db, sys.argv[2] if len(sys.argv) > 2 else None, None, datetime.now(config.zona_horaria).date()
-                )
-            )
-        else:
-            print("Uso: python -m app.precios actualizar | cargar archivo.csv | ver [producto]")
-
-
-if __name__ == "__main__":
-    main()
+    return {fuente: guardar(db, fuente, url, rubro, precios) for (fuente, url, rubro), precios in grupos.items()}

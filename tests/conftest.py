@@ -20,13 +20,13 @@ def servidor(monkeypatch, tmp_path):
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
 
-    from app import main
-    from app.infra.db import Base
+    from app.api import webhook
+    from app.infra import db
 
     engine = create_engine(f"sqlite:///{tmp_path}/test.db")
-    Base.metadata.create_all(engine)
-    monkeypatch.setattr(main, "SessionLocal", sessionmaker(bind=engine, expire_on_commit=False))
-    monkeypatch.setattr(main, "crear_tablas", lambda: None)
+    db.Base.metadata.create_all(engine)
+    monkeypatch.setattr(webhook, "SessionLocal", sessionmaker(bind=engine, expire_on_commit=False))
+    monkeypatch.setattr(db, "crear_tablas", lambda: None)
     enviados: list[tuple[str, str]] = []
-    monkeypatch.setattr(main.whatsapp, "enviar_texto", lambda tel, txt: enviados.append((tel, txt)))
+    monkeypatch.setattr(webhook.whatsapp, "enviar_texto", lambda tel, txt: enviados.append((tel, txt)))
     return enviados

@@ -14,11 +14,14 @@ from datetime import UTC, date, datetime, timedelta
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app import formato, llm, precios, senasa, usuarios
-from app.consultas import buscar, normalizar_lote, totales
-from app.formato import SEPARADOR as LINEA
+from app.ia import llm
 from app.infra.config import config
 from app.infra.modelos import BorradoPendiente, Evento, MensajeChat, UsoDiario, Usuario
+from app.modulos.comun import precios, senasa
+from app.nucleo import usuarios
+from app.nucleo.consultas import buscar, normalizar_lote, totales
+from app.salidas import whatsapp as formato
+from app.salidas.whatsapp import SEPARADOR as LINEA
 
 log = logging.getLogger(__name__)
 
@@ -89,17 +92,6 @@ def _hoy() -> date:
 
 def es_admin(telefono: str) -> bool:
     return telefono in config.admin_telefonos
-
-
-def normalizar_telefono(texto: str) -> str | None:
-    """Deja el número como lo manda WhatsApp: 549 + característica + número.
-
-    Acepta "+54 9 249 412-3456" o "542494123456" (sin el 9, como lo guarda Meta).
-    """
-    digitos = re.sub(r"\D", "", texto)
-    if digitos.startswith("54") and not digitos.startswith("549") and len(digitos) == 12:
-        digitos = "549" + digitos[2:]
-    return digitos if 10 <= len(digitos) <= 15 else None
 
 
 def puede_usar_ia(db: Session, telefono: str) -> bool:
@@ -364,7 +356,7 @@ def _comando_admin(db: Session, texto: str) -> str | None:
     m = re.match(r"^(autorizar|quitar)\s+(.+)$", texto, re.IGNORECASE)
     if not m:
         return None
-    telefono = normalizar_telefono(m.group(2))
+    telefono = usuarios.normalizar_telefono(m.group(2))
     if telefono is None:
         return "No entendí el número. Escribilo con código de país, ej: *autorizar 5492494123456*"
     if m.group(1).lower() == "autorizar":

@@ -2,6 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import main
+from app.api import webhook
 from app.infra.config import config
 
 
@@ -52,8 +53,8 @@ def test_audio_de_numero_sin_acceso_no_se_transcribe(cliente, monkeypatch):
     def no_llamar(*_):
         raise AssertionError("no debería descargar ni transcribir")
 
-    monkeypatch.setattr(main.whatsapp, "descargar_media", no_llamar)
-    monkeypatch.setattr(main.llm, "transcribir", no_llamar)
+    monkeypatch.setattr(webhook.whatsapp, "descargar_media", no_llamar)
+    monkeypatch.setattr(webhook.llm, "transcribir", no_llamar)
     payload = {
         "entry": [
             {

@@ -1,21 +1,16 @@
-"""Servidor del webhook de WhatsApp."""
+"""Servidor web: arma la app de FastAPI con sus rutas.  uvicorn app.main:app"""
 
-import json
-import logging
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request, Response
-from fastapi.responses import HTMLResponse
-from sqlalchemy.exc import IntegrityError
+from fastapi import FastAPI
 
-from app import bot, llm, privacidad, whatsapp
+from app.api import paginas, webhook
+from app.infra import db
 from app.infra.config import config
-from app.infra.db import SessionLocal, crear_tablas
 from app.infra.logs import configurar_logs
-from app.infra.modelos import MensajeProcesado
 
 configurar_logs()
-log = logging.getLogger(__name__)
 
 
 def verificar_configuracion() -> None:
@@ -29,100 +24,12 @@ def verificar_configuracion() -> None:
 
 
 @asynccontextmanager
-async def _ciclo_de_vida(_app: FastAPI):
+async def _ciclo_de_vida(_app: FastAPI) -> AsyncIterator[None]:
     verificar_configuracion()
-    crear_tablas()
+    db.crear_tablas()
     yield
 
 
 app = FastAPI(title="Asistente de campo", lifespan=_ciclo_de_vida)
-
-
-@app.get("/")
-def salud() -> dict:
-    return {"ok": True}
-
-
-@app.get("/privacidad", response_class=HTMLResponse)
-def politica_de_privacidad() -> str:
-    """Página pública con la política de privacidad (Meta la pide para publicar la app)."""
-    return privacidad.html()
-
-
-@app.get("/webhook")
-def verificar_webhook(
-    modo: str = Query(None, alias="hub.mode"),
-    token: str = Query(None, alias="hub.verify_token"),
-    desafio: str = Query(None, alias="hub.challenge"),
-) -> Response:
-    """Meta llama a este endpoint una vez al configurar el webhook."""
-    if modo == "subscribe" and config.wa_verify_token and token == config.wa_verify_token:
-        return Response(content=desafio, media_type="text/plain")
-    raise HTTPException(status_code=403, detail="Token de verificación inválido")
-
-
-@app.post("/webhook")
-async def recibir_webhook(request: Request, tareas: BackgroundTasks) -> dict:
-    cuerpo = await request.body()
-    if not whatsapp.firma_valida(cuerpo, request.headers.get("X-Hub-Signature-256")):
-        raise HTTPException(status_code=401, detail="Firma inválida")
-
-    datos = json.loads(cuerpo or b"{}")
-    for entrada in datos.get("entry", []):
-        for cambio in entrada.get("changes", []):
-            valor = cambio.get("value", {})
-            nombres = {c.get("wa_id"): c.get("profile", {}).get("name") for c in valor.get("contacts", [])}
-            for mensaje in valor.get("messages", []):
-                # Respondemos 200 enseguida (si no, Meta reintenta) y procesamos aparte.
-                tareas.add_task(procesar_mensaje, mensaje, nombres.get(mensaje.get("from")))
-    return {"ok": True}
-
-
-def _ya_procesado(wamid: str) -> bool:
-    with SessionLocal() as db:
-        try:
-            db.add(MensajeProcesado(wamid=wamid))
-            db.commit()
-            return False
-        except IntegrityError:
-            db.rollback()
-            return True
-
-
-def procesar_mensaje(mensaje: dict, nombre: str | None) -> None:
-    telefono = mensaje.get("from")
-    wamid = mensaje.get("id")
-    if not telefono or not wamid or _ya_procesado(wamid):
-        return
-
-    tipo = mensaje.get("type")
-    prefijo = ""
-    try:
-        if tipo == "text":
-            texto = mensaje["text"]["body"]
-        elif tipo == "audio":
-            with SessionLocal() as db:
-                habilitado = bot.puede_usar_ia(db, telefono)
-            if not habilitado:
-                whatsapp.enviar_texto(telefono, bot.NO_AUTORIZADO)
-                return
-            audio = whatsapp.descargar_media(mensaje["audio"]["id"])
-            if len(audio) > config.max_audio_bytes:
-                whatsapp.enviar_texto(
-                    telefono, "✋ El audio es muy largo.\nMandá audios más cortos, de a un tema por vez."
-                )
-                return
-            texto = llm.transcribir(audio)
-            prefijo = f"🎤 _{texto[: config.max_largo_mensaje]}_\n\n"
-        else:
-            whatsapp.enviar_texto(telefono, "Por ahora solo entiendo mensajes de texto y audios 🙏")
-            return
-
-        with SessionLocal() as db:
-            respuesta = bot.manejar_mensaje(db, telefono, texto, nombre=nombre)
-            db.commit()
-    except Exception:
-        log.exception("Error procesando mensaje %s", wamid)
-        respuesta = "😕 Uy, algo falló procesando tu mensaje.\nProbá de nuevo en un rato."
-
-    whatsapp.enviar_texto(telefono, prefijo + respuesta)
+app.include_router(paginas.rutas)
+app.include_router(webhook.rutas)

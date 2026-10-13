@@ -7,10 +7,12 @@ import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
-from app import bot, llm, usuarios, whatsapp
+from app.canales import whatsapp
+from app.ia import llm
 from app.infra.config import config
 from app.infra.db import Base
 from app.infra.modelos import BorradoPendiente, Evento, MensajeChat, Usuario
+from app.nucleo import bot, usuarios
 
 HOY = date(2026, 10, 9)
 

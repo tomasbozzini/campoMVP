@@ -12,9 +12,10 @@ import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
-from app import senasa
+from app.fuentes import senasa
 from app.infra.db import Base
 from app.infra.modelos import ProductoVeterinario
+from app.modulos.comun import senasa as respuesta_senasa
 
 FIXTURES = Path(__file__).parent / "fixtures"
 FECHA = date(2026, 10, 11)
@@ -112,7 +113,7 @@ def test_la_url_oficial_es_gob_ar_y_la_de_la_consulta_no_pasa(db):
 
 def test_sin_principio_activo_ni_estado_dice_no_informado(db):
     senasa.reemplazar_registro(db, FILAS, FECHA, senasa.URL_OFICIAL)
-    respuesta = senasa.responder(db, "ivermectina")
+    respuesta = respuesta_senasa.responder(db, "ivermectina")
     assert "*IVERMECTINA 1% ROSENBUSCH*" in respuesta
     assert "N° de registro: *04-125*" in respuesta
     assert "Estado: no informado" in respuesta
@@ -120,18 +121,18 @@ def test_sin_principio_activo_ni_estado_dice_no_informado(db):
     assert "🧪" not in respuesta
     assert f"datos al {FECHA.strftime('%d/%m/%Y')}" in respuesta
     assert senasa.URL_OFICIAL in respuesta
-    assert senasa.AVISO in respuesta
+    assert respuesta_senasa.AVISO in respuesta
 
 
 def test_producto_que_no_aparece_no_se_declara_no_registrado(db):
     senasa.reemplazar_registro(db, FILAS, FECHA, senasa.URL_OFICIAL)
-    respuesta = senasa.responder(db, "zzzinexistente")
+    respuesta = respuesta_senasa.responder(db, "zzzinexistente")
     assert "No encontré ese producto" in respuesta
     assert "no confirma que no esté registrado" in respuesta
 
 
 def test_sin_registro_cargado_lo_aclara(db):
-    assert "Todavía no tengo cargado" in senasa.responder(db, "ivermectina")
+    assert "Todavía no tengo cargado" in respuesta_senasa.responder(db, "ivermectina")
 
 
 def test_una_carga_reemplaza_la_anterior_entera(db):

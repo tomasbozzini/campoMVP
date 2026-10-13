@@ -6,10 +6,15 @@ import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
-from app import bot, llm, precios, senasa, usuarios
+from app.fuentes import oficiales
+from app.fuentes import precios as fuentes_precios
+from app.fuentes import senasa as fuentes_senasa
+from app.ia import llm
 from app.infra.config import config
 from app.infra.db import Base
 from app.infra.modelos import Cotizacion
+from app.modulos.comun import precios, senasa
+from app.nucleo import bot, usuarios
 
 HOY = date(2026, 10, 9)
 URL_PIZARRA = "https://www.cac.bcr.com.ar/es/precios-de-pizarra"
@@ -81,7 +86,7 @@ def test_usuario_sin_campo_no_usa_la_ia(db, respuestas):
 
 
 def _cargar_soja(db, fecha=date(2026, 10, 8), valor=310000, **extra):
-    precios.guardar(
+    fuentes_precios.guardar(
         db,
         FUENTE,
         URL_PIZARRA,
@@ -134,9 +139,11 @@ def test_sin_precio_no_inventa(db, respuestas):
 def test_solo_acepta_fuentes_oficiales(db):
     for url in ("https://www.preciosdelcampo.com/soja", "http://www.bcr.com.ar/x", "https://bcr.com.ar.trucho.com/x"):
         with pytest.raises(ValueError):
-            precios.guardar(db, "Otra", url, "granos", [{"producto": "soja", "valor": 1, "unidad": "t", "fecha": HOY}])
-    assert precios.es_oficial("https://www.magyp.gob.ar/precios")
-    assert precios.es_oficial(URL_PIZARRA)
+            fuentes_precios.guardar(
+                db, "Otra", url, "granos", [{"producto": "soja", "valor": 1, "unidad": "t", "fecha": HOY}]
+            )
+    assert oficiales.es_oficial("https://www.magyp.gob.ar/precios")
+    assert oficiales.es_oficial(URL_PIZARRA)
     assert db.scalar(select(Cotizacion)) is None
 
 
@@ -151,7 +158,7 @@ URL_SENASA = "https://www.argentina.gob.ar/senasa/registro-productos-veterinario
 
 
 def _cargar_senasa(db):
-    senasa.reemplazar_registro(
+    fuentes_senasa.reemplazar_registro(
         db,
         [
             {
@@ -197,9 +204,9 @@ def test_senasa_sin_tildes_y_sin_resultados(db):
 
 def test_senasa_solo_acepta_gob_ar(db):
     with pytest.raises(ValueError):
-        senasa.reemplazar_registro(db, [{"nombre": "x", "registro": "1"}], HOY, URL_PIZARRA)
+        fuentes_senasa.reemplazar_registro(db, [{"nombre": "x", "registro": "1"}], HOY, URL_PIZARRA)
     with pytest.raises(ValueError):  # un archivo vacío no borra el registro
-        senasa.reemplazar_registro(db, [], HOY, URL_SENASA)
+        fuentes_senasa.reemplazar_registro(db, [], HOY, URL_SENASA)
 
 
 def test_precio_sin_producto_repregunta(db, respuestas):
@@ -226,7 +233,7 @@ def test_aclarar_usa_solo_preguntas_fijas(db, respuestas):
 
 
 def _maiz(db):
-    precios.guardar(
+    fuentes_precios.guardar(
         db,
         FUENTE,
         URL_PIZARRA,

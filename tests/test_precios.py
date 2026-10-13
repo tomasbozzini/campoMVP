@@ -11,8 +11,9 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app import precios
+from app.fuentes import oficiales, precios
 from app.infra.db import Base
+from app.modulos.comun import precios as respuesta_precios
 
 FIXTURES = Path(__file__).parent / "fixtures"
 HOY = date(2026, 10, 11)
@@ -148,7 +149,7 @@ def test_las_urls_de_las_fuentes_son_oficiales_y_https():
     assert [f.nombre for f in precios.FUENTES]  # no quedó vacía
     for fuente in precios.FUENTES:
         assert fuente.url.startswith("https://")
-        assert precios.es_oficial(fuente.url), fuente.url
+        assert oficiales.es_oficial(fuente.url), fuente.url
         assert fuente.rubro in ("granos", "hacienda")
 
 
@@ -158,13 +159,13 @@ def test_responder_con_los_datos_de_los_fixtures(db, pizarra, hacienda):
     assert precios.guardar(db, rosario.nombre, rosario.url, rosario.rubro, pizarra) == 5
     assert precios.guardar(db, canuelas.nombre, canuelas.url, canuelas.rubro, hacienda) == 6
 
-    soja = precios.responder(db, "soja", None, HOY)
+    soja = respuesta_precios.responder(db, "soja", None, HOY)
     assert "🫘 *Soja* · Rosario\n      *$ 560.000* por t (ARS)" in soja
     assert "Publicado el 08/10/2026" in soja
     assert "https://www.cac.bcr.com.ar/es/precios-de-pizarra" in soja
-    assert precios.AVISO in soja
+    assert respuesta_precios.AVISO in soja
 
-    novillo = precios.responder(db, "novillo", None, HOY)
+    novillo = respuesta_precios.responder(db, "novillo", None, HOY)
     assert "🐂 *Novillo* · Cañuelas\n      *$ 4.448,53* por kg vivo (ARS)" in novillo
     assert "Publicado el 09/10/2026" in novillo
     # "novillo" no tiene que traer los novillitos
@@ -172,6 +173,6 @@ def test_responder_con_los_datos_de_los_fixtures(db, pizarra, hacienda):
 
 
 def test_responder_sin_datos_no_inventa(db):
-    respuesta = precios.responder(db, "quinoa", None, HOY)
+    respuesta = respuesta_precios.responder(db, "quinoa", None, HOY)
     assert "No tengo precios cargados" in respuesta
     assert "$" not in respuesta
