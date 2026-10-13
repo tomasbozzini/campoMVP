@@ -52,9 +52,7 @@ def buscar(db: Session, usuario_id: int, filtros: dict) -> list[Evento]:
         q = q.where(func.lower(Evento.categoria_animal).like(f"%{raiz}%"))
     if filtros.get("producto"):
         texto = f"%{str(filtros['producto']).lower()}%"
-        q = q.where(
-            func.lower(Evento.producto).like(texto) | func.lower(Evento.descripcion).like(texto)
-        )
+        q = q.where(func.lower(Evento.producto).like(texto) | func.lower(Evento.descripcion).like(texto))
     if desde := _fecha(filtros.get("desde")):
         q = q.where(Evento.fecha_evento >= desde)
     if hasta := _fecha(filtros.get("hasta")):

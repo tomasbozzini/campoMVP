@@ -34,15 +34,18 @@ def _usuario(db, telefono="5491100000001"):
     return usuarios.autorizar(db, telefono)
 
 
-@pytest.mark.parametrize("salida", [
-    {"intencion": "fuera_de_alcance"},
-    # Aunque el modelo devuelva texto propio, nunca se muestra.
-    {"intencion": "charla", "respuesta": "Te recomiendo vender ya"},
-    {"intencion": "registrar", "eventos": "no es una lista"},
-    {"intencion": "consultar"},
-    {"intencion": "inventada"},
-    ["no", "es", "un", "objeto"],
-])
+@pytest.mark.parametrize(
+    "salida",
+    [
+        {"intencion": "fuera_de_alcance"},
+        # Aunque el modelo devuelva texto propio, nunca se muestra.
+        {"intencion": "charla", "respuesta": "Te recomiendo vender ya"},
+        {"intencion": "registrar", "eventos": "no es una lista"},
+        {"intencion": "consultar"},
+        {"intencion": "inventada"},
+        ["no", "es", "un", "objeto"],
+    ],
+)
 def test_todo_lo_que_no_es_valido_es_fuera_de_alcance(db, respuestas, salida):
     u = _usuario(db)
     respuestas["x"] = salida
@@ -77,9 +80,15 @@ def test_usuario_sin_campo_no_usa_la_ia(db, respuestas):
 
 
 def _cargar_soja(db, fecha=date(2026, 10, 8), valor=310000, **extra):
-    precios.guardar(db, FUENTE, URL_PIZARRA, "granos", [
-        {"producto": "Soja", "plaza": "Rosario", "valor": valor, "unidad": "t", "fecha": fecha, **extra},
-    ])
+    precios.guardar(
+        db,
+        FUENTE,
+        URL_PIZARRA,
+        "granos",
+        [
+            {"producto": "Soja", "plaza": "Rosario", "valor": valor, "unidad": "t", "fecha": fecha, **extra},
+        ],
+    )
 
 
 def test_precio_con_fuente_y_fecha(db, respuestas):
@@ -141,19 +150,36 @@ URL_SENASA = "https://www.argentina.gob.ar/senasa/registro-productos-veterinario
 
 
 def _cargar_senasa(db):
-    senasa.reemplazar_registro(db, [
-        {"nombre": "Ivomec 1%", "registro": "12.345", "titular": "Lab Uno SA",
-         "principio_activo": "Ivermectina", "estado": "Vigente"},
-        {"nombre": "Bioaftógen", "registro": "98.765", "titular": "Lab Dos SA",
-         "principio_activo": "Virus aftosa inactivado", "estado": "Vigente"},
-    ], date(2026, 10, 1), URL_SENASA)
+    senasa.reemplazar_registro(
+        db,
+        [
+            {
+                "nombre": "Ivomec 1%",
+                "registro": "12.345",
+                "titular": "Lab Uno SA",
+                "principio_activo": "Ivermectina",
+                "estado": "Vigente",
+            },
+            {
+                "nombre": "Bioaftógen",
+                "registro": "98.765",
+                "titular": "Lab Dos SA",
+                "principio_activo": "Virus aftosa inactivado",
+                "estado": "Vigente",
+            },
+        ],
+        date(2026, 10, 1),
+        URL_SENASA,
+    )
 
 
 def test_senasa_por_principio_activo(db, respuestas):
     u = _usuario(db)
     _cargar_senasa(db)
     respuestas["¿la ivermectina está aprobada?"] = {
-        "intencion": "producto_veterinario", "producto_veterinario": {"nombre": "IVERMECTINA"}}
+        "intencion": "producto_veterinario",
+        "producto_veterinario": {"nombre": "IVERMECTINA"},
+    }
     r = bot.manejar_mensaje(db, u.telefono, "¿la ivermectina está aprobada?", hoy=HOY)
     assert "*Ivomec 1%*" in r and "N° de registro: *12.345*" in r and "🏭 Lab Uno SA" in r
     assert "✅ Estado: vigente" in r
@@ -199,18 +225,25 @@ def test_aclarar_usa_solo_preguntas_fijas(db, respuestas):
 
 
 def _maiz(db):
-    precios.guardar(db, FUENTE, URL_PIZARRA, "granos", [
-        {"producto": "Maíz", "plaza": "Rosario", "valor": 250000, "unidad": "t", "fecha": date(2026, 10, 8)}])
+    precios.guardar(
+        db,
+        FUENTE,
+        URL_PIZARRA,
+        "granos",
+        [{"producto": "Maíz", "plaza": "Rosario", "valor": 250000, "unidad": "t", "fecha": date(2026, 10, 8)}],
+    )
 
 
 def test_varios_precios_en_un_mensaje_agrupados_por_fuente(db, respuestas):
     u = _usuario(db)
     _cargar_soja(db)
     _maiz(db)
-    respuestas["¿cuánto está la soja y el maíz?"] = {"acciones": [
-        {"intencion": "precio", "precio": {"rubro": "granos", "producto": "soja"}},
-        {"intencion": "precio", "precio": {"rubro": "granos", "producto": "maiz"}},
-    ]}
+    respuestas["¿cuánto está la soja y el maíz?"] = {
+        "acciones": [
+            {"intencion": "precio", "precio": {"rubro": "granos", "producto": "soja"}},
+            {"intencion": "precio", "precio": {"rubro": "granos", "producto": "maiz"}},
+        ]
+    }
     r = bot.manejar_mensaje(db, u.telefono, "¿cuánto está la soja y el maíz?", hoy=HOY)
     assert "*Soja* · Rosario" in r and "*Maíz* · Rosario" in r
     assert r.count("Fuente:") == 1 and r.count("No son una recomendación") == 1
@@ -219,10 +252,12 @@ def test_varios_precios_en_un_mensaje_agrupados_por_fuente(db, respuestas):
 def test_precio_que_falta_se_aclara_sin_perder_el_resto(db, respuestas):
     u = _usuario(db)
     _cargar_soja(db)
-    respuestas["soja y girasol"] = {"acciones": [
-        {"intencion": "precio", "precio": {"producto": "soja"}},
-        {"intencion": "precio", "precio": {"producto": "girasol"}},
-    ]}
+    respuestas["soja y girasol"] = {
+        "acciones": [
+            {"intencion": "precio", "precio": {"producto": "soja"}},
+            {"intencion": "precio", "precio": {"producto": "girasol"}},
+        ]
+    }
     r = bot.manejar_mensaje(db, u.telefono, "soja y girasol", hoy=HOY)
     assert "*Soja* · Rosario" in r and "No tengo precios oficiales cargados de: Girasol." in r
 
@@ -231,12 +266,17 @@ def test_mezcla_de_pedidos_se_responde_en_orden(db, respuestas):
     u = _usuario(db)
     _cargar_soja(db)
     texto = "hola, anotá que llovieron 20 mm, ¿cuánto está la soja? y ¿me conviene vender?"
-    respuestas[texto] = {"acciones": [
-        {"intencion": "saludo"},
-        {"intencion": "registrar", "eventos": [{"categoria": "campo", "tipo": "lluvia", "valor": 20, "unidad": "mm"}]},
-        {"intencion": "precio", "precio": {"producto": "soja"}},
-        {"intencion": "fuera_de_alcance"},
-    ]}
+    respuestas[texto] = {
+        "acciones": [
+            {"intencion": "saludo"},
+            {
+                "intencion": "registrar",
+                "eventos": [{"categoria": "campo", "tipo": "lluvia", "valor": 20, "unidad": "mm"}],
+            },
+            {"intencion": "precio", "precio": {"producto": "soja"}},
+            {"intencion": "fuera_de_alcance"},
+        ]
+    }
     r = bot.manejar_mensaje(db, u.telefono, texto, hoy=HOY)
     assert r.index("ANOTADO") < r.index("*Soja* · Rosario") < r.index(bot.FUERA_PARCIAL)
     assert bot.SALUDO not in r and bot.FUERA_DE_ALCANCE not in r
@@ -254,9 +294,16 @@ def test_solo_fuera_de_alcance_o_solo_saludo(db, respuestas):
 
 def test_tope_de_acciones_por_mensaje(db, respuestas):
     u = _usuario(db)
-    respuestas["muchas"] = {"acciones": [
-        {"intencion": "registrar", "eventos": [{"categoria": "campo", "tipo": "lluvia", "valor": i, "unidad": "mm"}]}
-        for i in range(1, 20)]}
+    respuestas["muchas"] = {
+        "acciones": [
+            {
+                "intencion": "registrar",
+                "eventos": [{"categoria": "campo", "tipo": "lluvia", "valor": i, "unidad": "mm"}],
+            }
+            for i in range(1, 20)
+        ]
+    }
     bot.manejar_mensaje(db, u.telefono, "muchas", hoy=HOY)
     from app.models import Evento
+
     assert len(db.scalars(select(Evento)).all()) == bot.MAX_ACCIONES

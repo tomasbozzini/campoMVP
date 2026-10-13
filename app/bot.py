@@ -144,9 +144,7 @@ PREGUNTAS = {
 }
 
 
-def manejar_mensaje(
-    db: Session, telefono: str, texto: str, nombre: str | None = None, hoy: date | None = None
-) -> str:
+def manejar_mensaje(db: Session, telefono: str, texto: str, nombre: str | None = None, hoy: date | None = None) -> str:
     texto = texto.strip()
     usuario = _usuario(db, telefono, nombre)
     if usuario is None:
@@ -222,7 +220,8 @@ def _historial(db: Session, usuario: Usuario) -> list[tuple[str, str]]:
     filas = db.scalars(
         select(MensajeChat)
         .where(MensajeChat.usuario_id == usuario.id, MensajeChat.creado >= desde)
-        .order_by(MensajeChat.id.desc()).limit(HISTORIAL_MENSAJES)
+        .order_by(MensajeChat.id.desc())
+        .limit(HISTORIAL_MENSAJES)
     ).all()
     return [(f.rol, f.texto) for f in reversed(filas)]
 
@@ -232,8 +231,10 @@ def _guardar_charla(db: Session, usuario: Usuario, texto: str, respuesta: str) -
     db.add(MensajeChat(usuario_id=usuario.id, rol="bot", texto=respuesta[:HISTORIAL_LARGO]))
     # No hace falta guardar más que lo que se usa como contexto.
     viejos = db.scalars(
-        select(MensajeChat.id).where(MensajeChat.usuario_id == usuario.id)
-        .order_by(MensajeChat.id.desc()).offset(HISTORIAL_MENSAJES * 2)
+        select(MensajeChat.id)
+        .where(MensajeChat.usuario_id == usuario.id)
+        .order_by(MensajeChat.id.desc())
+        .offset(HISTORIAL_MENSAJES * 2)
     ).all()
     if viejos:
         db.execute(delete(MensajeChat).where(MensajeChat.id.in_(viejos)))
@@ -386,14 +387,14 @@ def consumir_cupo(db: Session, usuario: Usuario, hoy: date) -> bool:
 
 
 def clave_establecimiento(nombre: str | None) -> str | None:
-    """"Estancia La Esperanza", "la esperanza" y "La Esperanza" son el mismo lugar."""
+    """ "Estancia La Esperanza", "la esperanza" y "La Esperanza" son el mismo lugar."""
     if not nombre:
         return None
     texto = unicodedata.normalize("NFKD", nombre.strip().lower())
     texto = "".join(c for c in texto if not unicodedata.combining(c))
     for prefijo in ("estancia ", "establecimiento ", "campo ", "el campo "):
         if texto.startswith(prefijo):
-            texto = texto[len(prefijo):]
+            texto = texto[len(prefijo) :]
     return " ".join(texto.split()) or None
 
 
@@ -467,9 +468,7 @@ def _heredar_contexto(eventos: list) -> None:
             e["categoria_animal"] = categoria
 
 
-def _registrar(
-    db: Session, usuario: Usuario, texto: str, eventos: list, establecimiento: str | None, hoy: date
-) -> str:
+def _registrar(db: Session, usuario: Usuario, texto: str, eventos: list, establecimiento: str | None, hoy: date) -> str:
     _heredar_contexto(eventos)
     # Si el mensaje nombra un establecimiento, pasa a ser el actual; si no, se usa el último.
     if establecimiento:
@@ -515,7 +514,9 @@ def _registrar(
     cantidad = f"{len(guardados)} registros" if len(guardados) > 1 else "1 registro"
     partes = [f"✅ *ANOTADO*\n{donde} · {cantidad}", formato.tarjetas(guardados, lugar=False)]
     if any(e.confianza == "baja" for e in guardados):
-        partes.append(f"{LINEA}\n⚠️ No estoy seguro de haber entendido bien.\n_Si algo está mal, corregilo o mandá *borrar*._")
+        partes.append(
+            f"{LINEA}\n⚠️ No estoy seguro de haber entendido bien.\n_Si algo está mal, corregilo o mandá *borrar*._"
+        )
     else:
         partes.append(f"{LINEA}\n_¿Algo mal? Corregilo o mandá *borrar*._")
     return "\n\n".join(partes)
@@ -577,8 +578,7 @@ def _corregir(db: Session, usuario: Usuario, correccion: dict, hoy: date) -> str
     if not isinstance(cambios, dict):
         cambios = {}
     recientes = db.scalars(
-        select(Evento).where(Evento.usuario_id == usuario.id)
-        .order_by(Evento.id.desc()).limit(CORRECCION_ULTIMOS)
+        select(Evento).where(Evento.usuario_id == usuario.id).order_by(Evento.id.desc()).limit(CORRECCION_ULTIMOS)
     ).all()
     evento = next((e for e in recientes if _coincide(e, referencia)), None)
     if evento is None:
@@ -608,12 +608,14 @@ def _corregir(db: Session, usuario: Usuario, correccion: dict, hoy: date) -> str
     cambios_hechos = formato.cambios(antes, evento)
     if not cambios_hechos:
         return "👌 Ese registro ya tenía esos datos, no cambié nada.\n\n" + formato.tarjeta(evento)
-    return "\n\n".join([
-        "✏️ *CORREGIDO*",
-        "\n".join(cambios_hechos),
-        "*Así quedó:*\n" + formato.tarjeta(evento),
-        f"{LINEA}\n_¿Algo mal? Corregilo de nuevo o mandá *borrar*._",
-    ])
+    return "\n\n".join(
+        [
+            "✏️ *CORREGIDO*",
+            "\n".join(cambios_hechos),
+            "*Así quedó:*\n" + formato.tarjeta(evento),
+            f"{LINEA}\n_¿Algo mal? Corregilo de nuevo o mandá *borrar*._",
+        ]
+    )
 
 
 # Qué se puede corregir y cómo se limpia cada valor (igual que al registrar).
@@ -657,8 +659,7 @@ def _borrar(db: Session, usuario: Usuario, borrado: dict) -> str:
     if not isinstance(referencias, list) or not referencias:
         return _borrar_ultimo(db, usuario)
     recientes = db.scalars(
-        select(Evento).where(Evento.usuario_id == usuario.id)
-        .order_by(Evento.id.desc()).limit(BORRADO_ULTIMOS)
+        select(Evento).where(Evento.usuario_id == usuario.id).order_by(Evento.id.desc()).limit(BORRADO_ULTIMOS)
     ).all()
 
     a_borrar: dict[int, Evento] = {}
@@ -695,7 +696,9 @@ def _borrar(db: Session, usuario: Usuario, borrado: dict) -> str:
         lineas += [f"      › {formato.linea(e)}" for e in lista[:10]]
         if len(lista) > 10:
             lineas.append(f"      _...y {len(lista) - 10} más_")
-        lineas.append(f"\n{LINEA}\n¿Confirmás? Respondé *sí* para borrarlos o *no* para cancelar.\n_Esto no se puede deshacer._")
+        lineas.append(
+            f"\n{LINEA}\n¿Confirmás? Respondé *sí* para borrarlos o *no* para cancelar.\n_Esto no se puede deshacer._"
+        )
     elif a_borrar:
         lineas.append("🗑️ *BORRADO*\n")
         lineas.append(formato.tarjetas(list(a_borrar.values())))
@@ -723,9 +726,7 @@ def _resolver_borrado_pendiente(db: Session, usuario: Usuario, comando: str) -> 
         return None
     if not vigente:
         return "⏱️ Pasó mucho tiempo desde que lo pediste y no borré nada.\nSi querés, pedilo de nuevo."
-    resultado = db.execute(
-        delete(Evento).where(Evento.id.in_(pendiente.ids), Evento.usuario_id == usuario.id)
-    )
+    resultado = db.execute(delete(Evento).where(Evento.id.in_(pendiente.ids), Evento.usuario_id == usuario.id))
     borrados = getattr(resultado, "rowcount", 0)
     return f"🗑️ *BORRADO*\n\nListo, borré {borrados} registros."
 
@@ -747,12 +748,7 @@ def _describir(filtro: dict) -> str:
 
 
 def _borrar_ultimo(db: Session, usuario: Usuario) -> str:
-    ultimo = db.scalar(
-        select(Evento)
-        .where(Evento.usuario_id == usuario.id)
-        .order_by(Evento.id.desc())
-        .limit(1)
-    )
+    ultimo = db.scalar(select(Evento).where(Evento.usuario_id == usuario.id).order_by(Evento.id.desc()).limit(1))
     if ultimo is None:
         return "📭 No tenés nada anotado para borrar."
     if ultimo.mensaje_id is None:
@@ -762,11 +758,11 @@ def _borrar_ultimo(db: Session, usuario: Usuario) -> str:
     else:
         # Por mensaje_id y no por fecha: dos mensajes seguidos pueden caer en el mismo
         # timestamp (en Windows el reloj salta cada ~15 ms) y se borraban los dos.
-        borrados = list(db.scalars(
-            select(Evento).where(
-                Evento.usuario_id == usuario.id, Evento.mensaje_id == ultimo.mensaje_id
-            )
-        ).all())
+        borrados = list(
+            db.scalars(
+                select(Evento).where(Evento.usuario_id == usuario.id, Evento.mensaje_id == ultimo.mensaje_id)
+            ).all()
+        )
     texto = formato.tarjetas(list(borrados))
     db.execute(delete(Evento).where(Evento.id.in_([e.id for e in borrados])))
     return "🗑️ *BORRADO*\n\n" + texto
@@ -802,7 +798,6 @@ def _consultar(db: Session, usuario: Usuario, filtros: dict) -> str:
     partes.append(formato.por_dia(mostrados, lugar=len(lugares) > 1))
     if len(eventos) > MAX_LINEAS_CONSULTA:
         partes.append(
-            f"_...y {len(eventos) - MAX_LINEAS_CONSULTA} más. "
-            "Pedí un período, lote o campo más chico para verlos._"
+            f"_...y {len(eventos) - MAX_LINEAS_CONSULTA} más. Pedí un período, lote o campo más chico para verlos._"
         )
     return "\n\n".join(partes)

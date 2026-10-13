@@ -67,18 +67,20 @@ def reemplazar_registro(db: Session, filas: list[dict], fecha_datos: date, url: 
             log.warning("Fila descartada (sin nombre o registro): %s", f)
             continue
         principio = (f.get("principio_activo") or "").strip() or None
-        productos.append(ProductoVeterinario(
-            nombre=nombre[:200],
-            nombre_busqueda=(normalizar(nombre) or "")[:200],
-            registro=registro[:40],
-            titular=((f.get("titular") or "").strip() or None),
-            principio_activo=principio and principio[:300],
-            principio_busqueda=(normalizar(principio) or "")[:300] or None,
-            estado=((f.get("estado") or "").strip().lower() or None),
-            fecha_datos=fecha_datos,
-            fuente=FUENTE,
-            url=url,
-        ))
+        productos.append(
+            ProductoVeterinario(
+                nombre=nombre[:200],
+                nombre_busqueda=(normalizar(nombre) or "")[:200],
+                registro=registro[:40],
+                titular=((f.get("titular") or "").strip() or None),
+                principio_activo=principio and principio[:300],
+                principio_busqueda=(normalizar(principio) or "")[:300] or None,
+                estado=((f.get("estado") or "").strip().lower() or None),
+                fecha_datos=fecha_datos,
+                fuente=FUENTE,
+                url=url,
+            )
+        )
     if not productos:
         raise ValueError("El archivo no tiene productos válidos; no se toca el registro actual")
     db.execute(delete(ProductoVeterinario))
@@ -162,14 +164,16 @@ def descargar(cliente: httpx.Client) -> list[dict]:
         certificado, nombre = str(hoja.cell_value(i, 0)).strip(), str(hoja.cell_value(i, 1)).strip()
         if not certificado or not nombre:
             continue
-        filas.append({
-            "nombre": nombre,
-            "registro": certificado,
-            "titular": str(hoja.cell_value(i, 3)).strip() or None,
-            # La consulta pública no publica ninguno de los dos.
-            "principio_activo": None,
-            "estado": None,
-        })
+        filas.append(
+            {
+                "nombre": nombre,
+                "registro": certificado,
+                "titular": str(hoja.cell_value(i, 3)).strip() or None,
+                # La consulta pública no publica ninguno de los dos.
+                "principio_activo": None,
+                "estado": None,
+            }
+        )
     if len(filas) < MINIMO_PRODUCTOS:
         raise ValueError(f"SENASA devolvió solo {len(filas)} productos; no reemplazo el registro")
     return filas

@@ -34,10 +34,20 @@ def formulario() -> str:
 
 
 FILAS = [
-    {"nombre": "IVERMECTINA 1% ROSENBUSCH", "registro": "04-125",
-     "titular": "INSTITUTO ROSENBUSCH S A", "principio_activo": None, "estado": None},
-    {"nombre": "PODOCUR ANTIPIETIN", "registro": "00-001",
-     "titular": "HYPRED ARGENTINA S A", "principio_activo": None, "estado": None},
+    {
+        "nombre": "IVERMECTINA 1% ROSENBUSCH",
+        "registro": "04-125",
+        "titular": "INSTITUTO ROSENBUSCH S A",
+        "principio_activo": None,
+        "estado": None,
+    },
+    {
+        "nombre": "PODOCUR ANTIPIETIN",
+        "registro": "00-001",
+        "titular": "HYPRED ARGENTINA S A",
+        "principio_activo": None,
+        "estado": None,
+    },
 ]
 
 

@@ -62,7 +62,7 @@ def fecha_corta(d: date) -> str:
 
 
 def singular(palabra: str) -> str:
-    """"vacas" -> "vaca", "animales" -> "animal". Alcanza para las categorías que usamos."""
+    """ "vacas" -> "vaca", "animales" -> "animal". Alcanza para las categorías que usamos."""
     if palabra.endswith("es") and len(palabra) > 3:
         return palabra[:-2]
     if palabra.endswith("s") and len(palabra) > 2:
@@ -150,10 +150,19 @@ def por_dia(eventos: list[Evento], lugar: bool = True) -> str:
 def cambios(antes: dict[str, Any], despues: Evento) -> list[str]:
     """Qué campos cambió una corrección, para mostrar solo eso."""
     etiquetas = {
-        "tipo": "Tipo", "producto": "Producto", "dosis": "Dosis", "cantidad_animales": "Cantidad",
-        "categoria_animal": "Categoría", "caravana": "Caravana", "lote": "Lote",
-        "lote_destino": "Lote destino", "valor": "Valor", "unidad": "Unidad",
-        "fecha_evento": "Fecha", "establecimiento": "Establecimiento", "descripcion": "Descripción",
+        "tipo": "Tipo",
+        "producto": "Producto",
+        "dosis": "Dosis",
+        "cantidad_animales": "Cantidad",
+        "categoria_animal": "Categoría",
+        "caravana": "Caravana",
+        "lote": "Lote",
+        "lote_destino": "Lote destino",
+        "valor": "Valor",
+        "unidad": "Unidad",
+        "fecha_evento": "Fecha",
+        "establecimiento": "Establecimiento",
+        "descripcion": "Descripción",
     }
     lineas = []
     for campo, etiqueta in etiquetas.items():
@@ -174,6 +183,19 @@ def cambios(antes: dict[str, Any], despues: Evento) -> list[str]:
 
 def foto(e: Evento) -> dict:
     """Los valores de un registro antes de corregirlo."""
-    campos = ("tipo", "producto", "dosis", "cantidad_animales", "categoria_animal", "caravana", "lote",
-              "lote_destino", "valor", "unidad", "fecha_evento", "establecimiento", "descripcion")
+    campos = (
+        "tipo",
+        "producto",
+        "dosis",
+        "cantidad_animales",
+        "categoria_animal",
+        "caravana",
+        "lote",
+        "lote_destino",
+        "valor",
+        "unidad",
+        "fecha_evento",
+        "establecimiento",
+        "descripcion",
+    )
     return {c: getattr(e, c) for c in campos}

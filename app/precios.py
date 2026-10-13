@@ -63,13 +63,11 @@ AVISO = "_Valores de referencia publicados por la fuente. No son una recomendaci
 
 def es_oficial(url: str) -> bool:
     host = (urlparse(url).hostname or "").lower()
-    return urlparse(url).scheme == "https" and any(
-        host == d or host.endswith("." + d) for d in DOMINIOS_OFICIALES
-    )
+    return urlparse(url).scheme == "https" and any(host == d or host.endswith("." + d) for d in DOMINIOS_OFICIALES)
 
 
 def normalizar_producto(texto: str | None) -> str | None:
-    """"Maíz" -> "maiz", "Novillos" -> "novillo"."""
+    """ "Maíz" -> "maiz", "Novillos" -> "novillo"."""
     if not texto:
         return None
     texto = unicodedata.normalize("NFKD", str(texto).strip().lower())
@@ -163,24 +161,27 @@ class PizarraRosario(Fuente):
                 continue
             estimado = re.search(r'class="price-sc-estimated">(.*?)</span>', precio.group(1), re.S)
             if estimado:
-                valor, aclaracion = estimado.group(1), (
-                    " Sin cotización (S/C) ese día: la Cámara publicó un valor estimado (E)."
+                valor, aclaracion = (
+                    estimado.group(1),
+                    (" Sin cotización (S/C) ese día: la Cámara publicó un valor estimado (E)."),
                 )
             elif "S/C" in _texto_plano(precio.group(1)):
                 # Sin cotización y sin estimación: ese día no hay precio para este grano.
                 continue
             else:
                 valor, aclaracion = precio.group(1), ""
-            precios.append({
-                "producto": producto,
-                "plaza": self.plaza,
-                "valor": _a_numero(_texto_plano(valor)),
-                "moneda": "ARS",
-                "unidad": "t",
-                "fecha": fecha,
-                "incluye_impuestos": None,
-                "costos_adicionales": condiciones + aclaracion,
-            })
+            precios.append(
+                {
+                    "producto": producto,
+                    "plaza": self.plaza,
+                    "valor": _a_numero(_texto_plano(valor)),
+                    "moneda": "ARS",
+                    "unidad": "t",
+                    "fecha": fecha,
+                    "incluye_impuestos": None,
+                    "costos_adicionales": condiciones + aclaracion,
+                }
+            )
 
         if not precios:
             raise ValueError("No pude leer ningún precio de la pizarra; la página cambió")
@@ -206,16 +207,20 @@ class HaciendaCanuelas(Fuente):
     plaza = "Cañuelas"
     DIAS_ATRAS = 8
     # El formulario de la página manda estos campos; sin identificarse alcanza.
-    CAMPOS: ClassVar[dict[str, str]] = {"ID": "", "CP": "", "FLASH": "", "USUARIO": "SIN IDENTIFICAR",
-              "OPCIONMENU": "", "OPCIONSUBMENU": ""}
+    CAMPOS: ClassVar[dict[str, str]] = {
+        "ID": "",
+        "CP": "",
+        "FLASH": "",
+        "USUARIO": "SIN IDENTIFICAR",
+        "OPCIONMENU": "",
+        "OPCIONSUBMENU": "",
+    }
 
     def obtener(self, cliente: httpx.Client) -> list[dict]:
         hoy = datetime.now(config.ZONA_HORARIA).date()
         for atras in range(self.DIAS_ATRAS):
             dia = (hoy - timedelta(days=atras)).strftime("%d/%m/%Y")
-            respuesta = cliente.post(
-                self.url, data={**self.CAMPOS, "txtFechaIni": dia, "txtFechaFin": dia}
-            )
+            respuesta = cliente.post(self.url, data={**self.CAMPOS, "txtFechaIni": dia, "txtFechaFin": dia})
             respuesta.raise_for_status()
             # La página declara windows-1252 en su <meta>, pero no en la respuesta HTTP.
             precios = self.leer(respuesta.content.decode("windows-1252"))
@@ -229,7 +234,8 @@ class HaciendaCanuelas(Fuente):
             r"PRECIOS POR CATEGORIA.*?DESDE EL \w+ (\d{2}/\d{2}/\d{4}) AL \w+ (\d{2}/\d{2}/\d{4})"
             # entre la fecha y la aclaración puede haber un <BR> y un <FONT> de color
             r"(?:\s|<[^>]*>)*PRECIOS (DEFINITIVOS|PROVISORIOS)",
-            pagina, re.S | re.I,
+            pagina,
+            re.S | re.I,
         )
         if not encabezado:
             raise ValueError("No encontré el encabezado de la planilla del MAG; la página cambió")
@@ -249,9 +255,7 @@ class HaciendaCanuelas(Fuente):
                 break
             if nombre:
                 actual = nombre.split()[0].upper()
-                grupo = grupos.setdefault(
-                    actual, {"importe": 0.0, "kilos": 0.0, "cabezas": 0, "publicado": None}
-                )
+                grupo = grupos.setdefault(actual, {"importe": 0.0, "kilos": 0.0, "cabezas": 0, "publicado": None})
                 grupo["importe"] += _a_numero(celdas[6])
                 grupo["kilos"] += _a_numero(celdas[7])
                 grupo["cabezas"] += int(_a_numero(celdas[5]))
@@ -280,16 +284,18 @@ class HaciendaCanuelas(Fuente):
                     f"El promedio de {categoria} no coincide con importe/kilos "
                     f"({publicado} vs {calculado:.3f}); la planilla cambió"
                 )
-            precios.append({
-                "producto": categoria,
-                "plaza": self.plaza,
-                "valor": publicado,
-                "moneda": "ARS",
-                "unidad": "kg vivo",
-                "fecha": fecha,
-                "incluye_impuestos": None,
-                "costos_adicionales": aclaracion,
-            })
+            precios.append(
+                {
+                    "producto": categoria,
+                    "plaza": self.plaza,
+                    "valor": publicado,
+                    "moneda": "ARS",
+                    "unidad": "kg vivo",
+                    "fecha": fecha,
+                    "incluye_impuestos": None,
+                    "costos_adicionales": aclaracion,
+                }
+            )
         return precios
 
 
@@ -348,7 +354,7 @@ def guardar(db: Session, fuente: str, url: str, rubro: str, precios: list[dict])
         existente.moneda = _moneda(p.get("moneda"))
         existente.unidad = str(p["unidad"]).strip()
         existente.incluye_impuestos = _si_no(p.get("incluye_impuestos"))
-        existente.costos_adicionales = (str(p.get("costos_adicionales") or "").strip() or None)
+        existente.costos_adicionales = str(p.get("costos_adicionales") or "").strip() or None
         existente.url = url
         guardados += 1
     db.flush()
@@ -376,7 +382,9 @@ def ultimas(db: Session, producto: str | None, rubro: str | None) -> list[Cotiza
         filtro.append(Cotizacion.rubro == rubro)
     ultima_fecha = (
         select(
-            Cotizacion.fuente, Cotizacion.producto, Cotizacion.plaza,
+            Cotizacion.fuente,
+            Cotizacion.producto,
+            Cotizacion.plaza,
             func.max(Cotizacion.fecha).label("fecha"),
         )
         .where(*filtro)
@@ -422,7 +430,9 @@ def _lineas_cotizacion(c: Cotizacion, hoy: date) -> list[str]:
     nombre = _NOMBRES.get(c.producto, c.producto.capitalize())
     icono = _ICONOS.get(c.producto, "🐂" if c.rubro == "hacienda" else "📈")
     dias = (hoy - c.fecha).days
-    viejo = f"\n      ⚠️ _Dato de hace {dias} días, puede no estar actualizado_" if dias > config.DIAS_PRECIO_VIGENTE else ""
+    viejo = (
+        f"\n      ⚠️ _Dato de hace {dias} días, puede no estar actualizado_" if dias > config.DIAS_PRECIO_VIGENTE else ""
+    )
     return [
         f"{icono} *{nombre}*{plaza}",
         f"      *{MONEDAS[c.moneda]} {_numero(c.valor)}* por {c.unidad} ({c.moneda})",
@@ -467,8 +477,11 @@ def responder_varios(db: Session, pedidos: list[tuple[str | None, str | None]], 
         fuentes.append(f"📰 _Fuente: {fuente}_\n🔗 {url}")
     if faltan:
         nombres = ", ".join(f for f in faltan if f)
-        lineas.append(f"🔍 No tengo precios oficiales cargados de: {nombres}.\n" if nombres else
-                      "🔍 De algún producto que pediste no tengo precios oficiales cargados.\n")
+        lineas.append(
+            f"🔍 No tengo precios oficiales cargados de: {nombres}.\n"
+            if nombres
+            else "🔍 De algún producto que pediste no tengo precios oficiales cargados.\n"
+        )
     return "\n".join(lineas) + "────────────\n" + "\n\n".join(fuentes) + "\n\n" + AVISO
 
 
@@ -501,7 +514,11 @@ def main() -> None:
         elif comando == "cargar" and len(sys.argv) > 2:
             _cargar_csv(db, sys.argv[2])
         elif comando == "ver":
-            print(responder(db, sys.argv[2] if len(sys.argv) > 2 else None, None, datetime.now(config.ZONA_HORARIA).date()))
+            print(
+                responder(
+                    db, sys.argv[2] if len(sys.argv) > 2 else None, None, datetime.now(config.ZONA_HORARIA).date()
+                )
+            )
         else:
             print("Uso: python -m app.precios actualizar | cargar archivo.csv | ver [producto]")
 

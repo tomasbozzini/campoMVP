@@ -78,11 +78,18 @@ def test_registrar_vacunacion(db, fake_llm):
     texto = "se vacunaron 20 vacas en el lote 3 contra aftosa"
     respuestas[texto] = {
         "intencion": "registrar",
-        "eventos": [{
-            "categoria": "sanidad", "tipo": "vacunacion", "producto": "aftosa",
-            "cantidad_animales": 20, "categoria_animal": "Vacas", "lote": "Lote 3",
-            "fecha_evento": "2026-10-09", "confianza": "alta",
-        }],
+        "eventos": [
+            {
+                "categoria": "sanidad",
+                "tipo": "vacunacion",
+                "producto": "aftosa",
+                "cantidad_animales": 20,
+                "categoria_animal": "Vacas",
+                "lote": "Lote 3",
+                "fecha_evento": "2026-10-09",
+                "confianza": "alta",
+            }
+        ],
     }
     r = bot.manejar_mensaje(db, usuario.telefono, texto, hoy=HOY)
     assert "💉 *Vacunación* · aftosa\n      20 vacas · Lote 3\n      📅 Vie 09/10/2026" in r
@@ -113,7 +120,10 @@ def test_fecha_futura_o_invalida_usa_hoy(db, fake_llm):
 def test_borrar_deshace_el_ultimo_mensaje(db, fake_llm):
     respuestas, _ = fake_llm
     usuario = _con_campo(db)
-    respuestas["a"] = {"intencion": "registrar", "eventos": [{"categoria": "campo", "tipo": "lluvia", "valor": 10, "unidad": "mm"}]}
+    respuestas["a"] = {
+        "intencion": "registrar",
+        "eventos": [{"categoria": "campo", "tipo": "lluvia", "valor": 10, "unidad": "mm"}],
+    }
     respuestas["b"] = {
         "intencion": "registrar",
         "eventos": [
@@ -136,10 +146,19 @@ def test_consulta_solo_ve_lo_propio_y_suma(db, fake_llm):
     u2 = _con_campo(db, "5491100000002")
 
     def vacunacion(cant, lote):
-        return {"intencion": "registrar", "eventos": [{
-            "categoria": "sanidad", "tipo": "vacunacion", "cantidad_animales": cant,
-            "categoria_animal": "vacas", "lote": lote, "fecha_evento": "2026-10-01",
-        }]}
+        return {
+            "intencion": "registrar",
+            "eventos": [
+                {
+                    "categoria": "sanidad",
+                    "tipo": "vacunacion",
+                    "cantidad_animales": cant,
+                    "categoria_animal": "vacas",
+                    "lote": lote,
+                    "fecha_evento": "2026-10-01",
+                }
+            ],
+        }
 
     respuestas["v1"] = vacunacion(20, "3")
     respuestas["v2"] = vacunacion(15, "lote 3")
@@ -151,7 +170,13 @@ def test_consulta_solo_ve_lo_propio_y_suma(db, fake_llm):
     pregunta = "¿cuántas vacas se vacunaron en el lote 3 este mes?"
     respuestas[pregunta] = {
         "intencion": "consultar",
-        "consulta": {"tipo": "vacunacion", "lote": "Lote 3", "categoria_animal": "vaca", "desde": "2026-10-01", "hasta": "2026-10-31"},
+        "consulta": {
+            "tipo": "vacunacion",
+            "lote": "Lote 3",
+            "categoria_animal": "vaca",
+            "desde": "2026-10-01",
+            "hasta": "2026-10-31",
+        },
     }
     r = bot.manejar_mensaje(db, u1.telefono, pregunta, hoy=HOY)
     assert "2 registros" in r
@@ -175,17 +200,28 @@ def test_numero_argentino(monkeypatch):
 
 
 def test_eventos_del_mismo_mensaje_heredan_lote_y_categoria(db, fake_llm):
-    """"ayer nacieron 4 terneros en el lote 5 y murió 1": la muerte también es del lote 5."""
+    """ "ayer nacieron 4 terneros en el lote 5 y murió 1": la muerte también es del lote 5."""
     respuestas, _ = fake_llm
     usuario = _con_campo(db)
     texto = "ayer nacieron 4 terneros en el lote 5 y murió 1"
     respuestas[texto] = {
         "intencion": "registrar",
         "eventos": [
-            {"categoria": "movimiento", "tipo": "nacimiento", "cantidad_animales": 4,
-             "categoria_animal": "terneros", "lote": "5", "fecha_evento": "2026-10-08"},
-            {"categoria": "movimiento", "tipo": "muerte", "cantidad_animales": 1,
-             "fecha_evento": "2026-10-08", "confianza": "baja"},
+            {
+                "categoria": "movimiento",
+                "tipo": "nacimiento",
+                "cantidad_animales": 4,
+                "categoria_animal": "terneros",
+                "lote": "5",
+                "fecha_evento": "2026-10-08",
+            },
+            {
+                "categoria": "movimiento",
+                "tipo": "muerte",
+                "cantidad_animales": 1,
+                "fecha_evento": "2026-10-08",
+                "confianza": "baja",
+            },
         ],
     }
     r = bot.manejar_mensaje(db, usuario.telefono, texto, hoy=HOY)
@@ -233,8 +269,13 @@ def test_traslado_no_hereda_lote_de_origen(db, fake_llm):
         "intencion": "registrar",
         "eventos": [
             {"categoria": "sanidad", "tipo": "vacunacion", "cantidad_animales": 10, "lote": "2"},
-            {"categoria": "movimiento", "tipo": "traslado", "cantidad_animales": 50,
-             "categoria_animal": "vaquillonas", "lote_destino": "5"},
+            {
+                "categoria": "movimiento",
+                "tipo": "traslado",
+                "cantidad_animales": 50,
+                "categoria_animal": "vaquillonas",
+                "lote_destino": "5",
+            },
         ],
     }
     bot.manejar_mensaje(db, usuario.telefono, "traslado", hoy=HOY)
@@ -246,11 +287,16 @@ def test_borrar_no_toca_mensajes_que_cayeron_en_el_mismo_timestamp(db, fake_llm)
     """El reloj de Windows salta cada ~15 ms: dos mensajes seguidos comparten `creado`."""
     respuestas, _ = fake_llm
     usuario = _con_campo(db)
-    respuestas["uno"] = {"intencion": "registrar", "eventos": [
-        {"categoria": "campo", "tipo": "lluvia", "valor": 10, "unidad": "mm"}]}
-    respuestas["dos"] = {"intencion": "registrar", "eventos": [
-        {"categoria": "movimiento", "tipo": "nacimiento", "cantidad_animales": 3,
-         "categoria_animal": "terneros"}]}
+    respuestas["uno"] = {
+        "intencion": "registrar",
+        "eventos": [{"categoria": "campo", "tipo": "lluvia", "valor": 10, "unidad": "mm"}],
+    }
+    respuestas["dos"] = {
+        "intencion": "registrar",
+        "eventos": [
+            {"categoria": "movimiento", "tipo": "nacimiento", "cantidad_animales": 3, "categoria_animal": "terneros"}
+        ],
+    }
     bot.manejar_mensaje(db, usuario.telefono, "uno", hoy=HOY)
     bot.manejar_mensaje(db, usuario.telefono, "dos", hoy=HOY)
 
@@ -262,8 +308,8 @@ def test_borrar_no_toca_mensajes_que_cayeron_en_el_mismo_timestamp(db, fake_llm)
     db.expire_all()  # sqlite no guarda el tzinfo: releemos para comparar lo que quedó
 
     eventos = db.scalars(select(Evento)).all()
-    assert len({e.creado for e in eventos}) == 1          # mismo timestamp
-    assert len({e.mensaje_id for e in eventos}) == 2      # distinto mensaje
+    assert len({e.creado for e in eventos}) == 1  # mismo timestamp
+    assert len({e.mensaje_id for e in eventos}) == 2  # distinto mensaje
 
     r = bot.manejar_mensaje(db, usuario.telefono, "borrar", hoy=HOY)
     assert "Nacimiento" in r and "Lluvia" not in r
@@ -274,8 +320,17 @@ def test_borrar_registro_viejo_sin_mensaje_id(db, fake_llm):
     """Filas de antes de la columna: se borra solo esa, no todas las que tengan NULL."""
     usuario = _con_campo(db)
     for valor in (10, 20):
-        db.add(Evento(usuario_id=usuario.id, categoria="campo",
-                      tipo="lluvia", valor=valor, unidad="mm", fecha_evento=HOY, mensaje_id=None))
+        db.add(
+            Evento(
+                usuario_id=usuario.id,
+                categoria="campo",
+                tipo="lluvia",
+                valor=valor,
+                unidad="mm",
+                fecha_evento=HOY,
+                mensaje_id=None,
+            )
+        )
     db.flush()
 
     bot.manejar_mensaje(db, usuario.telefono, "borrar", hoy=HOY)
@@ -290,19 +345,26 @@ def test_veterinario_recorre_varios_campos(db, fake_llm):
     respuestas["estoy en La Esperanza"] = {"intencion": "establecimiento", "establecimiento": "La Esperanza"}
     respuestas["vacuné 20 vacas"] = {"intencion": "registrar", "eventos": [vacunacion]}
     respuestas["en El Ombú hice tacto a 50 vaquillonas"] = {
-        "intencion": "registrar", "establecimiento": "El Ombú",
-        "eventos": [{"categoria": "reproduccion", "tipo": "tacto", "cantidad_animales": 50, "categoria_animal": "vaquillonas"}],
+        "intencion": "registrar",
+        "establecimiento": "El Ombú",
+        "eventos": [
+            {"categoria": "reproduccion", "tipo": "tacto", "cantidad_animales": 50, "categoria_animal": "vaquillonas"}
+        ],
     }
     respuestas["y vacuné 20 vacas"] = {"intencion": "registrar", "eventos": [vacunacion]}
 
     assert "La Esperanza" in bot.manejar_mensaje(db, vet.telefono, "estoy en La Esperanza", hoy=HOY)
     assert "ANOTADO*\n📍 La Esperanza" in bot.manejar_mensaje(db, vet.telefono, "vacuné 20 vacas", hoy=HOY)
-    assert "ANOTADO*\n📍 El Ombú" in bot.manejar_mensaje(db, vet.telefono, "en El Ombú hice tacto a 50 vaquillonas", hoy=HOY)
+    assert "ANOTADO*\n📍 El Ombú" in bot.manejar_mensaje(
+        db, vet.telefono, "en El Ombú hice tacto a 50 vaquillonas", hoy=HOY
+    )
     assert "ANOTADO*\n📍 El Ombú" in bot.manejar_mensaje(db, vet.telefono, "y vacuné 20 vacas", hoy=HOY)
 
     # Consulta por establecimiento, escrito distinto ("estancia", minúsculas, sin tilde).
     respuestas["¿qué hice en la estancia el ombu?"] = {
-        "intencion": "consultar", "consulta": {"establecimiento": "estancia el ombu"}}
+        "intencion": "consultar",
+        "consulta": {"establecimiento": "estancia el ombu"},
+    }
     r = bot.manejar_mensaje(db, vet.telefono, "¿qué hice en la estancia el ombu?", hoy=HOY)
     assert "📍 El Ombú · 2 registros" in r and "Tacto" in r and "La Esperanza" not in r
 
@@ -310,8 +372,10 @@ def test_veterinario_recorre_varios_campos(db, fake_llm):
 def test_sin_establecimiento_lo_aclara(db, fake_llm):
     respuestas, _ = fake_llm
     u = _con_campo(db)
-    respuestas["llovieron 30 mm"] = {"intencion": "registrar", "eventos": [
-        {"categoria": "campo", "tipo": "lluvia", "valor": 30, "unidad": "mm"}]}
+    respuestas["llovieron 30 mm"] = {
+        "intencion": "registrar",
+        "eventos": [{"categoria": "campo", "tipo": "lluvia", "valor": 30, "unidad": "mm"}],
+    }
     assert "📍 _sin establecimiento_" in bot.manejar_mensaje(db, u.telefono, "llovieron 30 mm", hoy=HOY)
 
 
@@ -321,21 +385,38 @@ def test_el_dueno_no_ve_lo_que_anoto_el_veterinario(db, fake_llm):
     vet = _con_campo(db, "5491100000007")
     dueno = _con_campo(db, "5491100000008")
     respuestas["en La Esperanza vacuné 20 vacas"] = {
-        "intencion": "registrar", "establecimiento": "La Esperanza",
-        "eventos": [{"categoria": "sanidad", "tipo": "vacunacion", "cantidad_animales": 20}]}
+        "intencion": "registrar",
+        "establecimiento": "La Esperanza",
+        "eventos": [{"categoria": "sanidad", "tipo": "vacunacion", "cantidad_animales": 20}],
+    }
     bot.manejar_mensaje(db, vet.telefono, "en La Esperanza vacuné 20 vacas", hoy=HOY)
 
-    respuestas["¿qué pasó en La Esperanza?"] = {"intencion": "consultar", "consulta": {"establecimiento": "La Esperanza"}}
-    assert bot.manejar_mensaje(db, dueno.telefono, "¿qué pasó en La Esperanza?", hoy=HOY) == "🔍 No encontré registros para esa consulta."
+    respuestas["¿qué pasó en La Esperanza?"] = {
+        "intencion": "consultar",
+        "consulta": {"establecimiento": "La Esperanza"},
+    }
+    assert (
+        bot.manejar_mensaje(db, dueno.telefono, "¿qué pasó en La Esperanza?", hoy=HOY)
+        == "🔍 No encontré registros para esa consulta."
+    )
     # y "borrar" del dueño no toca lo del veterinario
     assert "nada anotado" in bot.manejar_mensaje(db, dueno.telefono, "borrar", hoy=HOY)
     assert db.scalar(select(Evento)) is not None
 
 
 def _vacunar_vaquillonas(respuestas, db, usuario):
-    respuestas["vacuné 5 vaquillonas en el lote 3"] = {"intencion": "registrar", "eventos": [
-        {"categoria": "sanidad", "tipo": "vacunacion", "cantidad_animales": 5,
-         "categoria_animal": "vaquillonas", "lote": "3"}]}
+    respuestas["vacuné 5 vaquillonas en el lote 3"] = {
+        "intencion": "registrar",
+        "eventos": [
+            {
+                "categoria": "sanidad",
+                "tipo": "vacunacion",
+                "cantidad_animales": 5,
+                "categoria_animal": "vaquillonas",
+                "lote": "3",
+            }
+        ],
+    }
     bot.manejar_mensaje(db, usuario.telefono, "vacuné 5 vaquillonas en el lote 3", hoy=HOY)
 
 
@@ -344,9 +425,13 @@ def test_corregir_completa_el_registro_en_vez_de_crear_otro(db, fake_llm):
     u = _con_campo(db)
     _vacunar_vaquillonas(respuestas, db, u)
     texto = "a esas 5 vaquillonas las vacuné con ivermectina"
-    respuestas[texto] = {"intencion": "corregir", "correccion": {
-        "referencia": {"cantidad_animales": 5, "categoria_animal": "vaquillonas"},
-        "cambios": {"producto": "ivermectina"}}}
+    respuestas[texto] = {
+        "intencion": "corregir",
+        "correccion": {
+            "referencia": {"cantidad_animales": 5, "categoria_animal": "vaquillonas"},
+            "cambios": {"producto": "ivermectina"},
+        },
+    }
 
     r = bot.manejar_mensaje(db, u.telefono, texto, hoy=HOY)
     assert "CORREGIDO" in r and "Producto: *ivermectina*" in r
@@ -359,14 +444,20 @@ def test_corregir_busca_el_registro_que_coincide(db, fake_llm):
     respuestas, _ = fake_llm
     u = _con_campo(db)
     _vacunar_vaquillonas(respuestas, db, u)
-    respuestas["llovieron 20 mm"] = {"intencion": "registrar", "eventos": [
-        {"categoria": "campo", "tipo": "lluvia", "valor": 20, "unidad": "mm"}]}
+    respuestas["llovieron 20 mm"] = {
+        "intencion": "registrar",
+        "eventos": [{"categoria": "campo", "tipo": "lluvia", "valor": 20, "unidad": "mm"}],
+    }
     bot.manejar_mensaje(db, u.telefono, "llovieron 20 mm", hoy=HOY)
 
     # se refiere a las vaquillonas, aunque lo último que anotó fue la lluvia
-    respuestas["no eran 5 vaquillonas, eran 7"] = {"intencion": "corregir", "correccion": {
-        "referencia": {"cantidad_animales": 5, "categoria_animal": "vaquillona"},
-        "cambios": {"cantidad_animales": 7}}}
+    respuestas["no eran 5 vaquillonas, eran 7"] = {
+        "intencion": "corregir",
+        "correccion": {
+            "referencia": {"cantidad_animales": 5, "categoria_animal": "vaquillona"},
+            "cambios": {"cantidad_animales": 7},
+        },
+    }
     bot.manejar_mensaje(db, u.telefono, "no eran 5 vaquillonas, eran 7", hoy=HOY)
     vacunacion = db.scalar(select(Evento).where(Evento.tipo == "vacunacion"))
     lluvia = db.scalar(select(Evento).where(Evento.tipo == "lluvia"))
@@ -378,8 +469,10 @@ def test_corregir_sin_referencia_toma_el_ultimo_y_no_toca_otros_usuarios(db, fak
     u = _con_campo(db, "5491100000001")
     otro = _con_campo(db, "5491100000002")
     _vacunar_vaquillonas(respuestas, db, otro)
-    respuestas["lo de recién fue en el lote 4"] = {"intencion": "corregir", "correccion": {
-        "referencia": {}, "cambios": {"lote": "lote 4"}}}
+    respuestas["lo de recién fue en el lote 4"] = {
+        "intencion": "corregir",
+        "correccion": {"referencia": {}, "cambios": {"lote": "lote 4"}},
+    }
 
     r = bot.manejar_mensaje(db, u.telefono, "lo de recién fue en el lote 4", hoy=HOY)
     assert "No encontré cuál de tus registros" in r
@@ -395,22 +488,37 @@ def test_corregir_no_acepta_fechas_futuras_ni_campos_raros(db, fake_llm):
     respuestas, _ = fake_llm
     u = _con_campo(db)
     _vacunar_vaquillonas(respuestas, db, u)
-    respuestas["x"] = {"intencion": "corregir", "correccion": {
-        "referencia": {}, "cambios": {"fecha_evento": "2030-01-01", "usuario_id": 999}}}
+    respuestas["x"] = {
+        "intencion": "corregir",
+        "correccion": {"referencia": {}, "cambios": {"fecha_evento": "2030-01-01", "usuario_id": 999}},
+    }
     bot.manejar_mensaje(db, u.telefono, "x", hoy=HOY)
     e = db.scalar(select(Evento))
     assert e.fecha_evento == HOY and e.usuario_id == u.id
 
 
 def _anotar_en_la_pastora(respuestas, db, u):
-    respuestas["varios"] = {"intencion": "registrar", "establecimiento": "La Pastora", "eventos": [
-        {"categoria": "sanidad", "tipo": "vacunacion", "cantidad_animales": 5, "categoria_animal": "vaquillonas", "lote": "3"},
-        {"categoria": "campo", "tipo": "cosecha", "lote": "5", "valor": 40, "unidad": "ha"},
-        {"categoria": "campo", "tipo": "lluvia", "valor": 30, "unidad": "mm"},
-    ]}
+    respuestas["varios"] = {
+        "intencion": "registrar",
+        "establecimiento": "La Pastora",
+        "eventos": [
+            {
+                "categoria": "sanidad",
+                "tipo": "vacunacion",
+                "cantidad_animales": 5,
+                "categoria_animal": "vaquillonas",
+                "lote": "3",
+            },
+            {"categoria": "campo", "tipo": "cosecha", "lote": "5", "valor": 40, "unidad": "ha"},
+            {"categoria": "campo", "tipo": "lluvia", "valor": 30, "unidad": "mm"},
+        ],
+    }
     bot.manejar_mensaje(db, u.telefono, "varios", hoy=HOY)
-    respuestas["llovio en el ombu"] = {"intencion": "registrar", "establecimiento": "El Ombú", "eventos": [
-        {"categoria": "campo", "tipo": "lluvia", "valor": 12, "unidad": "mm"}]}
+    respuestas["llovio en el ombu"] = {
+        "intencion": "registrar",
+        "establecimiento": "El Ombú",
+        "eventos": [{"categoria": "campo", "tipo": "lluvia", "valor": 12, "unidad": "mm"}],
+    }
     bot.manejar_mensaje(db, u.telefono, "llovio en el ombu", hoy=HOY)
 
 
@@ -419,10 +527,15 @@ def test_borrar_registros_puntuales(db, fake_llm):
     u = _con_campo(db)
     _anotar_en_la_pastora(respuestas, db, u)
     texto = "borrá las 5 vaquillonas y la cosecha del lote 5, ambos de La Pastora"
-    respuestas[texto] = {"intencion": "borrar", "borrado": {"registros": [
-        {"cantidad_animales": 5, "categoria_animal": "vaquillonas", "establecimiento": "La Pastora"},
-        {"tipo": "cosecha", "lote": "5", "establecimiento": "la pastora"},
-    ]}}
+    respuestas[texto] = {
+        "intencion": "borrar",
+        "borrado": {
+            "registros": [
+                {"cantidad_animales": 5, "categoria_animal": "vaquillonas", "establecimiento": "La Pastora"},
+                {"tipo": "cosecha", "lote": "5", "establecimiento": "la pastora"},
+            ]
+        },
+    }
     r = bot.manejar_mensaje(db, u.telefono, texto, hoy=HOY)
     assert "BORRADO" in r and "*Vacunación*\n      5 vaquillonas" in r and "Cosecha" in r
     assert sorted(e.valor for e in db.scalars(select(Evento)).all()) == [12, 30]  # quedan las lluvias
@@ -432,8 +545,10 @@ def test_borrar_la_lluvia_de_la_pastora(db, fake_llm):
     respuestas, _ = fake_llm
     u = _con_campo(db)
     _anotar_en_la_pastora(respuestas, db, u)
-    respuestas["borrá la lluvia de la pastora"] = {"intencion": "borrar", "borrado": {"registros": [
-        {"tipo": "lluvia", "establecimiento": "La Pastora"}]}}
+    respuestas["borrá la lluvia de la pastora"] = {
+        "intencion": "borrar",
+        "borrado": {"registros": [{"tipo": "lluvia", "establecimiento": "La Pastora"}]},
+    }
     r = bot.manejar_mensaje(db, u.telefono, "borrá la lluvia de la pastora", hoy=HOY)
     assert "BORRADO" in r and "La Pastora" in r
     lluvias = db.scalars(select(Evento).where(Evento.tipo == "lluvia")).all()
@@ -449,8 +564,10 @@ def test_borrar_ambiguo_no_borra_y_muestra_opciones(db, fake_llm):
     assert "*Hay 2 registros*" in r and "No borré ninguno" in r and "El Ombú" in r and "La Pastora" in r
     assert len(db.scalars(select(Evento)).all()) == 4
 
-    respuestas["borrá todas las lluvias"] = {"intencion": "borrar", "borrado": {"registros": [
-        {"tipo": "lluvia", "todos": True}]}}
+    respuestas["borrá todas las lluvias"] = {
+        "intencion": "borrar",
+        "borrado": {"registros": [{"tipo": "lluvia", "todos": True}]},
+    }
     bot.manejar_mensaje(db, u.telefono, "borrá todas las lluvias", hoy=HOY)
     assert db.scalar(select(Evento).where(Evento.tipo == "lluvia")) is None
 
@@ -460,8 +577,10 @@ def test_borrar_no_encontrado_y_ajeno(db, fake_llm):
     u = _con_campo(db, "5491100000001")
     otro = _con_campo(db, "5491100000002")
     _anotar_en_la_pastora(respuestas, db, otro)
-    respuestas["borrá la cosecha de La Pastora"] = {"intencion": "borrar", "borrado": {"registros": [
-        {"tipo": "cosecha", "establecimiento": "La Pastora"}]}}
+    respuestas["borrá la cosecha de La Pastora"] = {
+        "intencion": "borrar",
+        "borrado": {"registros": [{"tipo": "cosecha", "establecimiento": "La Pastora"}]},
+    }
     r = bot.manejar_mensaje(db, u.telefono, "borrá la cosecha de La Pastora", hoy=HOY)
     assert "No encontré" in r
     assert len(db.scalars(select(Evento)).all()) == 4  # lo del otro usuario sigue intacto
@@ -471,7 +590,10 @@ def test_lista_de_lo_anotado(db, fake_llm):
     respuestas, _ = fake_llm
     u = _con_campo(db)
     _anotar_en_la_pastora(respuestas, db, u)
-    respuestas["¿qué tengo anotado en La Pastora?"] = {"intencion": "consultar", "consulta": {"establecimiento": "La Pastora"}}
+    respuestas["¿qué tengo anotado en La Pastora?"] = {
+        "intencion": "consultar",
+        "consulta": {"establecimiento": "La Pastora"},
+    }
     r = bot.manejar_mensaje(db, u.telefono, "¿qué tengo anotado en La Pastora?", hoy=HOY)
     assert "📍 La Pastora · 3 registros" in r and "Cosecha" in r and "El Ombú" not in r
 
@@ -503,8 +625,18 @@ def test_la_ia_recibe_la_charla_reciente_solo_del_mismo_usuario(db, monkeypatch)
     vistos = {}
     respuestas = {
         "vacuné 5 vaquillonas": {"intencion": "aclarar", "falta": ["establecimiento"]},
-        "La Pastora": {"intencion": "registrar", "establecimiento": "La Pastora", "eventos": [
-            {"categoria": "sanidad", "tipo": "vacunacion", "cantidad_animales": 5, "categoria_animal": "vaquillonas"}]},
+        "La Pastora": {
+            "intencion": "registrar",
+            "establecimiento": "La Pastora",
+            "eventos": [
+                {
+                    "categoria": "sanidad",
+                    "tipo": "vacunacion",
+                    "cantidad_animales": 5,
+                    "categoria_animal": "vaquillonas",
+                }
+            ],
+        },
         "hola": {"intencion": "saludo"},
     }
 
@@ -517,10 +649,14 @@ def test_la_ia_recibe_la_charla_reciente_solo_del_mismo_usuario(db, monkeypatch)
     otro = _con_campo(db, "5491100000002")
     bot.manejar_mensaje(db, otro.telefono, "hola", hoy=HOY)
 
-    assert bot.manejar_mensaje(db, u.telefono, "vacuné 5 vaquillonas", hoy=HOY) == "🤔 " + bot.PREGUNTAS["establecimiento"]
+    assert (
+        bot.manejar_mensaje(db, u.telefono, "vacuné 5 vaquillonas", hoy=HOY) == "🤔 " + bot.PREGUNTAS["establecimiento"]
+    )
     assert "ANOTADO*\n📍 La Pastora" in bot.manejar_mensaje(db, u.telefono, "La Pastora", hoy=HOY)
     assert vistos["La Pastora"] == [
-        ("usuario", "vacuné 5 vaquillonas"), ("bot", "🤔 " + bot.PREGUNTAS["establecimiento"])]
+        ("usuario", "vacuné 5 vaquillonas"),
+        ("bot", "🤔 " + bot.PREGUNTAS["establecimiento"]),
+    ]
     assert vistos["vacuné 5 vaquillonas"] == []  # no ve lo que charló el otro usuario
 
 
@@ -539,11 +675,17 @@ def test_la_charla_vieja_no_se_usa_y_no_se_acumula(db, fake_llm):
 
 
 def _cinco_en_la_pastora(respuestas, db, u):
-    respuestas["cinco"] = {"intencion": "registrar", "establecimiento": "La Pastora", "eventos": [
-        {"categoria": "campo", "tipo": "lluvia", "valor": v, "unidad": "mm"} for v in (1, 2, 3, 4, 5)]}
+    respuestas["cinco"] = {
+        "intencion": "registrar",
+        "establecimiento": "La Pastora",
+        "eventos": [{"categoria": "campo", "tipo": "lluvia", "valor": v, "unidad": "mm"} for v in (1, 2, 3, 4, 5)],
+    }
     bot.manejar_mensaje(db, u.telefono, "cinco", hoy=HOY)
-    respuestas["en el ombu"] = {"intencion": "registrar", "establecimiento": "El Ombú", "eventos": [
-        {"categoria": "campo", "tipo": "lluvia", "valor": 99, "unidad": "mm"}]}
+    respuestas["en el ombu"] = {
+        "intencion": "registrar",
+        "establecimiento": "El Ombú",
+        "eventos": [{"categoria": "campo", "tipo": "lluvia", "valor": 99, "unidad": "mm"}],
+    }
     bot.manejar_mensaje(db, u.telefono, "en el ombu", hoy=HOY)
 
 
@@ -551,8 +693,10 @@ def test_borrar_todo_lo_de_la_lista_pide_confirmacion(db, fake_llm):
     respuestas, _ = fake_llm
     u = _con_campo(db)
     _cinco_en_la_pastora(respuestas, db, u)
-    respuestas["borrá todo de la lista"] = {"intencion": "borrar", "borrado": {"registros": [
-        {"establecimiento": "La Pastora", "todos": True}]}}
+    respuestas["borrá todo de la lista"] = {
+        "intencion": "borrar",
+        "borrado": {"registros": [{"establecimiento": "La Pastora", "todos": True}]},
+    }
 
     r = bot.manejar_mensaje(db, u.telefono, "borrá todo de la lista", hoy=HOY)
     assert "VOY A BORRAR 5 REGISTROS" in r and "¿Confirmás?" in r
@@ -611,14 +755,29 @@ def test_anotar_borrar_y_corregir_en_un_mismo_mensaje(db, fake_llm):
     u = _con_campo(db)
     _anotar_en_la_pastora(respuestas, db, u)
     texto = "borrá la cosecha del lote 5, a las 5 vaquillonas ponele ivermectina y anotá que nacieron 3 terneros"
-    respuestas[texto] = {"acciones": [
-        {"intencion": "borrar", "borrado": {"registros": [{"tipo": "cosecha", "lote": "5"}]}},
-        {"intencion": "corregir", "correccion": {
-            "referencia": {"cantidad_animales": 5, "categoria_animal": "vaquillonas"},
-            "cambios": {"producto": "ivermectina"}}},
-        {"intencion": "registrar", "eventos": [
-            {"categoria": "movimiento", "tipo": "nacimiento", "cantidad_animales": 3, "categoria_animal": "terneros"}]},
-    ]}
+    respuestas[texto] = {
+        "acciones": [
+            {"intencion": "borrar", "borrado": {"registros": [{"tipo": "cosecha", "lote": "5"}]}},
+            {
+                "intencion": "corregir",
+                "correccion": {
+                    "referencia": {"cantidad_animales": 5, "categoria_animal": "vaquillonas"},
+                    "cambios": {"producto": "ivermectina"},
+                },
+            },
+            {
+                "intencion": "registrar",
+                "eventos": [
+                    {
+                        "categoria": "movimiento",
+                        "tipo": "nacimiento",
+                        "cantidad_animales": 3,
+                        "categoria_animal": "terneros",
+                    }
+                ],
+            },
+        ]
+    }
     r = bot.manejar_mensaje(db, u.telefono, texto, hoy=HOY)
     assert r.index("BORRADO") < r.index("CORREGIDO") < r.index("ANOTADO")
     tipos = sorted(e.tipo for e in db.scalars(select(Evento)).all())

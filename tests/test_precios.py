@@ -37,9 +37,7 @@ def pizarra() -> list[dict]:
 
 @pytest.fixture
 def hacienda() -> list[dict]:
-    return precios.HaciendaCanuelas().leer(
-        _fixture("mag_precios_categoria.html", "windows-1252")
-    )
+    return precios.HaciendaCanuelas().leer(_fixture("mag_precios_categoria.html", "windows-1252"))
 
 
 # --- Cámara Arbitral de Cereales (Rosario) ----------------------------------
@@ -73,9 +71,7 @@ def test_pizarra_marca_los_estimados_sin_cotizacion(pizarra):
     # Girasol y sorgo ese día estaban S/C y la Cámara publicó un estimado (E).
     con_estimado = {p["producto"] for p in pizarra if "(E)" in p["costos_adicionales"]}
     assert con_estimado == {"Girasol", "Sorgo"}
-    assert "Sin cotización (S/C)" in next(
-        p["costos_adicionales"] for p in pizarra if p["producto"] == "Girasol"
-    )
+    assert "Sin cotización (S/C)" in next(p["costos_adicionales"] for p in pizarra if p["producto"] == "Girasol")
 
 
 def test_pizarra_sin_cotizacion_ni_estimado_se_saltea():
@@ -120,23 +116,17 @@ def test_hacienda_fecha_de_la_rueda_unidad_y_plaza(hacienda):
 
 def test_hacienda_dia_sin_operaciones_no_devuelve_nada():
     # Domingo: la planilla existe pero viene vacía. No es un error.
-    assert precios.HaciendaCanuelas().leer(
-        _fixture("mag_sin_operaciones.html", "windows-1252")
-    ) == []
+    assert precios.HaciendaCanuelas().leer(_fixture("mag_sin_operaciones.html", "windows-1252")) == []
 
 
 def test_hacienda_falla_si_el_promedio_no_cierra_con_importe_sobre_kilos():
-    pagina = _fixture("mag_precios_categoria.html", "windows-1252").replace(
-        "4.448,534", "5.100,000"
-    )
+    pagina = _fixture("mag_precios_categoria.html", "windows-1252").replace("4.448,534", "5.100,000")
     with pytest.raises(ValueError, match="no coincide con importe/kilos"):
         precios.HaciendaCanuelas().leer(pagina)
 
 
 def test_hacienda_falla_si_la_pagina_cambio():
-    pagina = _fixture("mag_precios_categoria.html", "windows-1252").replace(
-        "PRECIOS POR CATEGORIA", "PRECIOS"
-    )
+    pagina = _fixture("mag_precios_categoria.html", "windows-1252").replace("PRECIOS POR CATEGORIA", "PRECIOS")
     with pytest.raises(ValueError, match="encabezado"):
         precios.HaciendaCanuelas().leer(pagina)
 

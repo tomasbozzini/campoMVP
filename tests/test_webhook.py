@@ -32,10 +32,22 @@ def test_verificacion(cliente):
 
 
 def _payload(wamid, texto):
-    return {"entry": [{"changes": [{"value": {
-        "contacts": [{"wa_id": "5491100000001", "profile": {"name": "Juan"}}],
-        "messages": [{"from": "5491100000001", "id": wamid, "type": "text", "text": {"body": texto}}],
-    }}]}]}
+    return {
+        "entry": [
+            {
+                "changes": [
+                    {
+                        "value": {
+                            "contacts": [{"wa_id": "5491100000001", "profile": {"name": "Juan"}}],
+                            "messages": [
+                                {"from": "5491100000001", "id": wamid, "type": "text", "text": {"body": texto}}
+                            ],
+                        }
+                    }
+                ]
+            }
+        ]
+    }
 
 
 def test_mensaje_de_texto_y_reintento_duplicado(cliente, monkeypatch):
@@ -52,9 +64,21 @@ def test_audio_de_numero_sin_acceso_no_se_transcribe(cliente, monkeypatch):
 
     monkeypatch.setattr(main.whatsapp, "descargar_media", no_llamar)
     monkeypatch.setattr(main.llm, "transcribir", no_llamar)
-    payload = {"entry": [{"changes": [{"value": {"messages": [
-        {"from": "5491100000099", "id": "wamid.a1", "type": "audio", "audio": {"id": "media1"}},
-    ]}}]}]}
+    payload = {
+        "entry": [
+            {
+                "changes": [
+                    {
+                        "value": {
+                            "messages": [
+                                {"from": "5491100000099", "id": "wamid.a1", "type": "audio", "audio": {"id": "media1"}},
+                            ]
+                        }
+                    }
+                ]
+            }
+        ]
+    }
     cliente.post("/webhook", json=payload)
     assert "no tiene acceso" in cliente.enviados[-1][1]
 

@@ -58,9 +58,7 @@ async def recibir_webhook(request: Request, tareas: BackgroundTasks) -> dict:
     for entrada in datos.get("entry", []):
         for cambio in entrada.get("changes", []):
             valor = cambio.get("value", {})
-            nombres = {
-                c.get("wa_id"): c.get("profile", {}).get("name") for c in valor.get("contacts", [])
-            }
+            nombres = {c.get("wa_id"): c.get("profile", {}).get("name") for c in valor.get("contacts", [])}
             for mensaje in valor.get("messages", []):
                 # Respondemos 200 enseguida (si no, Meta reintenta) y procesamos aparte.
                 tareas.add_task(procesar_mensaje, mensaje, nombres.get(mensaje.get("from")))
@@ -97,10 +95,12 @@ def procesar_mensaje(mensaje: dict, nombre: str | None) -> None:
                 return
             audio = whatsapp.descargar_media(mensaje["audio"]["id"])
             if len(audio) > config.MAX_AUDIO_BYTES:
-                whatsapp.enviar_texto(telefono, "✋ El audio es muy largo.\nMandá audios más cortos, de a un tema por vez.")
+                whatsapp.enviar_texto(
+                    telefono, "✋ El audio es muy largo.\nMandá audios más cortos, de a un tema por vez."
+                )
                 return
             texto = llm.transcribir(audio)
-            prefijo = f"🎤 _{texto[:config.MAX_LARGO_MENSAJE]}_\n\n"
+            prefijo = f"🎤 _{texto[: config.MAX_LARGO_MENSAJE]}_\n\n"
         else:
             whatsapp.enviar_texto(telefono, "Por ahora solo entiendo mensajes de texto y audios 🙏")
             return
