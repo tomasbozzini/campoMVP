@@ -26,7 +26,7 @@ def verificar_configuracion() -> None:
 @asynccontextmanager
 async def _ciclo_de_vida(_app: FastAPI) -> AsyncIterator[None]:
     verificar_configuracion()
-    db.crear_tablas()
+    db.preparar_base()
     yield
 
 

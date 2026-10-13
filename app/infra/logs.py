@@ -25,3 +25,5 @@ def configurar_logs(nivel: int = logging.INFO) -> None:
     raiz = logging.getLogger()
     raiz.handlers = [manejador]
     raiz.setLevel(nivel)
+    # Alembic cuenta cada paso interno; alcanza con sus avisos y errores.
+    logging.getLogger("alembic").setLevel(logging.WARNING)

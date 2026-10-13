@@ -10,6 +10,8 @@ python -m app precios ver soja                   muestra lo que respondería el 
 python -m app senasa actualizar                  descarga el registro de SENASA
 python -m app senasa cargar registro.csv --fecha 2026-10-10 --url https://...
 python -m app senasa ver ivermectina
+python -m app db migrar                          crea la base o la pone al día (sin perder datos)
+python -m app db estado                          versión de la base y diferencias con el código
 """
 
 import argparse
@@ -22,8 +24,9 @@ from sqlalchemy.orm import Session
 
 from app.fuentes import precios as fuentes_precios
 from app.fuentes import senasa as fuentes_senasa
+from app.infra import migrar
 from app.infra.config import config
-from app.infra.db import SessionLocal, crear_tablas
+from app.infra.db import SessionLocal, engine, preparar_base
 from app.infra.logs import configurar_logs
 from app.modulos.comun import precios, senasa
 from app.nucleo import pipeline, usuarios
@@ -99,6 +102,15 @@ def _senasa(db: Session, args: argparse.Namespace) -> None:
         print(senasa.responder(db, args.texto))
 
 
+def _db(args: argparse.Namespace) -> None:
+    if args.accion == "migrar":
+        preparar_base()
+    with engine.connect() as conexion:
+        print(f"Versión de la base: {migrar.version(conexion) or 'sin Alembic'}")
+        difieren = migrar.diferencias(conexion)
+    print("Coincide con el código." if not difieren else "Difiere del código:\n  " + "\n  ".join(difieren))
+
+
 def _argumentos() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="python -m app", description="Asistente de campo")
     comandos = parser.add_subparsers(dest="comando", required=True)
@@ -134,16 +146,24 @@ def _argumentos() -> argparse.ArgumentParser:
     acciones.add_parser("ver", help="lo que respondería el bot").add_argument("texto")
     registro.set_defaults(ejecutar=_senasa)
 
+    base = comandos.add_parser("db", help="base de datos y migraciones")
+    acciones = base.add_subparsers(dest="accion", required=True)
+    acciones.add_parser("migrar", help="crea la base o aplica las migraciones que falten")
+    acciones.add_parser("estado", help="versión de la base y diferencias con el código")
+
     return parser
 
 
 def main(argv: list[str] | None = None) -> None:
     args = _argumentos().parse_args(argv)
     # La consola de Windows usa cp1252 y se rompe con los emojis de las respuestas.
-    for flujo in (sys.stdout, sys.stdin):
+    for flujo in (sys.stdout, sys.stderr, sys.stdin):
         if isinstance(flujo, io.TextIOWrapper):
             flujo.reconfigure(encoding="utf-8")
     configurar_logs()
-    crear_tablas()
+    if args.comando == "db":
+        _db(args)
+        return
+    preparar_base()
     with SessionLocal() as db:
         args.ejecutar(db, args)

@@ -26,7 +26,7 @@ def servidor(monkeypatch, tmp_path):
     engine = create_engine(f"sqlite:///{tmp_path}/test.db")
     db.Base.metadata.create_all(engine)
     monkeypatch.setattr(webhook, "SessionLocal", sessionmaker(bind=engine, expire_on_commit=False))
-    monkeypatch.setattr(db, "crear_tablas", lambda: None)
+    monkeypatch.setattr(db, "preparar_base", lambda: None)
     enviados: list[tuple[str, str]] = []
     monkeypatch.setattr(webhook.whatsapp, "enviar_texto", lambda tel, txt: enviados.append((tel, txt)))
     return enviados

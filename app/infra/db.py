@@ -14,7 +14,8 @@ class Base(DeclarativeBase):
     pass
 
 
-def crear_tablas() -> None:
-    from app.infra import modelos  # noqa: F401  (registra los modelos)
+def preparar_base() -> None:
+    """Crea la base o la pone al día con las migraciones (ver app/infra/migrar.py)."""
+    from app.infra.migrar import preparar_base as preparar
 
-    Base.metadata.create_all(engine)
+    preparar(engine)

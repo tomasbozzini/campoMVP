@@ -15,7 +15,7 @@ def sesiones(monkeypatch, tmp_path):
     Base.metadata.create_all(engine)
     fabrica = sessionmaker(bind=engine, expire_on_commit=False)
     monkeypatch.setattr(terminal, "SessionLocal", fabrica)
-    monkeypatch.setattr(terminal, "crear_tablas", lambda: None)
+    monkeypatch.setattr(terminal, "preparar_base", lambda: None)
     return fabrica
 
 
