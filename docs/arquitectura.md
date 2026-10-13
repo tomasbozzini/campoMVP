@@ -114,7 +114,10 @@ comporta igual desde WhatsApp y el CI está en verde.
 - Perfiles por rubro que habilitan módulos.
 - Establecimientos y lotes como entidades; sesiones con apertura, cierre y resumen.
 - Salidas: PDF con marca del producto y Excel/CSV enviados por WhatsApp.
-- Glosario para Whisper por perfil; set de evaluación con audios reales de testers.
+- Glosario para Whisper por perfil.
+- Set de evaluación (frase → acciones esperadas) armado con: las frases de la especificación,
+  las pruebas del administrador simulando clientes (un **modo prueba** guarda transcripción e
+  interpretación, sin guardar audios) y frases escritas por profesionales de contacto.
 - "¿Qué tengo pendiente?".
 
 ### Etapa 2 · Módulo ganadero
@@ -139,7 +142,8 @@ caldo y Delta T, pérdidas de trilla (INTA), silobolsas, carta de porte.
 ### Etapa 4 · Prueba con testers
 
 Servidor en la nube, número propio en Meta, monitoreo, medición de precisión con el set de
-evaluación, ajustes según el uso real.
+evaluación, ajustes según el uso real. Opcional: que los usuarios acepten que sus
+transcripciones, anonimizadas, se sumen al set de evaluación.
 
 ### Después del MVP
 
