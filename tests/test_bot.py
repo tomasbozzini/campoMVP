@@ -3,6 +3,7 @@ import hmac
 import json
 from datetime import UTC, date, datetime, timedelta
 
+import httpx
 import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
@@ -620,7 +621,7 @@ def test_reintenta_el_numero_argentino_sin_el_9(monkeypatch):
         return Resp(200, {})
 
     monkeypatch.setattr(config, "wa_ar_quitar_9", False)
-    monkeypatch.setattr(whatsapp.httpx, "post", post)
+    monkeypatch.setattr(httpx, "post", post)
     whatsapp.enviar_texto("5492494123456", "hola")
     whatsapp.enviar_texto("5492494123456", "chau")
     assert enviados == ["5492494123456", "542494123456", "5492494123456", "542494123456"]

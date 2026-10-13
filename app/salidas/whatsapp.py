@@ -181,7 +181,7 @@ def cambios(antes: dict[str, Any], despues: Evento) -> list[str]:
     return lineas
 
 
-def foto(e: Evento) -> dict:
+def foto(e: Evento) -> dict[str, Any]:
     """Los valores de un registro antes de corregirlo."""
     campos = (
         "tipo",

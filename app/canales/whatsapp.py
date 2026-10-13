@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import logging
 from dataclasses import dataclass
+from typing import Any
 
 import httpx
 
@@ -18,7 +19,7 @@ def _url(path: str) -> str:
     return f"https://graph.facebook.com/{config.graph_api_version}/{path}"
 
 
-def _headers() -> dict:
+def _headers() -> dict[str, Any]:
     return {"Authorization": f"Bearer {config.wa_token}"}
 
 
@@ -70,7 +71,8 @@ def _post_mensaje(numero: str, texto: str) -> httpx.Response:
 
 def _codigo_error(r: httpx.Response) -> int | None:
     try:
-        return r.json().get("error", {}).get("code")
+        codigo = r.json().get("error", {}).get("code")
+        return codigo if isinstance(codigo, int) else None
     except ValueError:
         return None
 
@@ -122,7 +124,7 @@ class MensajeEntrante:
     timestamp: int = 0  # segundos, como lo informa Meta
 
 
-def leer_webhook(datos: dict) -> list[MensajeEntrante]:
+def leer_webhook(datos: dict[str, Any]) -> list[MensajeEntrante]:
     """Los mensajes que trae un webhook. Se descartan los que no tienen remitente o id."""
     mensajes: list[MensajeEntrante] = []
     for entrada in datos.get("entry", []):

@@ -27,6 +27,7 @@ En Railway eso se programa como Cron Job, igual que los precios.
 import logging
 import re
 from datetime import date
+from typing import Any
 from urllib.parse import urlparse
 
 import httpx
@@ -49,7 +50,7 @@ def normalizar(texto: str | None) -> str | None:
     return sin_tildes(str(texto).strip().lower()) or None
 
 
-def reemplazar_registro(db: Session, filas: list[dict], fecha_datos: date, url: str) -> int:
+def reemplazar_registro(db: Session, filas: list[dict[str, Any]], fecha_datos: date, url: str) -> int:
     host = (urlparse(url).hostname or "").lower()
     if not es_oficial(url) or not (host == "gob.ar" or host.endswith(".gob.ar")):
         raise ValueError(f"La URL {url} no es de un organismo oficial (.gob.ar)")
@@ -114,7 +115,7 @@ MINIMO_PRODUCTOS = 100  # si vienen menos, algo salió mal y no tocamos el regis
 CAMPOS_BUSQUEDA = ("_idJsp5", "_idJsp7", "_idJsp9", "_idJsp11")  # certificado, nombre, cuit, firma
 
 
-def _campos_del_formulario(pagina: str) -> dict:
+def _campos_del_formulario(pagina: str) -> dict[str, Any]:
     """Los hidden del formulario JSF (jsf_tree/jsf_state) más los filtros, vacíos."""
     campos = {}
     for etiqueta in re.findall(r'<input[^>]*type="hidden"[^>]*>', pagina):
@@ -129,7 +130,7 @@ def _campos_del_formulario(pagina: str) -> dict:
     return campos
 
 
-def descargar(cliente: httpx.Client) -> list[dict]:
+def descargar(cliente: httpx.Client) -> list[dict[str, Any]]:
     """Trae todos los productos de la consulta pública de SENASA.
 
     Hace lo mismo que una persona: abre la consulta, aprieta "Consultar" sin filtros y

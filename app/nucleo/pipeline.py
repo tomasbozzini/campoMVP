@@ -13,6 +13,7 @@ recomendar, inventar ni usarse como chat de uso general.
 
 import logging
 from datetime import date, datetime
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -98,7 +99,7 @@ def _responder(ctx: Contexto, telefono: str) -> str:
     return _ejecutar(ctx, _pedidos(interpretado))
 
 
-def _pedidos(interpretado: object) -> list[dict]:
+def _pedidos(interpretado: object) -> list[dict[str, Any]]:
     """Los pedidos del mensaje ("¿cuánto está la soja y el maíz?", "anotá la lluvia y borrá la
     cosecha"). Se acepta también una respuesta de una sola acción, sin la lista."""
     if not isinstance(interpretado, dict):
@@ -108,7 +109,7 @@ def _pedidos(interpretado: object) -> list[dict]:
     return [a for a in lista if isinstance(a, dict)][:MAX_ACCIONES]
 
 
-def _ejecutar(ctx: Contexto, pedidos: list[dict]) -> str:
+def _ejecutar(ctx: Contexto, pedidos: list[dict[str, Any]]) -> str:
     modulos.cargar()
     varios = len(pedidos) > 1
     respuestas: list[str] = []

@@ -46,7 +46,7 @@ def buscar(intencion: object) -> Accion | None:
     return _registro.get(intencion) if isinstance(intencion, str) else None
 
 
-def validar(accion: Accion, datos: dict) -> EsquemaAccion | None:
+def validar(accion: Accion, datos: dict[str, Any]) -> EsquemaAccion | None:
     """Los datos de la IA validados con el esquema de la acción; None si no validan."""
     try:
         return accion.esquema.model_validate(datos)

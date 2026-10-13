@@ -1,5 +1,7 @@
 """Páginas públicas: salud del servidor y política de privacidad."""
 
+from typing import Any
+
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 
@@ -9,7 +11,7 @@ rutas = APIRouter()
 
 
 @rutas.get("/")
-def salud() -> dict:
+def salud() -> dict[str, Any]:
     return {"ok": True}
 
 

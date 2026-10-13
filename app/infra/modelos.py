@@ -1,4 +1,5 @@
 from datetime import UTC, date, datetime
+from typing import Any
 
 from sqlalchemy import JSON, Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
@@ -62,7 +63,7 @@ class Evento(Base):
     fecha_evento: Mapped[date] = mapped_column(Date, index=True)
     confianza: Mapped[str | None] = mapped_column(String(10))
     mensaje_original: Mapped[str | None] = mapped_column(Text)
-    extra: Mapped[dict | None] = mapped_column(JSON)
+    extra: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_ahora)
 
 
@@ -162,5 +163,5 @@ class BorradoPendiente(Base):
     __tablename__ = "borrados_pendientes"
 
     usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), primary_key=True)
-    ids: Mapped[list] = mapped_column(JSON)
+    ids: Mapped[list[int]] = mapped_column(JSON)
     creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_ahora)

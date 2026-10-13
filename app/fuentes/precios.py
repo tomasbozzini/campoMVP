@@ -17,7 +17,7 @@ Para agregar una fuente:
         url = "https://www.cac.bcr.com.ar/es/precios-de-pizarra"
         rubro = "granos"
 
-        def obtener(self, cliente: httpx.Client) -> list[dict]:
+        def obtener(self, cliente: httpx.Client) -> list[dict[str, Any]]:
             html = cliente.get(self.url).text
             ...  # leer la tabla
             return [{"producto": "soja", "plaza": "Rosario", "valor": 300000,
@@ -33,7 +33,7 @@ import logging
 import re
 from datetime import date, datetime, timedelta
 from html import unescape
-from typing import ClassVar
+from typing import Any, ClassVar
 
 import httpx
 from sqlalchemy import select
@@ -62,7 +62,7 @@ class Fuente:
     url: str = ""
     rubro: str = ""
 
-    def obtener(self, cliente: httpx.Client) -> list[dict]:
+    def obtener(self, cliente: httpx.Client) -> list[dict[str, Any]]:
         raise NotImplementedError
 
 
@@ -106,12 +106,12 @@ class PizarraRosario(Fuente):
     rubro = "granos"
     plaza = "Rosario"
 
-    def obtener(self, cliente: httpx.Client) -> list[dict]:
+    def obtener(self, cliente: httpx.Client) -> list[dict[str, Any]]:
         respuesta = cliente.get(self.url)
         respuesta.raise_for_status()
         return self.leer(respuesta.content.decode("utf-8"))
 
-    def leer(self, pagina: str) -> list[dict]:
+    def leer(self, pagina: str) -> list[dict[str, Any]]:
         encontrada = re.search(r"Precios Pizarra del d[ií]a\s*(\d{2}/\d{2}/\d{4})", pagina)
         if not encontrada:
             raise ValueError("No encontré la fecha de la pizarra; la página cambió")
@@ -196,7 +196,7 @@ class HaciendaCanuelas(Fuente):
         "OPCIONSUBMENU": "",
     }
 
-    def obtener(self, cliente: httpx.Client) -> list[dict]:
+    def obtener(self, cliente: httpx.Client) -> list[dict[str, Any]]:
         hoy = datetime.now(config.zona_horaria).date()
         for atras in range(self.DIAS_ATRAS):
             dia = (hoy - timedelta(days=atras)).strftime("%d/%m/%Y")
@@ -208,7 +208,7 @@ class HaciendaCanuelas(Fuente):
                 return precios
         raise ValueError(f"El MAG no publicó ninguna rueda en los últimos {self.DIAS_ATRAS} días")
 
-    def leer(self, pagina: str) -> list[dict]:
+    def leer(self, pagina: str) -> list[dict[str, Any]]:
         """Devuelve los precios de la rueda, o [] si ese día no hubo operaciones."""
         encabezado = re.search(
             r"PRECIOS POR CATEGORIA.*?DESDE EL \w+ (\d{2}/\d{2}/\d{4}) AL \w+ (\d{2}/\d{2}/\d{4})"
@@ -224,7 +224,7 @@ class HaciendaCanuelas(Fuente):
             raise ValueError(f"La planilla abarca más de un día ({desde} a {hasta})")
         fecha = datetime.strptime(desde, "%d/%m/%Y").date()
 
-        grupos: dict[str, dict] = {}
+        grupos: dict[str, dict[str, Any]] = {}
         actual = None
         for fila in re.findall(r"<tr[^>]*>(.*?)</tr>", pagina, re.S | re.I):
             celdas = _celdas(fila)
@@ -285,14 +285,14 @@ FUENTES: list[Fuente] = [PizarraRosario(), HaciendaCanuelas()]
 MONEDAS = {"ARS": "$", "USD": "US$"}
 
 
-def _moneda(valor) -> str:
+def _moneda(valor: object) -> str:
     moneda = str(valor or "ARS").strip().upper()
     if moneda not in MONEDAS:
         raise ValueError(f"Moneda no soportada: {valor}")
     return moneda
 
 
-def _si_no(valor) -> bool | None:
+def _si_no(valor: object) -> bool | None:
     """True/False si la fuente lo informa; None si no dice nada."""
     if isinstance(valor, bool) or valor is None:
         return valor
@@ -304,7 +304,7 @@ def _si_no(valor) -> bool | None:
     return None
 
 
-def guardar(db: Session, fuente: str, url: str, rubro: str, precios: list[dict]) -> int:
+def guardar(db: Session, fuente: str, url: str, rubro: str, precios: list[dict[str, Any]]) -> int:
     if not es_oficial(url):
         raise ValueError(f"La URL {url} no es de una fuente oficial habilitada")
     guardados = 0
@@ -360,7 +360,7 @@ def cargar_csv(db: Session, ruta: str) -> dict[str, int]:
     """
     with open(ruta, encoding="utf-8") as f:
         filas = list(csv.DictReader(f))
-    grupos: dict[tuple[str, str, str], list[dict]] = {}
+    grupos: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
     for fila in filas:
         grupos.setdefault((fila["fuente"], fila["url"], fila["rubro"]), []).append(fila)
     return {fuente: guardar(db, fuente, url, rubro, precios) for (fuente, url, rubro), precios in grupos.items()}

@@ -3,6 +3,7 @@
 import json
 import logging
 from functools import partial
+from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request, Response
 from sqlalchemy.exc import IntegrityError
@@ -39,7 +40,7 @@ def verificar_webhook(
 
 
 @rutas.post("/webhook")
-async def recibir_webhook(request: Request, tareas: BackgroundTasks) -> dict:
+async def recibir_webhook(request: Request, tareas: BackgroundTasks) -> dict[str, Any]:
     cuerpo = await request.body()
     if not whatsapp.firma_valida(cuerpo, request.headers.get("X-Hub-Signature-256")):
         raise HTTPException(status_code=401, detail="Firma inválida")

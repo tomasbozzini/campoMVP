@@ -28,11 +28,17 @@ known-first-party = ["app"]
 python_version = "3.12"
 files = ["app", "tests"]
 plugins = ["pydantic.mypy"]
-warn_unused_ignores = true
-warn_redundant_casts = true
-no_implicit_optional = true
-check_untyped_defs = true
+strict = true
 ignore_missing_imports = true
+
+# Los tests usan fixtures de pytest sin anotar; se revisa el cuerpo igual.
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_calls = false
+check_untyped_defs = true
+disallow_any_generics = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

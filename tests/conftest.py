@@ -21,6 +21,7 @@ def servidor(monkeypatch, tmp_path):
     from sqlalchemy.orm import sessionmaker
 
     from app.api import webhook
+    from app.canales import whatsapp
     from app.infra import db
 
     engine = create_engine(f"sqlite:///{tmp_path}/test.db")
@@ -28,5 +29,5 @@ def servidor(monkeypatch, tmp_path):
     monkeypatch.setattr(webhook, "SessionLocal", sessionmaker(bind=engine, expire_on_commit=False))
     monkeypatch.setattr(db, "preparar_base", lambda: None)
     enviados: list[tuple[str, str]] = []
-    monkeypatch.setattr(webhook.whatsapp, "enviar_texto", lambda tel, txt: enviados.append((tel, txt)))
+    monkeypatch.setattr(whatsapp, "enviar_texto", lambda tel, txt: enviados.append((tel, txt)))
     return enviados
