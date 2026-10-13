@@ -13,7 +13,7 @@ import sys
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Usuario
+from app.infra.modelos import Usuario
 
 
 def autorizar(db: Session, telefono: str) -> Usuario:
@@ -42,7 +42,7 @@ def autorizados(db: Session) -> list[Usuario]:
 
 def main() -> None:
     from app.bot import normalizar_telefono
-    from app.db import SessionLocal, crear_tablas
+    from app.infra.db import SessionLocal, crear_tablas
 
     comando = sys.argv[1] if len(sys.argv) > 1 else ""
     crear_tablas()

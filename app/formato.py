@@ -9,7 +9,7 @@ from collections import defaultdict
 from datetime import date
 from typing import Any
 
-from app.models import Evento
+from app.infra.modelos import Evento
 
 SEPARADOR = "────────────"
 SANGRIA = "      "

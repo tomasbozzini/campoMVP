@@ -1,10 +1,12 @@
+"""Conexión a la base de datos."""
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-from app import config
+from app.infra.config import config
 
-_connect_args = {"check_same_thread": False} if config.DATABASE_URL.startswith("sqlite") else {}
-engine = create_engine(config.DATABASE_URL, pool_pre_ping=True, connect_args=_connect_args)
+_connect_args = {"check_same_thread": False} if config.database_url.startswith("sqlite") else {}
+engine = create_engine(config.database_url, pool_pre_ping=True, connect_args=_connect_args)
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 
 
@@ -13,6 +15,6 @@ class Base(DeclarativeBase):
 
 
 def crear_tablas() -> None:
-    from app import models  # noqa: F401  (registra los modelos)
+    from app.infra import modelos  # noqa: F401  (registra los modelos)
 
     Base.metadata.create_all(engine)

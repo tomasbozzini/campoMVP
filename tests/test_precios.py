@@ -12,7 +12,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app import precios
-from app.db import Base
+from app.infra.db import Base
 
 FIXTURES = Path(__file__).parent / "fixtures"
 HOY = date(2026, 10, 11)

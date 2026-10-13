@@ -7,9 +7,10 @@ import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
-from app import bot, config, llm, usuarios, whatsapp
-from app.db import Base
-from app.models import BorradoPendiente, Evento, MensajeChat, Usuario
+from app import bot, llm, usuarios, whatsapp
+from app.infra.config import config
+from app.infra.db import Base
+from app.infra.modelos import BorradoPendiente, Evento, MensajeChat, Usuario
 
 HOY = date(2026, 10, 9)
 
@@ -49,7 +50,7 @@ def test_numero_sin_acceso_no_usa_el_bot(db, fake_llm):
 
 
 def test_admin_autoriza_y_quita_por_whatsapp(db, fake_llm, monkeypatch):
-    monkeypatch.setattr(config, "ADMIN_TELEFONOS", {"5492494000009"})
+    monkeypatch.setattr(config, "admin_telefonos", {"5492494000009"})
     admin = "5492494000009"
     assert "autorizar" in bot.manejar_mensaje(db, admin, "ayuda", hoy=HOY)
 
@@ -185,7 +186,7 @@ def test_consulta_solo_ve_lo_propio_y_suma(db, fake_llm):
 
 
 def test_firma_del_webhook(monkeypatch):
-    monkeypatch.setattr(config, "META_APP_SECRET", "secreto")
+    monkeypatch.setattr(config, "meta_app_secret", "secreto")
     cuerpo = json.dumps({"entry": []}).encode()
     firma = "sha256=" + hmac.new(b"secreto", cuerpo, hashlib.sha256).hexdigest()
     assert whatsapp.firma_valida(cuerpo, firma)
@@ -194,7 +195,7 @@ def test_firma_del_webhook(monkeypatch):
 
 
 def test_numero_argentino(monkeypatch):
-    monkeypatch.setattr(config, "WA_AR_QUITAR_9", True)
+    monkeypatch.setattr(config, "wa_ar_quitar_9", True)
     assert whatsapp.numero_para_envio("5492494123456") == "542494123456"
     assert whatsapp.numero_para_envio("34600000000") == "34600000000"
 
@@ -614,7 +615,7 @@ def test_reintenta_el_numero_argentino_sin_el_9(monkeypatch):
             return Resp(400, {"error": {"code": 131030}})
         return Resp(200, {})
 
-    monkeypatch.setattr(config, "WA_AR_QUITAR_9", False)
+    monkeypatch.setattr(config, "wa_ar_quitar_9", False)
     monkeypatch.setattr(whatsapp.httpx, "post", post)
     whatsapp.enviar_texto("5492494123456", "hola")
     whatsapp.enviar_texto("5492494123456", "chau")
@@ -810,6 +811,6 @@ def test_borrar_mis_datos_pide_confirmacion_y_borra_todo(db, fake_llm):
 
 def test_privacidad_explica_y_muestra_el_link(db, fake_llm, monkeypatch):
     u = _con_campo(db)
-    monkeypatch.setattr(config, "PRIVACIDAD_URL", "https://ejemplo.com/privacidad")
+    monkeypatch.setattr(config, "privacidad_url", "https://ejemplo.com/privacidad")
     r = bot.manejar_mensaje(db, u.telefono, "privacidad", hoy=HOY)
     assert "TUS DATOS" in r and "borrar mis datos" in r and "https://ejemplo.com/privacidad" in r

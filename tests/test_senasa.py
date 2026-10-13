@@ -13,8 +13,8 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
 from app import senasa
-from app.db import Base
-from app.models import ProductoVeterinario
+from app.infra.db import Base
+from app.infra.modelos import ProductoVeterinario
 
 FIXTURES = Path(__file__).parent / "fixtures"
 FECHA = date(2026, 10, 11)

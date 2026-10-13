@@ -6,7 +6,7 @@ import logging
 
 import httpx
 
-from app import config
+from app.infra.config import config
 
 log = logging.getLogger(__name__)
 
@@ -14,26 +14,32 @@ LIMITE_TEXTO = 4096
 
 
 def _url(path: str) -> str:
-    return f"https://graph.facebook.com/{config.GRAPH_API_VERSION}/{path}"
+    return f"https://graph.facebook.com/{config.graph_api_version}/{path}"
 
 
 def _headers() -> dict:
-    return {"Authorization": f"Bearer {config.WA_TOKEN}"}
+    return {"Authorization": f"Bearer {config.wa_token}"}
 
 
 def firma_valida(cuerpo: bytes, firma_header: str | None) -> bool:
-    """Verifica que el webhook venga de Meta (header X-Hub-Signature-256)."""
-    if not config.META_APP_SECRET:
-        log.warning("META_APP_SECRET no configurado: no se verifica la firma del webhook")
+    """Verifica que el webhook venga de Meta (header X-Hub-Signature-256).
+
+    Con META_APP_SECRET configurado se verifica siempre, también en desarrollo. Sin él,
+    solo se deja pasar en desarrollo (en producción el servidor ni siquiera arranca).
+    """
+    if not config.meta_app_secret:
+        if config.es_produccion:
+            return False
+        log.warning("META_APP_SECRET no configurado: en desarrollo no se verifica la firma del webhook")
         return True
     if not firma_header or not firma_header.startswith("sha256="):
         return False
-    esperada = hmac.new(config.META_APP_SECRET.encode(), cuerpo, hashlib.sha256).hexdigest()
+    esperada = hmac.new(config.meta_app_secret.encode(), cuerpo, hashlib.sha256).hexdigest()
     return hmac.compare_digest(esperada, firma_header.removeprefix("sha256="))
 
 
 def numero_para_envio(telefono: str) -> str:
-    if config.WA_AR_QUITAR_9 and telefono.startswith("549"):
+    if config.wa_ar_quitar_9 and telefono.startswith("549"):
         return "54" + telefono[3:]
     return telefono
 
@@ -54,7 +60,7 @@ NO_PERMITIDO = 131030
 
 def _post_mensaje(numero: str, texto: str) -> httpx.Response:
     return httpx.post(
-        _url(f"{config.WA_PHONE_NUMBER_ID}/messages"),
+        _url(f"{config.wa_phone_number_id}/messages"),
         headers=_headers(),
         json={"messaging_product": "whatsapp", "to": numero, "type": "text", "text": {"body": texto}},
         timeout=20,

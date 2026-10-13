@@ -37,8 +37,8 @@ import xlrd
 from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session
 
-from app import config
-from app.models import ProductoVeterinario
+from app.infra.config import config
+from app.infra.modelos import ProductoVeterinario
 from app.precios import es_oficial
 
 log = logging.getLogger(__name__)
@@ -234,9 +234,10 @@ def responder(db: Session, texto: str | None) -> str:
 
 
 def main() -> None:
-    from app.db import SessionLocal, crear_tablas
+    from app.infra.db import SessionLocal, crear_tablas
+    from app.infra.logs import configurar_logs
 
-    logging.basicConfig(level=logging.INFO)
+    configurar_logs()
     parser = argparse.ArgumentParser(prog="python -m app.senasa")
     sub = parser.add_subparsers(dest="comando", required=True)
     cargar = sub.add_parser("cargar")
@@ -253,7 +254,7 @@ def main() -> None:
     crear_tablas()
     with SessionLocal() as db:
         if args.comando == "actualizar":
-            fecha = date.fromisoformat(args.fecha) if args.fecha else datetime.now(config.ZONA_HORARIA).date()
+            fecha = date.fromisoformat(args.fecha) if args.fecha else datetime.now(config.zona_horaria).date()
             n = actualizar(db, fecha, args.url)
             db.commit()
             print(f"{n} productos cargados (datos al {fecha.strftime('%d/%m/%Y')})")

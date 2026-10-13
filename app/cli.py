@@ -7,7 +7,7 @@ import io
 import sys
 
 from app import bot, usuarios
-from app.db import SessionLocal, crear_tablas
+from app.infra.db import SessionLocal, crear_tablas
 
 
 def main() -> None:

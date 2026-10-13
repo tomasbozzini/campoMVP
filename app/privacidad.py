@@ -8,7 +8,7 @@ BORRADOR: revisalo con alguien que sepa de protección de datos antes de tener c
 
 from html import escape
 
-from app import config
+from app.infra.config import config
 
 ULTIMA_ACTUALIZACION = "11 de octubre de 2026"
 
@@ -125,6 +125,6 @@ derechos por incumplimiento de las normas vigentes en materia de protección de 
 def html() -> str:
     return _PLANTILLA.format(
         fecha=ULTIMA_ACTUALIZACION,
-        responsable=escape(config.PRIVACIDAD_RESPONSABLE or "[completar PRIVACIDAD_RESPONSABLE]"),
-        contacto=escape(config.PRIVACIDAD_CONTACTO or "[completar PRIVACIDAD_CONTACTO]"),
+        responsable=escape(config.privacidad_responsable or "[completar PRIVACIDAD_RESPONSABLE]"),
+        contacto=escape(config.privacidad_contacto or "[completar PRIVACIDAD_CONTACTO]"),
     )

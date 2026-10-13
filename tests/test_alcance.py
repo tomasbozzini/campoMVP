@@ -6,9 +6,10 @@ import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
-from app import bot, config, llm, precios, senasa, usuarios
-from app.db import Base
-from app.models import Cotizacion
+from app import bot, llm, precios, senasa, usuarios
+from app.infra.config import config
+from app.infra.db import Base
+from app.infra.modelos import Cotizacion
 
 HOY = date(2026, 10, 9)
 URL_PIZARRA = "https://www.cac.bcr.com.ar/es/precios-de-pizarra"
@@ -56,12 +57,12 @@ def test_todo_lo_que_no_es_valido_es_fuera_de_alcance(db, respuestas, salida):
 
 def test_mensaje_largo_no_llega_a_la_ia(db, respuestas):
     u = _usuario(db)
-    r = bot.manejar_mensaje(db, u.telefono, "a" * (config.MAX_LARGO_MENSAJE + 1), hoy=HOY)
+    r = bot.manejar_mensaje(db, u.telefono, "a" * (config.max_largo_mensaje + 1), hoy=HOY)
     assert "muy largo" in r  # si hubiera llamado a la IA, respuestas[...] tiraría KeyError
 
 
 def test_limite_diario(db, respuestas, monkeypatch):
-    monkeypatch.setattr(config, "LIMITE_DIARIO_IA", 2)
+    monkeypatch.setattr(config, "limite_diario_ia", 2)
     u = _usuario(db)
     respuestas["x"] = {"intencion": "fuera_de_alcance"}
     assert bot.manejar_mensaje(db, u.telefono, "x", hoy=HOY) == bot.FUERA_DE_ALCANCE
@@ -304,6 +305,6 @@ def test_tope_de_acciones_por_mensaje(db, respuestas):
         ]
     }
     bot.manejar_mensaje(db, u.telefono, "muchas", hoy=HOY)
-    from app.models import Evento
+    from app.infra.modelos import Evento
 
     assert len(db.scalars(select(Evento)).all()) == bot.MAX_ACCIONES

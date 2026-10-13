@@ -10,7 +10,7 @@ from datetime import date
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import Evento
+from app.infra.modelos import Evento
 
 MAX_EVENTOS = 5000
 

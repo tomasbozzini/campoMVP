@@ -14,10 +14,11 @@ from datetime import UTC, date, datetime, timedelta
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app import config, formato, llm, precios, senasa, usuarios
+from app import formato, llm, precios, senasa, usuarios
 from app.consultas import buscar, normalizar_lote, totales
 from app.formato import SEPARADOR as LINEA
-from app.models import BorradoPendiente, Evento, MensajeChat, UsoDiario, Usuario
+from app.infra.config import config
+from app.infra.modelos import BorradoPendiente, Evento, MensajeChat, UsoDiario, Usuario
 
 log = logging.getLogger(__name__)
 
@@ -83,11 +84,11 @@ AYUDA_ADMIN = """
 
 
 def _hoy() -> date:
-    return datetime.now(config.ZONA_HORARIA).date()
+    return datetime.now(config.zona_horaria).date()
 
 
 def es_admin(telefono: str) -> bool:
-    return telefono in config.ADMIN_TELEFONOS
+    return telefono in config.admin_telefonos
 
 
 def normalizar_telefono(texto: str) -> str | None:
@@ -210,8 +211,8 @@ def _privacidad() -> str:
         "      › Corregir o borrar registros cuando quieras\n"
         "      › Borrar todo, incluido tu número: *borrar mis datos*"
     )
-    if config.PRIVACIDAD_URL:
-        texto += f"\n\n{LINEA}\n📄 Política completa:\n{config.PRIVACIDAD_URL}"
+    if config.privacidad_url:
+        texto += f"\n\n{LINEA}\n📄 Política completa:\n{config.privacidad_url}"
     return texto
 
 
@@ -254,7 +255,7 @@ def _responder(db: Session, usuario: Usuario, telefono: str, texto: str, hoy: da
     if comando in ("privacidad", "mis datos", "datos"):
         return _privacidad()
 
-    if len(texto) > config.MAX_LARGO_MENSAJE:
+    if len(texto) > config.max_largo_mensaje:
         return "✋ El mensaje es muy largo.\nMandalo en partes más cortas, de a un tema por vez."
     if not consumir_cupo(db, usuario, hoy):
         return "⏳ Llegaste al límite de mensajes por hoy.\nMañana podés seguir."
@@ -379,7 +380,7 @@ def consumir_cupo(db: Session, usuario: Usuario, hoy: date) -> bool:
     if uso is None:
         uso = UsoDiario(usuario_id=usuario.id, fecha=hoy, cantidad=0)
         db.add(uso)
-    if uso.cantidad >= config.LIMITE_DIARIO_IA:
+    if uso.cantidad >= config.limite_diario_ia:
         return False
     uso.cantidad += 1
     db.flush()

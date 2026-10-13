@@ -4,6 +4,8 @@ sqlalchemy==2.1.4
 psycopg2-binary==2.9.13
 groq==1.7.0
 httpx==0.28.1
+pydantic-settings==2.15.0
+# pydantic-settings lo usa para leer el .env
 python-dotenv==1.2.3
 # La "exportación a CSV" de la consulta pública de SENASA es en realidad un Excel 97-2003.
 xlrd==2.0.2

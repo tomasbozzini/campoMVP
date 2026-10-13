@@ -6,7 +6,7 @@ from datetime import date
 
 from groq import Groq
 
-from app import config
+from app.infra.config import config
 
 log = logging.getLogger(__name__)
 
@@ -16,7 +16,7 @@ _cliente: Groq | None = None
 def _groq() -> Groq:
     global _cliente
     if _cliente is None:
-        _cliente = Groq(api_key=config.GROQ_API_KEY)
+        _cliente = Groq(api_key=config.groq_api_key)
     return _cliente
 
 
@@ -188,7 +188,7 @@ Reglas:
 
 def _chat_json(system: str, usuario: str) -> dict:
     respuesta = _groq().chat.completions.create(
-        model=config.GROQ_MODELO,
+        model=config.groq_modelo,
         messages=[{"role": "system", "content": system}, {"role": "user", "content": usuario}],
         response_format={"type": "json_object"},
         temperature=0.1,
@@ -217,7 +217,7 @@ def interpretar(texto: str, hoy: date, historial: list[tuple[str, str]] | None =
 def transcribir(audio: bytes, nombre_archivo: str = "audio.ogg") -> str:
     resultado = _groq().audio.transcriptions.create(
         file=(nombre_archivo, audio),
-        model=config.GROQ_MODELO_AUDIO,
+        model=config.groq_modelo_audio,
         language="es",
     )
     return resultado.text.strip()

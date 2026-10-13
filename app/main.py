@@ -8,16 +8,29 @@ from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request, Res
 from fastapi.responses import HTMLResponse
 from sqlalchemy.exc import IntegrityError
 
-from app import bot, config, llm, privacidad, whatsapp
-from app.db import SessionLocal, crear_tablas
-from app.models import MensajeProcesado
+from app import bot, llm, privacidad, whatsapp
+from app.infra.config import config
+from app.infra.db import SessionLocal, crear_tablas
+from app.infra.logs import configurar_logs
+from app.infra.modelos import MensajeProcesado
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+configurar_logs()
 log = logging.getLogger(__name__)
+
+
+def verificar_configuracion() -> None:
+    """En producción, sin las claves de Meta y Groq el servidor no arranca."""
+    if config.es_produccion and (faltan := config.faltantes_para_produccion()):
+        raise RuntimeError(
+            "Faltan variables de entorno obligatorias en producción: "
+            + ", ".join(faltan)
+            + ". Configuralas, o usá ENTORNO=desarrollo para probar en tu compu."
+        )
 
 
 @asynccontextmanager
 async def _ciclo_de_vida(_app: FastAPI):
+    verificar_configuracion()
     crear_tablas()
     yield
 
@@ -43,7 +56,7 @@ def verificar_webhook(
     desafio: str = Query(None, alias="hub.challenge"),
 ) -> Response:
     """Meta llama a este endpoint una vez al configurar el webhook."""
-    if modo == "subscribe" and config.WA_VERIFY_TOKEN and token == config.WA_VERIFY_TOKEN:
+    if modo == "subscribe" and config.wa_verify_token and token == config.wa_verify_token:
         return Response(content=desafio, media_type="text/plain")
     raise HTTPException(status_code=403, detail="Token de verificación inválido")
 
@@ -94,13 +107,13 @@ def procesar_mensaje(mensaje: dict, nombre: str | None) -> None:
                 whatsapp.enviar_texto(telefono, bot.NO_AUTORIZADO)
                 return
             audio = whatsapp.descargar_media(mensaje["audio"]["id"])
-            if len(audio) > config.MAX_AUDIO_BYTES:
+            if len(audio) > config.max_audio_bytes:
                 whatsapp.enviar_texto(
                     telefono, "✋ El audio es muy largo.\nMandá audios más cortos, de a un tema por vez."
                 )
                 return
             texto = llm.transcribir(audio)
-            prefijo = f"🎤 _{texto[: config.MAX_LARGO_MENSAJE]}_\n\n"
+            prefijo = f"🎤 _{texto[: config.max_largo_mensaje]}_\n\n"
         else:
             whatsapp.enviar_texto(telefono, "Por ahora solo entiendo mensajes de texto y audios 🙏")
             return

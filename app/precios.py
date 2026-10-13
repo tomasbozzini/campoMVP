@@ -42,8 +42,8 @@ import httpx
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app import config
-from app.models import Cotizacion
+from app.infra.config import config
+from app.infra.modelos import Cotizacion
 
 log = logging.getLogger(__name__)
 
@@ -217,7 +217,7 @@ class HaciendaCanuelas(Fuente):
     }
 
     def obtener(self, cliente: httpx.Client) -> list[dict]:
-        hoy = datetime.now(config.ZONA_HORARIA).date()
+        hoy = datetime.now(config.zona_horaria).date()
         for atras in range(self.DIAS_ATRAS):
             dia = (hoy - timedelta(days=atras)).strftime("%d/%m/%Y")
             respuesta = cliente.post(self.url, data={**self.CAMPOS, "txtFechaIni": dia, "txtFechaFin": dia})
@@ -431,7 +431,7 @@ def _lineas_cotizacion(c: Cotizacion, hoy: date) -> list[str]:
     icono = _ICONOS.get(c.producto, "🐂" if c.rubro == "hacienda" else "📈")
     dias = (hoy - c.fecha).days
     viejo = (
-        f"\n      ⚠️ _Dato de hace {dias} días, puede no estar actualizado_" if dias > config.DIAS_PRECIO_VIGENTE else ""
+        f"\n      ⚠️ _Dato de hace {dias} días, puede no estar actualizado_" if dias > config.dias_precio_vigente else ""
     )
     return [
         f"{icono} *{nombre}*{plaza}",
@@ -501,9 +501,10 @@ def _cargar_csv(db: Session, ruta: str) -> None:
 
 
 def main() -> None:
-    from app.db import SessionLocal, crear_tablas
+    from app.infra.db import SessionLocal, crear_tablas
+    from app.infra.logs import configurar_logs
 
-    logging.basicConfig(level=logging.INFO)
+    configurar_logs()
     crear_tablas()
     comando = sys.argv[1] if len(sys.argv) > 1 else ""
     with SessionLocal() as db:
@@ -516,7 +517,7 @@ def main() -> None:
         elif comando == "ver":
             print(
                 responder(
-                    db, sys.argv[2] if len(sys.argv) > 2 else None, None, datetime.now(config.ZONA_HORARIA).date()
+                    db, sys.argv[2] if len(sys.argv) > 2 else None, None, datetime.now(config.zona_horaria).date()
                 )
             )
         else:

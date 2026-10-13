@@ -1,26 +1,16 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from app import config, main
+from app import main
+from app.infra.config import config
 
 
 @pytest.fixture
-def cliente(monkeypatch, tmp_path):
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import sessionmaker
-
-    from app.db import Base
-
-    engine = create_engine(f"sqlite:///{tmp_path}/test.db")
-    Base.metadata.create_all(engine)
-    monkeypatch.setattr(main, "SessionLocal", sessionmaker(bind=engine, expire_on_commit=False))
-    monkeypatch.setattr(main, "crear_tablas", lambda: None)
-    monkeypatch.setattr(config, "WA_VERIFY_TOKEN", "mi-token")
-    monkeypatch.setattr(config, "META_APP_SECRET", "")
-    enviados = []
-    monkeypatch.setattr(main.whatsapp, "enviar_texto", lambda tel, txt: enviados.append((tel, txt)))
+def cliente(servidor, monkeypatch):
+    monkeypatch.setattr(config, "wa_verify_token", "mi-token")
+    monkeypatch.setattr(config, "meta_app_secret", "")
     with TestClient(main.app) as c:
-        c.enviados = enviados
+        c.enviados = servidor
         yield c
 
 
@@ -51,7 +41,7 @@ def _payload(wamid, texto):
 
 
 def test_mensaje_de_texto_y_reintento_duplicado(cliente, monkeypatch):
-    monkeypatch.setattr(config, "ADMIN_TELEFONOS", {"5491100000001"})
+    monkeypatch.setattr(config, "admin_telefonos", {"5491100000001"})
     cliente.post("/webhook", json=_payload("wamid.1", "ayuda"))
     cliente.post("/webhook", json=_payload("wamid.1", "ayuda"))  # reintento de Meta
     assert len(cliente.enviados) == 1
@@ -84,8 +74,8 @@ def test_audio_de_numero_sin_acceso_no_se_transcribe(cliente, monkeypatch):
 
 
 def test_politica_de_privacidad(cliente, monkeypatch):
-    monkeypatch.setattr(config, "PRIVACIDAD_RESPONSABLE", "Campo <Bot>")
-    monkeypatch.setattr(config, "PRIVACIDAD_CONTACTO", "datos@ejemplo.com")
+    monkeypatch.setattr(config, "privacidad_responsable", "Campo <Bot>")
+    monkeypatch.setattr(config, "privacidad_contacto", "datos@ejemplo.com")
     r = cliente.get("/privacidad")
     assert r.status_code == 200 and r.headers["content-type"].startswith("text/html")
     assert "Campo &lt;Bot&gt;" in r.text and "datos@ejemplo.com" in r.text
