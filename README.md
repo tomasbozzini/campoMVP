@@ -2,6 +2,8 @@
 
 Asistente **personal** por WhatsApp para anotar el trabajo en el campo y consultarlo después, en lenguaje natural y con audios.
 
+> **Arquitectura y plan de desarrollo:** ver [`docs/arquitectura.md`](docs/arquitectura.md).
+
 Cada número de WhatsApp tiene **su propio cuaderno privado**. Un veterinario que recorre cinco campos en el día anota todo en su cuaderno, y eso queda solo ahí: el dueño de cada campo no lo ve. Si el dueño quiere tenerlo, lo anota en su propio cuaderno.
 
 ```
