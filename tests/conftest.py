@@ -1,3 +1,5 @@
+import os
+
 import pytest
 
 from app.infra.config import Configuracion, config
@@ -5,7 +7,11 @@ from app.infra.config import Configuracion, config
 
 @pytest.fixture(autouse=True)
 def configuracion_de_prueba(monkeypatch):
-    """Los tests no leen el .env de la compu: parten de los valores por defecto, en desarrollo."""
+    """Los tests no leen el .env ni las variables de entorno de la compu: parten de los
+    valores por defecto, en desarrollo. Los que prueban la lectura del entorno las definen."""
+    for variable in list(os.environ):
+        if variable.lower() in Configuracion.model_fields:
+            monkeypatch.delenv(variable)
     limpia = Configuracion(_env_file=None, entorno="desarrollo")
     for campo in Configuracion.model_fields:
         monkeypatch.setattr(config, campo, getattr(limpia, campo))
