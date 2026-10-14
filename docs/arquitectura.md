@@ -167,8 +167,9 @@ en cada punto, primero un test que reproduce el problema.
       no ASCII (401), timestamp mal formado, tests aislados del entorno, `--workers 1`,
       hooks de ruff para migraciones generadas, solo `db migrar` migra, README para cmd,
       chat sin logs de httpx, `test-prompt.py` borrado, pantallas nuevas de Meta.
-- [ ] Convención de nombres para constraints: pendiente de decisión (cómo afecta a las bases
-      existentes), antes de la primera migración real.
+- [x] Convención de nombres para los constraints, la misma que usa Postgres por defecto:
+      las bases de Postgres ya la cumplían (no se migró nada) y la `0002` nombra los de
+      SQLite, que estaban sin nombre (recrea las tablas, sin tocar los datos).
 
 **Cambios de comportamiento aceptados** (vienen de la etapa 0; se dejan así):
 
