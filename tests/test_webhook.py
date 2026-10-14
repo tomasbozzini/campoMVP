@@ -87,3 +87,23 @@ def test_politica_de_privacidad(cliente, monkeypatch):
     assert r.status_code == 200 and r.headers["content-type"].startswith("text/html")
     assert "Campo &lt;Bot&gt;" in r.text and "datos@ejemplo.com" in r.text
     assert "Ley 25.326" in r.text and "borrar mis datos" in r.text
+
+
+@pytest.mark.parametrize("timestamp", ["ayer", "17.6e8x", {"segundos": 1}, None])
+def test_un_timestamp_mal_formado_no_tira_abajo_el_webhook(cliente, monkeypatch, timestamp):
+    monkeypatch.setattr(config, "admin_telefonos", {"5491100000001"})
+    payload = _payload("wamid.t1", "ayuda")
+    mensajes = payload["entry"][0]["changes"][0]["value"]["messages"]
+    mensajes[0]["timestamp"] = timestamp
+    mensajes.append(
+        {
+            "from": "5491100000001",
+            "id": "wamid.t2",
+            "timestamp": "1760000000",
+            "type": "text",
+            "text": {"body": "privacidad"},
+        }
+    )
+    assert cliente.post("/webhook", json=payload).status_code == 200
+    assert cliente.esperar()
+    assert len(cliente.enviados) == 2

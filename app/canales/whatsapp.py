@@ -125,6 +125,17 @@ class MensajeEntrante:
     timestamp: int = 0  # segundos, como lo informa Meta
 
 
+def _segundos(valor: object) -> int:
+    """El timestamp de Meta ("1760000000"). Si viene mal formado, 0: el mensaje se procesa
+    igual (primero en su lote), en vez de tirar abajo todo el webhook."""
+    if isinstance(valor, str | int):
+        try:
+            return int(valor)
+        except ValueError:
+            pass
+    return 0
+
+
 def leer_webhook(datos: dict[str, Any]) -> list[MensajeEntrante]:
     """Los mensajes que trae un webhook. Se descartan los que no tienen remitente o id."""
     mensajes: list[MensajeEntrante] = []
@@ -144,7 +155,7 @@ def leer_webhook(datos: dict[str, Any]) -> list[MensajeEntrante]:
                         texto=(m.get("text") or {}).get("body"),
                         audio_id=(m.get("audio") or {}).get("id"),
                         nombre=nombres.get(telefono),
-                        timestamp=int(m.get("timestamp") or 0),
+                        timestamp=_segundos(m.get("timestamp")),
                     )
                 )
     return mensajes
