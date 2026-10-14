@@ -1,11 +1,11 @@
 import os
 
 import pytest
-from sqlalchemy import Engine, MetaData, create_engine
+from sqlalchemy import Engine, MetaData
 from sqlalchemy.orm import sessionmaker
 
 from app.infra.config import Configuracion, config
-from app.infra.db import Base
+from app.infra.db import Base, crear_motor
 
 # Con TEST_DATABASE_URL los tests corren sobre esa base (en el CI, un Postgres) en vez de
 # SQLite. Se borran todas sus tablas: usá una base solo para esto.
@@ -34,11 +34,11 @@ def _vaciar(engine: Engine) -> None:
 def motor(tmp_path):
     """Una base vacía para el test: SQLite en un archivo temporal, o la de TEST_DATABASE_URL."""
     if not URL_DE_PRUEBA:
-        engine = create_engine(f"sqlite:///{tmp_path}/prueba.db")
+        engine = crear_motor(f"sqlite:///{tmp_path}/prueba.db")
         yield engine
         engine.dispose()
         return
-    engine = create_engine(URL_DE_PRUEBA)
+    engine = crear_motor(URL_DE_PRUEBA)
     _vaciar(engine)  # por si quedó algo de una corrida cortada
     yield engine
     _vaciar(engine)

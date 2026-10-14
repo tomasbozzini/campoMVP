@@ -113,7 +113,8 @@ El bot no es un chat de IA. Está armado para que no se pueda usar para otra cos
 - Los números no autorizados no llegan a la IA: no se transcriben sus audios ni se interpretan sus mensajes.
 - **Firma de Meta obligatoria**: el webhook valida `X-Hub-Signature-256`. Con `ENTORNO=produccion` (el valor si no se define) el servidor no arranca sin `META_APP_SECRET`, `WA_VERIFY_TOKEN`, `WA_TOKEN`, `WA_PHONE_NUMBER_ID` y `GROQ_API_KEY`, y el error dice cuáles faltan. Si `META_APP_SECRET` está definido, la firma se valida siempre, también en desarrollo; solo con `ENTORNO=desarrollo` y sin secreto se acepta sin firma, para probar en tu compu.
 - **Mensajes en orden**: los de una misma persona se procesan de a uno y en el orden en que los escribió (por ejemplo, "borrá todo" y después "sí"). Los reintentos de Meta se descartan por su id.
-- **Logs sin teléfonos**: los números salen enmascarados (`549*******456`).
+- **Logs sin datos personales**: los números salen enmascarados (`549*******456`), también en los logs de uvicorn, y no se loguean el texto de los mensajes ni su id de WhatsApp (que lleva el número). Los errores de la base no muestran los valores de la consulta, los de la IA solo dicen el tipo y el código, y el access log no muestra el query string (el `GET /webhook` de Meta trae el token de verificación).
+- **Ids de mensajes por 7 días**: para descartar los reintentos de Meta se guarda el id de cada mensaje recibido; a los 7 días se borra.
 
 ## Privacidad y datos personales
 

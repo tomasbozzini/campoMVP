@@ -7,6 +7,11 @@ devolverla en `obtener()`.
 from typing import Protocol
 
 
+class ErrorIA(RuntimeError):
+    """Falló el pedido a la IA. El mensaje dice solo el tipo de error y el código de estado:
+    las respuestas de error del proveedor pueden repetir el texto de la persona."""
+
+
 class ProveedorIA(Protocol):
     def completar_json(self, sistema: str, mensaje: str) -> object:
         """Respuesta del modelo como JSON ya leído (sin validar: lo valida quien la usa)."""

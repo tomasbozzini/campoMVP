@@ -2,10 +2,12 @@
 
 import json
 import logging
+from datetime import UTC, datetime, timedelta
 from functools import partial
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
+from sqlalchemy import delete
 from sqlalchemy.exc import IntegrityError
 
 from app.canales import whatsapp
@@ -25,6 +27,10 @@ fila = FilaPorClave()
 AUDIO_LARGO = "✋ El audio es muy largo.\nMandá audios más cortos, de a un tema por vez."
 TIPO_NO_SOPORTADO = "Por ahora solo entiendo mensajes de texto y audios 🙏"
 ERROR = "😕 Uy, algo falló procesando tu mensaje.\nProbá de nuevo en un rato."
+
+# Los ids de los mensajes ya procesados se guardan para descartar los reintentos de Meta,
+# que reintenta un webhook hasta 7 días. Después se borran: en base64 llevan el teléfono.
+DIAS_IDS_PROCESADOS = 7
 
 
 @rutas.get("/webhook")
@@ -55,6 +61,8 @@ async def recibir_webhook(request: Request) -> dict[str, Any]:
 
 def _ya_procesado(wamid: str) -> bool:
     with SessionLocal() as db:
+        vencidos = datetime.now(UTC) - timedelta(days=DIAS_IDS_PROCESADOS)
+        db.execute(delete(MensajeProcesado).where(MensajeProcesado.creado < vencidos))
         try:
             db.add(MensajeProcesado(wamid=wamid))
             db.commit()
@@ -92,7 +100,7 @@ def procesar_mensaje(mensaje: MensajeEntrante) -> None:
             respuesta = pipeline.manejar_mensaje(db, telefono, texto, nombre=mensaje.nombre)
             db.commit()
     except Exception:
-        log.exception("Error procesando mensaje %s", mensaje.wamid)
+        log.exception("Error procesando un mensaje")
         respuesta = ERROR
 
     whatsapp.enviar_texto(telefono, prefijo + respuesta)

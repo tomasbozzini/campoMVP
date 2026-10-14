@@ -10,7 +10,7 @@ from html import escape
 
 from app.infra.config import config
 
-ULTIMA_ACTUALIZACION = "11 de octubre de 2026"
+ULTIMA_ACTUALIZACION = "13 de octubre de 2026"
 
 _PLANTILLA = """<!doctype html>
 <html lang="es">
@@ -53,6 +53,7 @@ tus datos podés escribir a <strong>{contacto}</strong>.</p>
   <li>Lo que anotás en el asistente: tareas, animales, lotes, establecimientos, productos, fechas y cantidades.</li>
   <li>Tus últimos mensajes con el asistente (los más recientes, para entender tus respuestas cortas). Se reemplazan solos a medida que escribís.</li>
   <li>La cantidad de mensajes que mandás por día, para aplicar el límite de uso.</li>
+  <li>El identificador técnico que WhatsApp le asigna a cada mensaje, durante 7 días, para no procesar dos veces el mismo mensaje. Después se borra solo.</li>
 </ul>
 <p>Los audios se transcriben a texto y <strong>no se guardan</strong>. No pedimos ni guardamos datos de salud,
 datos bancarios, documentos de identidad ni tu ubicación.</p>
@@ -83,7 +84,8 @@ público de SENASA. Nada de esto es una recomendación de compra, venta, uso o t
 
 <h2>6. Cuánto tiempo guardamos tus datos</h2>
 <p>Mientras uses el asistente. Podés borrar registros puntuales cuando quieras, y si borrás tus datos
-(ver punto 7) se eliminan todos de forma definitiva.</p>
+(ver punto 7) se eliminan todos de forma definitiva. Los identificadores técnicos de los mensajes se borran
+solos a los 7 días.</p>
 
 <h2>7. Tus derechos</h2>
 <p>Según la Ley 25.326 de Protección de Datos Personales tenés derecho a acceder, rectificar, actualizar y
