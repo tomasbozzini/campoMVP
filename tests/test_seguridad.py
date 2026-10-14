@@ -144,3 +144,12 @@ def test_zona_horaria_invalida_falla_con_el_nombre_de_la_variable(monkeypatch):
     with pytest.raises(ValueError, match="ZONA_HORARIA") as error:
         Configuracion(_env_file=None)
     assert "America/Tandil" in str(error.value)
+
+
+@pytest.mark.parametrize("firma", [b"sha256=\xc3\xb1\xc3\xb1", b"sha256=\xff" + b"0" * 63, b"\xe2\x9c\x93"])
+def test_una_firma_con_caracteres_raros_es_un_401(servidor, monkeypatch, firma):
+    _produccion(monkeypatch)
+    with TestClient(main.app, raise_server_exceptions=False) as c:
+        r = c.post("/webhook", content=_cuerpo(), headers={"X-Hub-Signature-256": firma})
+    assert r.status_code == 401
+    assert servidor == []

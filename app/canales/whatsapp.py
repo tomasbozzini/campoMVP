@@ -34,7 +34,8 @@ def firma_valida(cuerpo: bytes, firma_header: str | None) -> bool:
             return False
         log.warning("META_APP_SECRET no configurado: en desarrollo no se verifica la firma del webhook")
         return True
-    if not firma_header or not firma_header.startswith("sha256="):
+    # compare_digest con textos no ASCII tira TypeError (y sería un 500): no es una firma.
+    if not firma_header or not firma_header.isascii() or not firma_header.startswith("sha256="):
         return False
     esperada = hmac.new(config.meta_app_secret.encode(), cuerpo, hashlib.sha256).hexdigest()
     return hmac.compare_digest(esperada, firma_header.removeprefix("sha256="))
