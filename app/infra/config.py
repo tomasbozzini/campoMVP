@@ -6,7 +6,7 @@ porque los comandos de terminal (precios, SENASA) no necesitan las claves de Wha
 """
 
 from typing import Annotated, Literal
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -83,7 +83,16 @@ class Configuracion(BaseSettings):
     @field_validator("zona_horaria", mode="before")
     @classmethod
     def _zona(cls, valor: object) -> object:
-        return ZoneInfo(valor) if isinstance(valor, str) else valor
+        if not isinstance(valor, str):
+            return valor
+        try:
+            return ZoneInfo(valor.strip())
+        except (ZoneInfoNotFoundError, ValueError):
+            # ZoneInfoNotFoundError es un KeyError: pydantic no lo convierte en un error de
+            # validación y saldría sin decir qué variable está mal.
+            raise ValueError(
+                f"ZONA_HORARIA: no existe la zona {valor!r}. Usá una de la lista IANA, ej: America/Argentina/Buenos_Aires"
+            ) from None
 
     @field_validator("admin_telefonos", mode="before")
     @classmethod
