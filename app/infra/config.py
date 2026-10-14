@@ -15,7 +15,9 @@ Entorno = Literal["desarrollo", "produccion"]
 
 
 class Configuracion(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    # env_ignore_empty: una variable vacía (como las del .env.example) cuenta como no definida
+    # y toma el valor por defecto, en vez de pisarlo con "".
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore", env_ignore_empty=True)
 
     # "produccion" exige las claves de Meta y Groq para arrancar el servidor; "desarrollo"
     # permite probar sin firma del webhook (solo si no hay META_APP_SECRET).

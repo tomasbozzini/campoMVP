@@ -126,3 +126,15 @@ def test_los_logs_enmascaran_los_telefonos():
     registro = logging.LogRecord("x", logging.ERROR, __file__, 1, "Usuario %s falló", ("5492494123456",), None)
     texto = FormateadorSinTelefonos("%(message)s").format(registro)
     assert "5492494123456" not in texto and "549*******456" in texto
+
+
+def test_una_variable_vacia_en_el_env_usa_el_valor_por_defecto(tmp_path):
+    """El .env.example trae GROQ_MODELO= vacío: no puede pisar el modelo por defecto con ""."""
+    env = tmp_path / ".env"
+    env.write_text("GROQ_MODELO=\nGROQ_MODELO_AUDIO=\nLIMITE_DIARIO_IA=\n", encoding="utf-8")
+    c = Configuracion(_env_file=env)
+    defecto = Configuracion(_env_file=None)
+    assert c.groq_modelo == defecto.groq_modelo != ""
+    assert c.groq_modelo_audio == defecto.groq_modelo_audio
+    assert c.limite_diario_ia == defecto.limite_diario_ia
+
