@@ -92,7 +92,8 @@ def enviar_texto(telefono: str, texto: str) -> None:
         if r.status_code >= 400:
             log.error(
                 "Error enviando mensaje a WhatsApp al número %s: %s %s. Si el código es 131030, "
-                "agregá ese número en Meta > WhatsApp > API Setup > To.",
+                "agregá ese número en Meta > Casos de uso > Conectar en WhatsApp > Personalizar > "
+                "Configuración de la API > Para.",
                 numero,
                 r.status_code,
                 r.text,

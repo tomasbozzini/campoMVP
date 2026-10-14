@@ -205,7 +205,7 @@ python -m app chat
 1. En `.env`: `ENTORNO=desarrollo`, `GROQ_API_KEY`, `WA_TOKEN`, `WA_PHONE_NUMBER_ID`, `WA_VERIFY_TOKEN`, `META_APP_SECRET` y tu número en `ADMIN_TELEFONOS`. Con `META_APP_SECRET` puesto, la firma de Meta se valida igual que en producción.
 2. Terminal 1: `uvicorn app.main:app --port 8000`
 3. Terminal 2: `ngrok http 8000`. Copiá la URL `https://....ngrok-free.app` que muestra.
-4. En Meta → *WhatsApp → Configuration → Webhook*: Callback URL `https://....ngrok-free.app/webhook`, Verify token el de `WA_VERIFY_TOKEN`, y suscripción a **messages**. (Con el plan gratis de ngrok la URL cambia cada vez que lo abrís: hay que actualizarla en Meta.)
+4. En Meta → *Casos de uso → Conectar en WhatsApp → Personalizar* → *Configuración* (*Configuration*), sección *Webhook*: Callback URL `https://....ngrok-free.app/webhook`, Verify token el de `WA_VERIFY_TOKEN`, y suscripción a **messages**. (Con el plan gratis de ngrok la URL cambia cada vez que lo abrís: hay que actualizarla en Meta.)
 5. Mandale `ayuda` al número de prueba desde tu celular. En la terminal 1 ves los logs (con los teléfonos enmascarados).
 
 ### Antes de subir cambios
@@ -271,7 +271,7 @@ En Railway el proyecto queda armado con **tres servicios**, todos dentro del mis
 3. En el servicio del bot → *Variables* → *Raw Editor*: `DATABASE_URL=${{Postgres.DATABASE_URL}}`, `ENTORNO=produccion` y el resto de las variables de `.env.example` (`GROQ_API_KEY`, `WA_TOKEN`, `WA_PHONE_NUMBER_ID`, `META_APP_SECRET`, `WA_VERIFY_TOKEN`, `ADMIN_TELEFONOS`, `PRIVACIDAD_*`). Si falta alguna obligatoria, el deploy falla y el log dice cuál.
 4. *Settings → Networking → Generate Domain*. Abrí `https://tu-bot.up.railway.app/`: tiene que responder `{"ok": true}`.
 5. Creá el servicio **actualizar-precios** (*New → GitHub Repo*, mismo repo y rama) con el start command y el cron de la tabla, y la variable `DATABASE_URL`. Ejecutalo una vez a mano para cargar los datos iniciales.
-6. En Meta → *WhatsApp → Configuration → Webhook*: Callback URL `https://tu-bot.up.railway.app/webhook`, el mismo verify token, y suscripción a **messages**. La política de privacidad queda en `https://tu-bot.up.railway.app/privacidad`.
+6. En Meta → *Casos de uso → Conectar en WhatsApp → Personalizar* → *Configuración* (*Configuration*), sección *Webhook*: Callback URL `https://tu-bot.up.railway.app/webhook`, el mismo verify token, y suscripción a **messages**. La política de privacidad queda en `https://tu-bot.up.railway.app/privacidad`.
 7. Mandale `hola` al bot. Los logs se ven en el servicio del bot → *Deployments* → *View logs*.
 
 ### Uso diario
@@ -284,13 +284,21 @@ En Railway el proyecto queda armado con **tres servicios**, todos dentro del mis
 
 ### Dónde está cada dato en Meta
 
-- `WA_TOKEN` y `WA_PHONE_NUMBER_ID`: en *WhatsApp → API Setup*. El token temporal vence cada 24 h. Para producción, creá un **System User** en Business Settings y generá un token permanente con los permisos `whatsapp_business_messaging` y `whatsapp_business_management`.
-- `META_APP_SECRET`: en *App settings → Basic → App secret*.
+- WhatsApp está en el panel de la app, en *Casos de uso → Conectar en WhatsApp → Personalizar*. Ahí están las pantallas *Configuración de la API* (*API Setup*) y *Configuración* (*Configuration*, la del webhook).
+- `WA_TOKEN` y `WA_PHONE_NUMBER_ID`: en *Configuración de la API*. En la misma pantalla figura el identificador de la **cuenta** de WhatsApp Business (*WhatsApp Business Account ID*), que no es el del número. El token temporal vence cada 24 h. Para producción, creá un **System User** en Business Settings y generá un token permanente con los permisos `whatsapp_business_messaging` y `whatsapp_business_management`.
+- `META_APP_SECRET`: en *Configuración de la app → Básica → Clave secreta de la app* (*App settings → Basic → App secret*).
 
 ### Problemas comunes
 
-- **El bot recibe pero no contesta, y en los logs aparece el error `131030` ("Recipient phone number not in allowed list")**: con el número de prueba de Meta tenés que agregar cada destinatario en *API Setup → To*. Si ya está agregado y sigue fallando con un número argentino, poné `WA_AR_QUITAR_9=true`: Meta recibe el número como `549…` pero a veces lo espera como `54…`.
+- **El bot recibe pero no contesta, y en los logs aparece el error `131030` ("Recipient phone number not in allowed list")**: con el número de prueba de Meta tenés que agregar cada destinatario en *Configuración de la API*, en el campo *Para* (*To*). Si ya está agregado y sigue fallando con un número argentino, poné `WA_AR_QUITAR_9=true`: Meta recibe el número como `549…` pero a veces lo espera como `54…`.
 - **No llega nada al webhook**: revisá que esté suscripto a `messages` y que la URL termine en `/webhook`.
+- **El botón *Probar* (*Test*) del webhook llega, pero los mensajes reales no**: falta conectar la cuenta de WhatsApp Business a la app. Se hace una sola vez, desde cmd:
+
+  ```bat
+  curl -X POST "https://graph.facebook.com/v21.0/ID_DE_LA_CUENTA/subscribed_apps" -H "Authorization: Bearer TOKEN"
+  ```
+
+  `ID_DE_LA_CUENTA` es el identificador de la **cuenta** de WhatsApp Business (está en *Configuración de la API*), no el del número (`WA_PHONE_NUMBER_ID`). `TOKEN` es tu `WA_TOKEN`. Tiene que responder `{"success":true}`.
 
 ## Próximos pasos posibles
 
