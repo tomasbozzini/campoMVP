@@ -22,6 +22,7 @@ from datetime import date, datetime
 
 from sqlalchemy.orm import Session
 
+from app import modulos
 from app.fuentes import precios as fuentes_precios
 from app.fuentes import senasa as fuentes_senasa
 from app.infra import migrar
@@ -164,6 +165,7 @@ def main(argv: list[str] | None = None) -> None:
         if isinstance(flujo, io.TextIOWrapper):
             flujo.reconfigure(encoding="utf-8")
     configurar_logs()
+    modulos.cargar()
     if args.comando == "db":
         _db(args)
         return

@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from app import modulos
 from app.api import paginas, webhook
 from app.infra import db
 from app.infra.config import config
@@ -32,6 +33,7 @@ def verificar_configuracion() -> None:
 @asynccontextmanager
 async def _ciclo_de_vida(_app: FastAPI) -> AsyncIterator[None]:
     verificar_configuracion()
+    modulos.cargar()
     db.preparar_base()
     yield
     if not webhook.fila.esperar(ESPERA_AL_CERRAR):

@@ -17,7 +17,6 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app import modulos
 from app.ia import interprete
 from app.ia.esquemas import EsquemaAccion
 from app.infra.config import config
@@ -110,7 +109,6 @@ def _pedidos(interpretado: object) -> list[dict[str, Any]]:
 
 
 def _ejecutar(ctx: Contexto, pedidos: list[dict[str, Any]]) -> str:
-    modulos.cargar()
     varios = len(pedidos) > 1
     respuestas: list[str] = []
     hubo_fuera = False

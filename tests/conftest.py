@@ -4,12 +4,19 @@ import pytest
 from sqlalchemy import Engine, MetaData
 from sqlalchemy.orm import sessionmaker
 
+from app import modulos
 from app.infra.config import Configuracion, config
 from app.infra.db import Base, crear_motor
 
 # Con TEST_DATABASE_URL los tests corren sobre esa base (en el CI, un Postgres) en vez de
 # SQLite. Se borran todas sus tablas: usá una base solo para esto.
 URL_DE_PRUEBA = os.environ.get("TEST_DATABASE_URL")
+
+
+@pytest.fixture(autouse=True, scope="session")
+def acciones_registradas():
+    """Como al arrancar el servidor o la terminal: los tests llaman al pipeline directo."""
+    modulos.cargar()
 
 
 @pytest.fixture(autouse=True)
