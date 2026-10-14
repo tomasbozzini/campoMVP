@@ -128,11 +128,15 @@ Los precios **no** los busca la IA en internet: los descarga un proceso aparte d
 
 Solo se aceptan links `https` de dominios oficiales o de mercados regulados (`DOMINIOS_OFICIALES`): `*.gob.ar` (Secretaría de Agricultura, SENASA, INTA), Bolsa de Comercio de Rosario, Mercado Agroganadero de Cañuelas, Matba Rofex / A3, Bolsa de Cereales de Buenos Aires y Bolsa de Cereales de Bahía Blanca.
 
-```bash
-python -m app precios actualizar        # corre todas las fuentes de FUENTES
-python -m app precios cargar precios.csv # carga manual (columnas abajo)
-python -m app precios ver soja          # muestra lo que respondería el bot
+```bat
+python -m app precios actualizar
+python -m app precios cargar precios.csv
+python -m app precios ver soja
 ```
+
+- `actualizar` corre todas las fuentes de `FUENTES`.
+- `cargar` carga precios a mano desde un CSV (columnas abajo).
+- `ver` muestra lo que respondería el bot.
 
 Columnas del CSV: `fuente,url,rubro,producto,plaza,valor,moneda,unidad,fecha,incluye_impuestos,costos_adicionales`.
 `moneda` es `ARS` (por defecto) o `USD`, tal como publica la fuente: el bot no convierte monedas. `fecha` es la fecha de publicación que informa la fuente. `incluye_impuestos` es `si`, `no` o vacío; si está vacío y no hay `costos_adicionales`, el bot aclara que la fuente no lo informa.
@@ -154,11 +158,15 @@ Los lectores separan la descarga (`obtener`) de la lectura del HTML (`leer`), y 
 
 El bot solo verifica si un producto está en el **registro oficial de SENASA** (Vademécum de Productos Veterinarios): número de registro, titular, principio activo y estado, con la fecha de los datos y el link. No informa precios, dosis ni indicaciones. Si un producto no aparece, lo aclara y no lo da por "no registrado".
 
-```bash
-python -m app senasa actualizar     # descarga la consulta pública de SENASA
+```bat
+python -m app senasa actualizar
 python -m app senasa cargar registro.csv --fecha 2026-10-10 --url https://www.argentina.gob.ar/senasa/...
 python -m app senasa ver ivermectina
 ```
+
+- `actualizar` descarga la consulta pública de SENASA.
+- `cargar` reemplaza el registro con un CSV, con la fecha de los datos y la página oficial de donde salen.
+- `ver` muestra lo que respondería el bot.
 
 Columnas del CSV: `nombre,registro,titular,principio_activo,estado`. Cada carga reemplaza el registro entero. Solo acepta links `https` de `*.gob.ar`.
 
