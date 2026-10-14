@@ -1,5 +1,6 @@
 """El registro de acciones se carga una sola vez, al arrancar."""
 
+import contextlib
 import threading
 
 import pytest
@@ -22,10 +23,9 @@ def test_dos_cargas_a_la_vez_no_fallan(registro_vacio, monkeypatch):
     juntos = threading.Barrier(2, timeout=1)
 
     def registrar_cuando_lleguen_los_dos(*lista):
-        try:
-            juntos.wait()  # los dos hilos registran a la vez, si el código los deja
-        except threading.BrokenBarrierError:
-            pass
+        # Los dos hilos registran a la vez, si el código los deja.
+        with contextlib.suppress(threading.BrokenBarrierError):
+            juntos.wait()
         registrar(*lista)
 
     monkeypatch.setattr(acciones, "registrar", registrar_cuando_lleguen_los_dos)
