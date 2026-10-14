@@ -1,10 +1,13 @@
 """Comandos de terminal: python -m app <comando>."""
 
+import logging
+
 import pytest
 from sqlalchemy import inspect, text
 from sqlalchemy.orm import sessionmaker
 
 from app import terminal
+from app.ia import proveedor
 from app.infra import db, migrar
 from app.infra.db import Base
 from app.nucleo import usuarios
@@ -75,3 +78,34 @@ def test_los_comandos_no_migran_y_avisan_si_falta(motor, monkeypatch, comando):
         terminal.main(comando)
     assert "python -m app db migrar" in str(salida.value.code)
     assert inspect(motor).get_table_names() == []
+
+
+class GroqQueLoguea:
+    """Como el cliente de Groq: cada pedido deja una línea INFO de httpx."""
+
+    def completar_json(self, sistema, mensaje):
+        logging.getLogger("httpx").info('HTTP Request: POST https://api.groq.com/openai/v1/chat "HTTP/1.1 200 OK"')
+        return {"acciones": [{"intencion": "saludo"}]}
+
+    def transcribir(self, audio, nombre_archivo):
+        return ""
+
+
+def test_el_chat_no_muestra_los_logs_de_httpx(sesiones, monkeypatch, capsys):
+    textos = iter(["hola"])
+
+    def escribir(_prompt=""):
+        try:
+            return next(textos)
+        except StopIteration:
+            raise EOFError from None
+
+    monkeypatch.setattr("builtins.input", escribir)
+    proveedor.usar(GroqQueLoguea())
+    try:
+        terminal.main(["chat"])
+    finally:
+        proveedor.usar(None)
+    salida = capsys.readouterr()
+    assert "bot>" in salida.out
+    assert "HTTP Request" not in salida.err + salida.out

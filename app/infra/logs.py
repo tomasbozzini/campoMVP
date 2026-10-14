@@ -65,6 +65,9 @@ def configurar_logs(nivel: int = logging.INFO) -> None:
     raiz.setLevel(nivel)
     # Alembic cuenta cada paso interno; alcanza con sus avisos y errores.
     logging.getLogger("alembic").setLevel(logging.WARNING)
+    # httpx anota cada pedido a Groq y a Meta: ensucia el chat de la terminal, y la descarga
+    # de un audio muestra la URL firmada del archivo. Alcanza con sus avisos y errores.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     # uvicorn arma sus propios handlers antes de cargar la app: se los sacamos para que sus
     # mensajes salgan por el de arriba, con el mismo formato y enmascarados.
     for nombre in ("uvicorn", "uvicorn.error", "uvicorn.access"):
