@@ -5,23 +5,13 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from sqlalchemy import create_engine, select
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import select
 
-from app.infra.db import Base
 from app.infra.modelos import BorradoPendiente, Evento, MensajeChat, UsoDiario
 from app.nucleo import usuarios
 from app.nucleo.cuaderno import Cuaderno, Filtros
 
 HOY = date(2026, 10, 13)
-
-
-@pytest.fixture
-def db():
-    engine = create_engine("sqlite://")
-    Base.metadata.create_all(engine)
-    with sessionmaker(bind=engine)() as sesion:
-        yield sesion
 
 
 @pytest.fixture

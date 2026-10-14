@@ -3,7 +3,7 @@
 from datetime import date
 
 import pytest
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import inspect, text
 from sqlalchemy.orm import sessionmaker
 
 from app.infra import migrar
@@ -12,8 +12,8 @@ from app.infra.modelos import Evento, Usuario
 
 
 @pytest.fixture
-def engine(tmp_path):
-    return create_engine(f"sqlite:///{tmp_path}/base.db")
+def engine(motor):
+    return motor
 
 
 def _version_y_diferencias(engine):

@@ -3,12 +3,10 @@
 from datetime import date
 
 import pytest
-from sqlalchemy import create_engine, select
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import select
 
 from app import modulos
 from app.ia import interprete
-from app.infra.db import Base
 from app.infra.modelos import Evento
 from app.modulos.comun.borrar import Borrar
 from app.modulos.comun.conversacion import Aclarar, Saludo
@@ -70,14 +68,6 @@ def test_borrado_sin_lista_es_lo_ultimo_pero_con_basura_no():
     assert Borrar.model_validate({"intencion": "borrar", "borrado": {"registros": []}}).borrado.registros is None
     con_basura = Borrar.model_validate({"intencion": "borrar", "borrado": {"registros": ["la lluvia", 5]}})
     assert con_basura.borrado.registros == []  # no se confunde con "borrá lo último"
-
-
-@pytest.fixture
-def db():
-    engine = create_engine("sqlite://")
-    Base.metadata.create_all(engine)
-    with sessionmaker(bind=engine)() as sesion:
-        yield sesion
 
 
 def test_un_borrado_con_basura_no_borra_lo_ultimo(db, monkeypatch):

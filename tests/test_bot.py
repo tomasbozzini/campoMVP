@@ -5,27 +5,17 @@ from datetime import UTC, date, datetime, timedelta
 
 import httpx
 import pytest
-from sqlalchemy import create_engine, select
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import select
 
 from app.canales import whatsapp
 from app.ia import interprete
 from app.infra.config import config
-from app.infra.db import Base
 from app.infra.modelos import BorradoPendiente, Evento, MensajeChat, Usuario
 from app.modulos.comun import borrar, conversacion
 from app.nucleo import acceso, charla, pipeline, usuarios
 from app.nucleo.cuaderno import Cuaderno
 
 HOY = date(2026, 10, 9)
-
-
-@pytest.fixture
-def db():
-    engine = create_engine("sqlite://")
-    Base.metadata.create_all(engine)
-    with sessionmaker(bind=engine)() as sesion:
-        yield sesion
 
 
 @pytest.fixture

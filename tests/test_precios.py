@@ -8,11 +8,8 @@ from datetime import date
 from pathlib import Path
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
 from app.fuentes import oficiales, precios
-from app.infra.db import Base
 from app.modulos.comun import precios as respuesta_precios
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -21,14 +18,6 @@ HOY = date(2026, 10, 11)
 
 def _fixture(nombre: str, encoding: str) -> str:
     return (FIXTURES / nombre).read_bytes().decode(encoding)
-
-
-@pytest.fixture
-def db():
-    engine = create_engine("sqlite://")
-    Base.metadata.create_all(engine)
-    with sessionmaker(bind=engine)() as sesion:
-        yield sesion
 
 
 @pytest.fixture

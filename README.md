@@ -210,6 +210,13 @@ pytest
 
 Son los mismos chequeos que corre GitHub Actions en cada push (`.github/workflows/ci.yml`). Los tests no usan la IA real ni internet.
 
+El CI corre además las migraciones y los tests sobre **Postgres**, como en producción. Los tests usan SQLite salvo que definas `TEST_DATABASE_URL` con una base de Postgres que sea **solo para eso**, porque los tests borran todas sus tablas:
+
+```bat
+set TEST_DATABASE_URL=postgresql://usuario:clave@localhost:5432/campo_test
+pytest
+```
+
 ## Base de datos y migraciones
 
 Las tablas se crean y cambian con migraciones de **Alembic** (`app/infra/migraciones/`), así los datos sobreviven a cada cambio. El servidor y los comandos de terminal ponen la base al día solos al arrancar; a mano:

@@ -1,7 +1,6 @@
 """Comandos de terminal: python -m app <comando>."""
 
 import pytest
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app import terminal
@@ -10,10 +9,9 @@ from app.nucleo import usuarios
 
 
 @pytest.fixture
-def sesiones(monkeypatch, tmp_path):
-    engine = create_engine(f"sqlite:///{tmp_path}/terminal.db")
-    Base.metadata.create_all(engine)
-    fabrica = sessionmaker(bind=engine, expire_on_commit=False)
+def sesiones(monkeypatch, motor):
+    Base.metadata.create_all(motor)
+    fabrica = sessionmaker(bind=motor, expire_on_commit=False)
     monkeypatch.setattr(terminal, "SessionLocal", fabrica)
     monkeypatch.setattr(terminal, "preparar_base", lambda: None)
     return fabrica
