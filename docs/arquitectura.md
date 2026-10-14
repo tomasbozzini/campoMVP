@@ -134,8 +134,9 @@ comporta igual desde WhatsApp y el CI está en verde.
   migraciones siguientes; si solo le faltan tablas enteras, se crean; si no, no se toca y
   se informa la diferencia. Solo `python -m app db migrar` cambia la base (el `Dockerfile`
   lo corre antes de arrancar); el servidor y los demás comandos no arrancan si falta migrar.
-- **Orden** (`infra/orden.py`): una fila por número dentro del proceso. Alcanza con una
-  instancia; con varias habrá que llevarla a la base o a una cola externa.
+- **Orden** (`infra/orden.py`): una fila por número dentro del proceso, cada una en su hilo.
+  Alcanza con una instancia y un worker (`--workers 1`); con varias habrá que llevarla a
+  la base o a una cola externa.
 - **Terminal**: un solo punto de entrada, `python -m app <comando>` (`chat`, `usuarios`,
   `precios`, `senasa`, `db`).
 
@@ -145,6 +146,37 @@ comporta igual desde WhatsApp y el CI está en verde.
   acción nueva se describe ahí. Pasa a armarse por módulo con los perfiles (etapa 1).
 - Las carpetas `calculos/` y `parametros/`, y los módulos `ganaderia/` y `agricultura/`, se
   crean cuando tengan su primer contenido (etapas 2 y 3).
+
+### Etapa 0.1 · Correcciones de la etapa 0
+
+Revisión de la etapa 0, con las mismas reglas: comportamiento igual, tests sin aflojar y,
+en cada punto, primero un test que reproduce el problema.
+
+- [x] Orden por usuario: el webhook encola todo al recibirlo (por timestamp) y cada persona
+      tiene su propio hilo; un lote ya no se intercala con el webhook siguiente ni una
+      persona espera a otra. Al apagarse, el servidor espera los mensajes recibidos.
+- [x] Postgres: driver `psycopg` (v3), el que usa SQLAlchemy 2.1 para `postgresql://`; job
+      de CI con un servicio Postgres que corre las migraciones y todos los tests.
+- [x] Adopción de bases viejas contra el esquema de la `0001` (congelado en la migración),
+      no contra los modelos; si solo faltan tablas enteras, se crean; error legible.
+- [x] Logs sin datos personales: `hide_parameters`, errores de Groq con tipo y código, uvicorn
+      enmascarado y sin query string, 10 a 15 dígitos, sin wamid, ids de mensajes por 7 días.
+- [x] Respuesta vacía de la IA: error ("no pude procesar"), como antes.
+- [x] Registro de acciones cargado una vez al arrancar (servidor y terminal), con candado.
+- [x] Menores: `limpiar_texto`, variables vacías en el `.env`, `ZONA_HORARIA` inválida, firma
+      no ASCII (401), timestamp mal formado, tests aislados del entorno, `--workers 1`,
+      hooks de ruff para migraciones generadas, solo `db migrar` migra, README para cmd,
+      chat sin logs de httpx, `test-prompt.py` borrado, pantallas nuevas de Meta.
+- [ ] Convención de nombres para constraints: pendiente de decisión (cómo afecta a las bases
+      existentes), antes de la primera migración real.
+
+**Cambios de comportamiento aceptados** (vienen de la etapa 0; se dejan así):
+
+- Con salidas raras de la IA, "gracias, chau" ahora responde "¡De nada!".
+- Las correcciones con valores que no se entienden piden aclaración, en vez de guardar el
+  campo vacío.
+- Las referencias de borrado que no se entienden piden aclaración, en vez de tomar todos
+  los registros.
 
 ### Etapa 1 · Núcleo profesional
 
