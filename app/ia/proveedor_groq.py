@@ -31,7 +31,10 @@ class ProveedorGroq:
             )
         except APIError as e:
             raise _error(e) from None  # sin el error original, que lleva el cuerpo
-        return json.loads(respuesta.choices[0].message.content or "{}")
+        contenido = respuesta.choices[0].message.content
+        if not contenido:
+            raise ErrorIA("Groq devolvió una respuesta vacía")
+        return json.loads(contenido)
 
     def transcribir(self, audio: bytes, nombre_archivo: str) -> str:
         try:
