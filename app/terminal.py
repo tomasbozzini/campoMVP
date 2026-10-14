@@ -104,7 +104,10 @@ def _senasa(db: Session, args: argparse.Namespace) -> None:
 
 def _db(args: argparse.Namespace) -> None:
     if args.accion == "migrar":
-        preparar_base()
+        try:
+            migrar.preparar_base(engine)
+        except migrar.EsquemaDistinto as e:
+            sys.exit(str(e))
     with engine.connect() as conexion:
         print(f"Versión de la base: {migrar.version(conexion) or 'sin Alembic'}")
         difieren = migrar.diferencias(conexion)

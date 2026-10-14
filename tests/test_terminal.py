@@ -1,6 +1,7 @@
 """Comandos de terminal: python -m app <comando>."""
 
 import pytest
+from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker
 
 from app import terminal
@@ -46,3 +47,17 @@ def test_ver_precios_y_senasa_sin_datos(sesiones, capsys):
 def test_comando_desconocido():
     with pytest.raises(SystemExit):
         terminal.main(["inventado"])
+
+
+def test_db_migrar_con_una_base_vieja_distinta_explica_sin_traceback(motor, monkeypatch, capsys):
+    Base.metadata.create_all(motor)
+    with motor.begin() as c:
+        c.execute(text("drop index ix_eventos_mensaje_id"))
+        c.execute(text("alter table eventos drop column mensaje_id"))
+    monkeypatch.setattr(terminal, "engine", motor)
+
+    with pytest.raises(SystemExit) as salida:
+        terminal.main(["db", "migrar"])
+    mensaje = str(salida.value.code)
+    assert "mensaje_id" in mensaje and "No se tocó nada" in mensaje
+    assert "Traceback" not in mensaje + capsys.readouterr().err

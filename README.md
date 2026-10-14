@@ -227,8 +227,8 @@ python -m app db migrar
 ```
 
 - **Base vacía**: se crea con todas las migraciones.
-- **Base creada antes de Alembic** (con versiones anteriores del bot): si sus tablas coinciden con la migración base (`0001`), se marca como en esa versión sin tocar los datos (es lo que hace `alembic stamp`) y se aplica lo que falte. Si no coinciden, no se toca nada y `db estado` dice qué difiere. Antes de migrar una base con datos, hacé una copia: `copy campo.db campo.db.bak`.
-- **Cambiar una tabla**: modificá `app/infra/modelos.py` y generá la migración con `alembic revision --autogenerate -m "qué cambia"`. Revisala, probala con `python -m app db migrar` y subila junto con el cambio.
+- **Base creada antes de Alembic** (con versiones anteriores del bot): se compara con la migración base (`0001`), que es el esquema que tenían esas bases, y no con los modelos actuales. Si coincide, se marca como en esa versión sin tocar los datos (es lo que hace `alembic stamp`) y después se aplican las migraciones siguientes. Si solo le faltan tablas enteras (de funciones que se sumaron después), se crean. Si difiere en otra cosa, no se toca nada y `db migrar` explica qué difiere. Antes de migrar una base con datos, hacé una copia: `copy campo.db campo.db.bak`.
+- **Cambiar una tabla**: modificá `app/infra/modelos.py` y generá la migración con `alembic revision --autogenerate -m "qué cambia"`. Revisala, probala con `python -m app db migrar` y subila junto con el cambio. La `0001` no se toca nunca: define el esquema de partida y se usa para reconocer las bases viejas.
 
 ## Ponerlo en producción (Railway + Postgres)
 

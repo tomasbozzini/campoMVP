@@ -1,9 +1,10 @@
 """Migraciones: crean la base desde cero y adoptan una base vieja sin perder datos."""
 
+import shutil
 from datetime import date
 
 import pytest
-from sqlalchemy import inspect, text
+from sqlalchemy import Column, MetaData, String, inspect, text
 from sqlalchemy.orm import sessionmaker
 
 from app.infra import migrar
@@ -54,3 +55,68 @@ def test_base_vieja_que_no_coincide_no_se_toca(engine):
     with pytest.raises(migrar.EsquemaDistinto, match="mensaje_id"):
         migrar.preparar_base(engine)
     assert "alembic_version" not in inspect(engine).get_table_names()
+
+
+def _base_vieja_con_datos(engine, sin: tuple[str, ...] = ()):
+    """Una base como la creaba el código antes de Alembic (create_all), con un usuario y un registro."""
+    Base.metadata.create_all(engine, tables=[t for n, t in Base.metadata.tables.items() if n not in sin])
+    with sessionmaker(bind=engine)() as db:
+        u = Usuario(telefono="5491100000001", autorizado=True)
+        db.add(u)
+        db.flush()
+        db.add(Evento(usuario_id=u.id, categoria="campo", tipo="lluvia", valor=20, fecha_evento=date(2026, 10, 1)))
+        db.commit()
+
+
+MIGRACION_0002 = '''"""Prueba: una migración posterior a la base, que agrega una columna."""
+
+import sqlalchemy as sa
+from alembic import op
+
+revision = "0002"
+down_revision = "0001"
+branch_labels = None
+depends_on = None
+
+
+def upgrade() -> None:
+    with op.batch_alter_table("usuarios") as tabla:
+        tabla.add_column(sa.Column("nota", sa.String(50), nullable=True))
+
+
+def downgrade() -> None:
+    with op.batch_alter_table("usuarios") as tabla:
+        tabla.drop_column("nota")
+'''
+
+
+def test_base_vieja_igual_a_la_0001_se_adopta_aunque_haya_migraciones_nuevas(engine, tmp_path, monkeypatch):
+    """El código ya va por la 0002 (modelos con una columna nueva) y la base es de antes de Alembic."""
+    _base_vieja_con_datos(engine)
+    carpeta = tmp_path / "migraciones"
+    shutil.copytree(migrar.CARPETA, carpeta, ignore=shutil.ignore_patterns("__pycache__"))
+    (carpeta / "versions" / "0002_nota.py").write_text(MIGRACION_0002, encoding="utf-8")
+    monkeypatch.setattr(migrar, "CARPETA", carpeta)
+    modelos_nuevos = MetaData()
+    for tabla in Base.metadata.tables.values():
+        tabla.to_metadata(modelos_nuevos)
+    modelos_nuevos.tables["usuarios"].append_column(Column("nota", String(50)))
+    monkeypatch.setattr(Base, "metadata", modelos_nuevos)
+
+    migrar.preparar_base(engine)
+
+    assert _version_y_diferencias(engine) == ("0002", [])
+    with engine.connect() as c:
+        assert c.execute(text("select telefono, nota from usuarios")).all() == [("5491100000001", None)]
+        assert c.execute(text("select valor from eventos")).scalars().all() == [20]
+
+
+def test_base_vieja_a_la_que_le_faltan_tablas_enteras_se_completa(engine):
+    """Bases de antes de que existieran el historial de charla y los borrados con confirmación."""
+    _base_vieja_con_datos(engine, sin=("mensajes_chat", "borrados_pendientes"))
+
+    migrar.preparar_base(engine)
+
+    assert _version_y_diferencias(engine) == ("0001", [])
+    with engine.connect() as c:
+        assert c.execute(text("select valor from eventos")).scalars().all() == [20]
