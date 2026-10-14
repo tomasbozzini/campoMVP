@@ -137,4 +137,3 @@ def test_una_variable_vacia_en_el_env_usa_el_valor_por_defecto(tmp_path):
     assert c.groq_modelo == defecto.groq_modelo != ""
     assert c.groq_modelo_audio == defecto.groq_modelo_audio
     assert c.limite_diario_ia == defecto.limite_diario_ia
-
