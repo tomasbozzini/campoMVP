@@ -1,15 +1,22 @@
 """Migraciones: crean la base desde cero y adoptan una base vieja sin perder datos."""
 
 import shutil
+import subprocess
+import sys
 from datetime import date
+from pathlib import Path
 
 import pytest
+from alembic import command
+from alembic.config import Config
 from sqlalchemy import Column, MetaData, String, inspect, text
 from sqlalchemy.orm import sessionmaker
 
 from app.infra import migrar
 from app.infra.db import Base
 from app.infra.modelos import Evento, Usuario
+
+RAIZ = Path(__file__).parent.parent
 
 
 @pytest.fixture
@@ -120,3 +127,31 @@ def test_base_vieja_a_la_que_le_faltan_tablas_enteras_se_completa(engine):
     assert _version_y_diferencias(engine) == ("0001", [])
     with engine.connect() as c:
         assert c.execute(text("select valor from eventos")).scalars().all() == [20]
+
+
+def test_una_migracion_generada_pasa_ruff(engine, tmp_path, monkeypatch):
+    """`alembic revision --autogenerate` escribe con comillas simples y sin ordenar: los hooks
+    de alembic.ini la formatean para que pase el CI."""
+    migrar.preparar_base(engine)
+    carpeta = tmp_path / "migraciones"
+    shutil.copytree(migrar.CARPETA, carpeta, ignore=shutil.ignore_patterns("__pycache__"))
+    modelos_nuevos = MetaData()
+    for tabla in Base.metadata.tables.values():
+        tabla.to_metadata(modelos_nuevos)
+    modelos_nuevos.tables["usuarios"].append_column(Column("nota", String(50)))
+    monkeypatch.setattr(Base, "metadata", modelos_nuevos)
+
+    config = Config(str(RAIZ / "alembic.ini"))
+    config.set_main_option("script_location", str(carpeta))
+    with engine.connect() as conexion:
+        config.attributes["conexion"] = conexion
+        command.revision(config, message="agrega nota", autogenerate=True, rev_id="0002")
+
+    generada = next((carpeta / "versions").glob("0002_*.py"))
+    assert "nota" in generada.read_text(encoding="utf-8")
+    reglas = ["--no-cache", "--config", str(RAIZ / "pyproject.toml")]
+    for chequeo in (["check", *reglas], ["format", "--check", *reglas]):
+        resultado = subprocess.run(
+            [sys.executable, "-m", "ruff", *chequeo, str(generada)], cwd=RAIZ, capture_output=True, text=True
+        )
+        assert resultado.returncode == 0, resultado.stdout + resultado.stderr
