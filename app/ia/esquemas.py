@@ -13,7 +13,13 @@ from pydantic import BaseModel, BeforeValidator, ConfigDict
 
 
 def limpiar_texto(valor: object, largo: int) -> str | None:
-    """Texto sin espacios de más y recortado; None si viene vacío."""
+    """Texto sin espacios de más y recortado; None si viene vacío.
+
+    Un número sirve ("lote": 3 es el lote "3"), pero true/false, listas, objetos y el 0
+    son la IA rellenando un campo que no tiene: quedan en None, no en "False" ni "[]".
+    """
+    if isinstance(valor, bool | list | dict) or (isinstance(valor, int | float) and valor == 0):
+        return None
     if valor is None or str(valor).strip() == "":
         return None
     return str(valor).strip()[:largo]

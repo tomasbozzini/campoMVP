@@ -7,6 +7,7 @@ from sqlalchemy import select
 
 from app import modulos
 from app.ia import interprete
+from app.ia.esquemas import limpiar_texto
 from app.infra.modelos import Evento
 from app.modulos.comun.borrar import Borrar
 from app.modulos.comun.conversacion import Aclarar, Saludo
@@ -90,3 +91,14 @@ def test_todas_las_intenciones_del_prompt_estan_registradas():
     linea = next(li for li in PROMPT_INTERPRETAR.splitlines() if li.strip().startswith('"intencion":'))
     ofrecidas = {p.strip().strip('"') for p in linea.split(":", 1)[1].split(",")[0].split("|")}
     assert ofrecidas - {"fuera_de_alcance"} == set(acciones.intenciones())
+
+
+@pytest.mark.parametrize("valor", [False, True, 0, 0.0, [], {}, ["lote 3"], {"nombre": "x"}, None, "", "   "])
+def test_un_texto_que_no_es_texto_queda_vacio(valor):
+    """La IA a veces pone false, 0, [] o {} donde va un texto: no se guarda "False" ni "[]"."""
+    assert limpiar_texto(valor, 30) is None
+
+
+def test_un_numero_sirve_como_texto():
+    assert limpiar_texto(3, 30) == "3"  # "lote": 3
+    assert limpiar_texto("  La Pastora ", 30) == "La Pastora"
