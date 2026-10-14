@@ -27,7 +27,7 @@ from app.fuentes import precios as fuentes_precios
 from app.fuentes import senasa as fuentes_senasa
 from app.infra import migrar
 from app.infra.config import config
-from app.infra.db import SessionLocal, engine, preparar_base
+from app.infra.db import SessionLocal, engine
 from app.infra.logs import configurar_logs
 from app.modulos.comun import precios, senasa
 from app.nucleo import pipeline, usuarios
@@ -169,6 +169,10 @@ def main(argv: list[str] | None = None) -> None:
     if args.comando == "db":
         _db(args)
         return
-    preparar_base()
+    # Solo `db migrar` cambia la base: el resto avisa si falta migrar.
+    try:
+        migrar.revisar(engine)
+    except migrar.FaltaMigrar as e:
+        sys.exit(str(e))
     with SessionLocal() as db:
         args.ejecutar(db, args)

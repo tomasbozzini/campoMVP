@@ -7,8 +7,10 @@ import logging
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import inspect
 
 from app import main
+from app.infra import db
 from app.infra.config import Configuracion, config
 from app.infra.logs import FormateadorSinTelefonos, enmascarar
 
@@ -153,3 +155,11 @@ def test_una_firma_con_caracteres_raros_es_un_401(servidor, monkeypatch, firma):
         r = c.post("/webhook", content=_cuerpo(), headers={"X-Hub-Signature-256": firma})
     assert r.status_code == 401
     assert servidor == []
+
+
+def test_el_servidor_no_migra_y_no_arranca_si_falta_migrar(motor, monkeypatch):
+    """Migra solo `python -m app db migrar` (en el Dockerfile, antes de arrancar)."""
+    monkeypatch.setattr(db, "engine", motor)
+    with pytest.raises(RuntimeError, match="python -m app db migrar"), TestClient(main.app):
+        pass
+    assert inspect(motor).get_table_names() == []

@@ -220,7 +220,7 @@ pytest
 
 ## Base de datos y migraciones
 
-Las tablas se crean y cambian con migraciones de **Alembic** (`app/infra/migraciones/`), así los datos sobreviven a cada cambio. El servidor y los comandos de terminal ponen la base al día solos al arrancar; a mano:
+Las tablas se crean y cambian con migraciones de **Alembic** (`app/infra/migraciones/`), así los datos sobreviven a cada cambio. La base la cambia **solo** `python -m app db migrar`: el servidor y los demás comandos revisan que esté al día y, si falta migrar, avisan y no arrancan. En Railway no hay que hacer nada: el `Dockerfile` corre `db migrar` antes de arrancar el bot en cada deploy. En tu compu, después de un `git pull` que traiga migraciones:
 
 ```bat
 python -m app db estado
@@ -268,7 +268,7 @@ En Railway el proyecto queda armado con **tres servicios**, todos dentro del mis
 
 ### Uso diario
 
-- **Subir cambios**: hacés `git push` a la rama y Railway vuelve a construir y prender el bot solo.
+- **Subir cambios**: hacés `git push` a la rama y Railway vuelve a construir y prender el bot solo. Si el cambio trae una migración, se aplica al arrancar (`python -m app db migrar`, en el `Dockerfile`).
 - **Cambiar una clave** (por ejemplo, el token de Meta): editás la variable en *Variables* y se redeploya solo.
 - **Ver qué pasa**: *View logs* del bot muestra lo mismo que la terminal de uvicorn.
 - **Copias de la base**: Postgres → *Backups*, o `pg_dump` con la `DATABASE_URL`.

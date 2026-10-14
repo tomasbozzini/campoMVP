@@ -1,5 +1,9 @@
 """Deja la base de datos al día con las migraciones de Alembic, sin perder datos.
 
+Solo migra `python -m app db migrar` (el Dockerfile lo corre antes de arrancar el bot). El
+servidor y los demás comandos llaman a `revisar()`: si la base no está al día, avisan y no
+arrancan, en vez de cambiarla de costado.
+
 `preparar_base()`:
 
 - Base vacía: crea todo aplicando las migraciones.
@@ -34,6 +38,10 @@ BASE = "0001"  # la migración que equivale al esquema de antes de Alembic
 
 class EsquemaDistinto(RuntimeError):
     """La base tiene tablas de antes de Alembic que no coinciden con la migración base."""
+
+
+class FaltaMigrar(RuntimeError):
+    """La base no está en la última migración del código."""
 
 
 def _config(conexion: Connection) -> Config:
@@ -111,3 +119,15 @@ def preparar_base(engine: Engine) -> None:
         if "alembic_version" not in tablas and tablas & set(esquema_base().tables):
             _adoptar(conexion, config)
         command.upgrade(config, "head")
+
+
+def revisar(engine: Engine) -> None:
+    """Falla con FaltaMigrar si la base no está en la última migración. No cambia nada."""
+    with engine.connect() as conexion:
+        actual = version(conexion)
+    ultima = ScriptDirectory(str(CARPETA)).get_current_head()
+    if actual != ultima:
+        estado = f"está en la versión {actual}" if actual else "no está creada o es de antes de Alembic"
+        raise FaltaMigrar(
+            f"La base de datos {estado} y el código necesita la {ultima}. Ponela al día con: python -m app db migrar"
+        )

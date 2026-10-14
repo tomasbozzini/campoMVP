@@ -132,7 +132,8 @@ comporta igual desde WhatsApp y el CI está en verde.
   siempre, congelado en la propia migración. Una base creada antes de Alembic se compara
   con la `0001` (no con los modelos): si coincide se adopta con *stamp* y se aplican las
   migraciones siguientes; si solo le faltan tablas enteras, se crean; si no, no se toca y
-  se informa la diferencia.
+  se informa la diferencia. Solo `python -m app db migrar` cambia la base (el `Dockerfile`
+  lo corre antes de arrancar); el servidor y los demás comandos no arrancan si falta migrar.
 - **Orden** (`infra/orden.py`): una fila por número dentro del proceso. Alcanza con una
   instancia; con varias habrá que llevarla a la base o a una cola externa.
 - **Terminal**: un solo punto de entrada, `python -m app <comando>` (`chat`, `usuarios`,

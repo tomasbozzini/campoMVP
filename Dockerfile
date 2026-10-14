@@ -11,6 +11,7 @@ COPY app ./app
 RUN useradd --create-home bot
 USER bot
 
+# Primero pone la base al día (el servidor no migra solo: si falta migrar, no arranca).
 # Un solo worker: la fila que ordena los mensajes de cada persona es por proceso, y
 # uvicorn arrancaría varios si el servidor define WEB_CONCURRENCY.
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"]
+CMD ["sh", "-c", "python -m app db migrar && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"]

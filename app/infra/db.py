@@ -19,10 +19,3 @@ SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 
 class Base(DeclarativeBase):
     pass
-
-
-def preparar_base() -> None:
-    """Crea la base o la pone al día con las migraciones (ver app/infra/migrar.py)."""
-    from app.infra.migrar import preparar_base as preparar
-
-    preparar(engine)

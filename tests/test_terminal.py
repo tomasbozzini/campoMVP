@@ -1,20 +1,21 @@
 """Comandos de terminal: python -m app <comando>."""
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import inspect, text
 from sqlalchemy.orm import sessionmaker
 
 from app import terminal
+from app.infra import db, migrar
 from app.infra.db import Base
 from app.nucleo import usuarios
 
 
 @pytest.fixture
 def sesiones(monkeypatch, motor):
-    Base.metadata.create_all(motor)
+    migrar.preparar_base(motor)
     fabrica = sessionmaker(bind=motor, expire_on_commit=False)
     monkeypatch.setattr(terminal, "SessionLocal", fabrica)
-    monkeypatch.setattr(terminal, "preparar_base", lambda: None)
+    monkeypatch.setattr(terminal, "engine", motor)
     return fabrica
 
 
@@ -61,3 +62,16 @@ def test_db_migrar_con_una_base_vieja_distinta_explica_sin_traceback(motor, monk
     mensaje = str(salida.value.code)
     assert "mensaje_id" in mensaje and "No se tocó nada" in mensaje
     assert "Traceback" not in mensaje + capsys.readouterr().err
+
+
+@pytest.mark.parametrize("comando", [["usuarios", "lista"], ["precios", "ver", "soja"], ["chat"]])
+def test_los_comandos_no_migran_y_avisan_si_falta(motor, monkeypatch, comando):
+    """Solo `db migrar` cambia la base; el resto avisa y no hace nada."""
+    monkeypatch.setattr(terminal, "engine", motor)
+    monkeypatch.setattr(terminal, "SessionLocal", sessionmaker(bind=motor))
+    monkeypatch.setattr(db, "engine", motor)
+
+    with pytest.raises(SystemExit) as salida:
+        terminal.main(comando)
+    assert "python -m app db migrar" in str(salida.value.code)
+    assert inspect(motor).get_table_names() == []

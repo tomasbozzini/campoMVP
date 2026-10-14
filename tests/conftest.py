@@ -68,11 +68,11 @@ def servidor(monkeypatch, motor):
     """
     from app.api import webhook
     from app.canales import whatsapp
-    from app.infra import db
+    from app.infra import db, migrar
 
-    Base.metadata.create_all(motor)
+    migrar.preparar_base(motor)  # como `python -m app db migrar` antes de arrancar
+    monkeypatch.setattr(db, "engine", motor)
     monkeypatch.setattr(webhook, "SessionLocal", sessionmaker(bind=motor, expire_on_commit=False))
-    monkeypatch.setattr(db, "preparar_base", lambda: None)
     enviados: list[tuple[str, str]] = []
     monkeypatch.setattr(whatsapp, "enviar_texto", lambda tel, txt: enviados.append((tel, txt)))
     return enviados
