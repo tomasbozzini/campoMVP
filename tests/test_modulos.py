@@ -14,6 +14,7 @@ from app.nucleo import acciones
 def registro_vacio(monkeypatch):
     """Como recién arrancado el proceso: ningún módulo cargado."""
     monkeypatch.setattr(acciones, "_registro", {})
+    monkeypatch.setattr(modulos, "_partes", {})
     monkeypatch.setattr(modulos, "_cargados", False)
 
 

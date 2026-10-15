@@ -100,14 +100,16 @@ WhatsApp ──► Meta Cloud API ──► POST /webhook (api/webhook.py)
 | `app/api/` | Rutas web finas: webhook de WhatsApp (firma, deduplicación, audios, orden), salud y `/privacidad` |
 | `app/canales/` | WhatsApp: lectura del webhook, envío de mensajes, descarga de audios, firma |
 | `app/nucleo/` | El camino del mensaje (`pipeline.py`), acceso, comandos fijos, charla reciente, registro de acciones y el `Cuaderno`: la única puerta a los datos de cada persona |
-| `app/ia/` | El proveedor de IA detrás de una interfaz (hoy Groq), el prompt y los tipos que validan su salida |
-| `app/modulos/comun/` | Las acciones: registrar, corregir, borrar, consultar, establecimiento, saludo/aclarar, precios y SENASA. Cada una con su esquema y su manejador |
+| `app/ia/` | El proveedor de IA detrás de una interfaz (hoy Groq), el armado del prompt y los tipos que validan su salida |
+| `app/modulos/comun/` | Las acciones: registrar, corregir, borrar, consultar, establecimiento, saludo/aclarar, precios y SENASA. Cada una con su esquema y su manejador; lo que el módulo le suma al prompt está en `prompt.py` |
 | `app/fuentes/` | Descarga y carga de precios oficiales y del registro de SENASA |
 | `app/salidas/` | Formato de los mensajes de WhatsApp y la página de privacidad |
 | `app/infra/` | Configuración, base de datos, modelos, migraciones (Alembic), logs y la fila por número |
 | `app/terminal.py` | Los comandos `python -m app ...` |
 
-**Para sumar una acción**: un archivo en el módulo con su esquema (qué puede devolver la IA), su manejador (qué hace el código) y `ACCION = Accion("intencion", Esquema, manejar)`; se agrega a `ACCIONES` del módulo y se describe en el prompt (`app/ia/prompt.py`). El núcleo no se toca.
+**Para sumar una acción**: un archivo en el módulo con su esquema (qué puede devolver la IA), su manejador (qué hace el código) y `ACCION = Accion("intencion", Esquema, manejar)`; se agrega a `ACCIONES` del módulo y se describe en la parte del prompt del módulo (`prompt.py`: la intención, sus campos, qué es y sus reglas). El núcleo no se toca.
+
+**Prompt por perfil**: cada persona recibe un prompt armado con los módulos de su rubro (`MODULOS_POR_RUBRO` en `app/modulos/__init__.py`): el común lo tienen todos; ganadería (veterinario y productor) y agricultura (agrónomo y productor) se suman cuando existan. Si la IA devuelve una acción de un módulo que la persona no tiene, se trata como fuera de alcance.
 
 ## Alcance estricto y seguridad
 

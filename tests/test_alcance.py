@@ -23,7 +23,7 @@ FUENTE = "Cámara Arbitral de Cereales - Bolsa de Comercio de Rosario"
 @pytest.fixture
 def respuestas(monkeypatch):
     datos: dict[str, object] = {}
-    monkeypatch.setattr(interprete, "interpretar", lambda texto, hoy, historial=None: datos[texto])
+    monkeypatch.setattr(interprete, "interpretar", lambda texto, hoy, historial=None, partes=(): datos[texto])
     return datos
 
 

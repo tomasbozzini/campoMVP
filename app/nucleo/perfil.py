@@ -4,7 +4,7 @@ Se completa con preguntas fijas, sin IA: quien escribe sin tener los tres datos 
 (nombre y apellido, rubro y localidad) los responde antes de seguir. Lo que mandó no se
 anota y al final se le pide que lo repita. La matrícula es opcional y se carga aparte.
 
-El rubro define qué módulos usa la persona (ver `MODULOS_POR_RUBRO`).
+El rubro define qué módulos usa la persona (ver `modulos.MODULOS_POR_RUBRO`).
 
 Lo que pasa acá no se guarda en la charla que ve la IA: trae datos personales que la IA no
 necesita.

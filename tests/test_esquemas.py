@@ -78,7 +78,7 @@ def test_un_borrado_con_basura_no_borra_lo_ultimo(db, monkeypatch):
         "llovio": {"intencion": "registrar", "eventos": [{"categoria": "campo", "tipo": "lluvia", "valor": 20}]},
         "borra eso": {"intencion": "borrar", "borrado": {"registros": ["algo que no es un objeto"]}},
     }
-    monkeypatch.setattr(interprete, "interpretar", lambda texto, hoy, historial=None: respuestas[texto])
+    monkeypatch.setattr(interprete, "interpretar", lambda texto, hoy, historial=None, partes=(): respuestas[texto])
     pipeline.manejar_mensaje(db, u.telefono, "llovio", hoy=HOY)
     assert "No entendí qué querés borrar" in pipeline.manejar_mensaje(db, u.telefono, "borra eso", hoy=HOY)
     assert len(db.scalars(select(Evento)).all()) == 1
@@ -86,10 +86,11 @@ def test_un_borrado_con_basura_no_borra_lo_ultimo(db, monkeypatch):
 
 def test_todas_las_intenciones_del_prompt_estan_registradas():
     """Cada intención que el prompt le ofrece a la IA tiene su acción (salvo fuera_de_alcance)."""
-    from app.ia.prompt import PROMPT_INTERPRETAR
+    from app.ia import prompt
 
     modulos.cargar()
-    linea = next(li for li in PROMPT_INTERPRETAR.splitlines() if li.strip().startswith('"intencion":'))
+    sistema = prompt.sistema(date(2026, 10, 13), modulos.partes(modulos.MODULOS))
+    linea = next(li for li in sistema.splitlines() if li.strip().startswith('"intencion":'))
     ofrecidas = {p.strip().strip('"') for p in linea.split(":", 1)[1].split(",")[0].split("|")}
     assert ofrecidas - {"fuera_de_alcance"} == set(acciones.intenciones())
 

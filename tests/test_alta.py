@@ -25,7 +25,7 @@ FORMATO = re.compile(r"^CAMPO-[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}-[ABCDEFGHJKMN
 def ia(monkeypatch):
     llamadas: list[str] = []
 
-    def interpretar(texto, hoy, historial=None):
+    def interpretar(texto, hoy, historial=None, partes=()):
         llamadas.append(texto)
         return {"intencion": "saludo"}
 

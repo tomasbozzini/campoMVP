@@ -17,6 +17,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app import modulos
 from app.ia import interprete
 from app.ia.esquemas import EsquemaAccion
 from app.infra.config import config
@@ -110,12 +111,15 @@ def _responder(ctx: Contexto, telefono: str) -> str:
     if not ctx.cuaderno.consumir_cupo(ctx.hoy, config.limite_diario_ia):
         return SIN_CUPO
 
+    suyos = modulos.del_rubro(ctx.usuario.rubro)
     try:
-        interpretado = interprete.interpretar(texto, ctx.hoy, charla.historial(ctx.cuaderno))
+        interpretado = interprete.interpretar(
+            texto, ctx.hoy, charla.historial(ctx.cuaderno), partes=modulos.partes(suyos)
+        )
     except Exception:
         log.exception("Error interpretando mensaje")
         return ERROR_IA
-    return _ejecutar(ctx, _pedidos(interpretado))
+    return _ejecutar(ctx, _pedidos(interpretado), suyos)
 
 
 def _pedidos(interpretado: object) -> list[dict[str, Any]]:
@@ -128,7 +132,9 @@ def _pedidos(interpretado: object) -> list[dict[str, Any]]:
     return [a for a in lista if isinstance(a, dict)][:MAX_ACCIONES]
 
 
-def _ejecutar(ctx: Contexto, pedidos: list[dict[str, Any]]) -> str:
+def _ejecutar(ctx: Contexto, pedidos: list[dict[str, Any]], suyos: list[str]) -> str:
+    """Ejecuta los pedidos. Uno de un módulo que la persona no tiene se trata como fuera de
+    alcance, aunque la IA lo devuelva: su prompt no lo ofrecía."""
     varios = len(pedidos) > 1
     respuestas: list[str] = []
     hubo_fuera = False
@@ -138,6 +144,8 @@ def _ejecutar(ctx: Contexto, pedidos: list[dict[str, Any]]) -> str:
 
     for pedido in pedidos:
         accion = acciones.buscar(pedido.get("intencion"))
+        if accion is not None and accion.modulo not in suyos:
+            accion = None
         datos = acciones.validar(accion, pedido) if accion else None
         if accion is None or datos is None:
             hubo_fuera = True

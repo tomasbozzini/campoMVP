@@ -1,0 +1,120 @@
+"""El prompt se arma con los módulos del rubro de cada persona."""
+
+from datetime import date
+
+import pytest
+
+from app import modulos
+from app.ia import prompt, proveedor
+from app.ia.esquemas import EsquemaAccion
+from app.ia.prompt import Parte
+from app.nucleo import acciones, pipeline
+from app.nucleo.acciones import Accion
+from app.nucleo.perfil import RUBROS
+from tests.ayudas import con_perfil
+
+HOY = date(2026, 10, 13)
+TACTO_ANOTADO = "🐄 Tacto anotado"
+PARTE_TACTO = Parte(
+    intenciones=("tacto",),
+    campos='  "tacto": TACTO | null          // solo si intencion = "tacto"',
+    descripciones='- "tacto": informa el resultado de un tacto.',
+    pedidos='Cada rodeo es una acción "tacto" aparte.',
+    formatos='TACTO:\n{\n  "prenadas": int | null\n}',
+    reglas="- Los porcentajes de preñez no se calculan: se informa lo que dicta.",
+)
+
+
+@pytest.fixture
+def ganaderia(monkeypatch):
+    """Un módulo ganadero de mentira, que tienen los veterinarios y los productores."""
+    monkeypatch.setattr(acciones, "_registro", dict(acciones._registro))
+    monkeypatch.setattr(modulos, "_partes", dict(modulos._partes))
+    monkeypatch.setattr(modulos, "MODULOS", [*modulos.MODULOS, "ganaderia"])
+    modulos.registrar("ganaderia", [Accion("tacto", EsquemaAccion, lambda _ctx, _datos: TACTO_ANOTADO)], PARTE_TACTO)
+
+
+class ProveedorFalso:
+    def __init__(self, respuesta: object) -> None:
+        self.respuesta = respuesta
+        self.sistemas: list[str] = []
+
+    def completar_json(self, sistema: str, mensaje: str) -> object:
+        self.sistemas.append(sistema)
+        return self.respuesta
+
+    def transcribir(self, audio: bytes, nombre_archivo: str) -> str:
+        raise AssertionError("no se usa")
+
+
+@pytest.fixture
+def ia():
+    falso = ProveedorFalso({"acciones": [{"intencion": "tacto"}]})
+    proveedor.usar(falso)
+    yield falso
+    proveedor.usar(None)
+
+
+@pytest.mark.parametrize("rubro", [*RUBROS, None, "astronauta"])
+def test_hoy_todos_los_rubros_usan_solo_el_modulo_comun(rubro):
+    """Ganadería y agricultura todavía no existen: nadie las tiene en el prompt."""
+    assert modulos.del_rubro(rubro) == ["comun"]
+
+
+def test_cada_rubro_suma_los_modulos_que_le_tocan(monkeypatch):
+    monkeypatch.setattr(modulos, "MODULOS", ["comun", "ganaderia", "agricultura"])
+    assert modulos.del_rubro("veterinario") == ["comun", "ganaderia"]
+    assert modulos.del_rubro("agronomo") == ["comun", "agricultura"]
+    assert modulos.del_rubro("productor") == ["comun", "ganaderia", "agricultura"]
+    assert modulos.del_rubro("otro") == ["comun"]
+
+
+def test_cada_modulo_suma_su_parte_en_su_lugar(ganaderia):
+    sistema = prompt.sistema(HOY, modulos.partes(["comun", "ganaderia"]))
+
+    def antes(*textos: str) -> bool:
+        posiciones = [sistema.index(t) for t in textos]
+        return posiciones == sorted(posiciones)
+
+    assert '"producto_veterinario" | "tacto" | "fuera_de_alcance",' in sistema
+    assert antes('"producto_veterinario": {', '"tacto": TACTO | null', "}\n\nQué es cada intención")
+    assert antes('- "saludo":', '- "tacto":', '- "fuera_de_alcance":')
+    assert antes('acción "registrar" con varios eventos.', "Cada rodeo", "Devolvé ÚNICAMENTE")
+    assert antes("PRECIO:", "TACTO:", "Reglas:")
+    assert antes('"La Esperanza" en "establecimiento".', "- Los porcentajes", "- Si una parte del mensaje")
+
+
+def test_sin_el_modulo_su_parte_no_esta_en_el_prompt(ganaderia):
+    sistema = prompt.sistema(HOY, modulos.partes(["comun"]))
+    assert "tacto" not in sistema.replace("hizo tacto", "").replace("servicio, tacto,", "")
+    assert "TACTO" not in sistema and "Cada rodeo" not in sistema
+
+
+def test_cada_persona_recibe_el_prompt_de_su_rubro(db, ganaderia, ia):
+    veterinaria = con_perfil(db, "5491100000001", rubro="veterinario")
+    otra = con_perfil(db, "5491100000002", rubro="otro")
+    pipeline.manejar_mensaje(db, veterinaria.telefono, "tacto 30 vacas", hoy=HOY)
+    pipeline.manejar_mensaje(db, otra.telefono, "tacto 30 vacas", hoy=HOY)
+    assert ia.sistemas == [
+        prompt.sistema(HOY, modulos.partes(["comun", "ganaderia"])),
+        prompt.sistema(HOY, modulos.partes(["comun"])),
+    ]
+
+
+def test_una_accion_de_un_modulo_que_no_tiene_no_se_ejecuta(db, ganaderia, ia):
+    """Aunque la IA la devuelva: el código decide qué puede hacer cada persona."""
+    veterinaria = con_perfil(db, "5491100000001", rubro="veterinario")
+    otra = con_perfil(db, "5491100000002", rubro="otro")
+    assert pipeline.manejar_mensaje(db, veterinaria.telefono, "tacto 30 vacas", hoy=HOY) == TACTO_ANOTADO
+    assert pipeline.manejar_mensaje(db, otra.telefono, "tacto 30 vacas", hoy=HOY) == pipeline.FUERA_DE_ALCANCE
+
+
+def test_el_prompt_de_un_modulo_ofrece_justo_sus_acciones(monkeypatch):
+    monkeypatch.setattr(acciones, "_registro", dict(acciones._registro))
+    monkeypatch.setattr(modulos, "_partes", dict(modulos._partes))
+    accion = Accion("tacto", EsquemaAccion, lambda _ctx, _datos: TACTO_ANOTADO)
+    with pytest.raises(ValueError, match="ganaderia"):
+        modulos.registrar("ganaderia", [accion], Parte(intenciones=("tacto", "raspaje"), campos="", descripciones=""))
+    with pytest.raises(ValueError, match="ganaderia"):
+        modulos.registrar("ganaderia", [accion], Parte(intenciones=(), campos="", descripciones=""))
+    assert acciones.buscar("tacto") is None and "ganaderia" not in modulos._partes

@@ -1,6 +1,7 @@
 """Módulo común, para todos los perfiles: cuaderno, consultas, precios y SENASA."""
 
 from app.modulos.comun import borrar, consultar, conversacion, corregir, establecimiento, precios, registrar, senasa
+from app.modulos.comun.prompt import PROMPT
 
 ACCIONES = [
     registrar.ACCION,
@@ -12,3 +13,5 @@ ACCIONES = [
     senasa.ACCION,
     *conversacion.ACCIONES,
 ]
+
+__all__ = ["ACCIONES", "PROMPT"]

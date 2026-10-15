@@ -7,11 +7,12 @@ Cada módulo registra sus acciones con:
 - `juntar` (opcional): para acciones que, si vienen varias en un mismo mensaje, se
   responden juntas (por ejemplo, los precios: una sola respuesta agrupada por fuente).
 
-El núcleo no conoce las acciones: las busca en el registro por su `intencion`.
+El núcleo no conoce las acciones: las busca en el registro por su `intencion`. Cada acción
+queda registrada con su módulo, y solo se ejecuta para quien tiene ese módulo.
 """
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from pydantic import ValidationError
@@ -30,16 +31,18 @@ class Accion:
     se_junta: Callable[[Any], bool] = lambda _datos: True
     # Si el mensaje trae otros pedidos, esta acción no se responde ("hola, ¿cuánto está la soja?").
     se_omite_si_hay_otras: bool = False
+    # El módulo de la acción: lo completa `registrar`.
+    modulo: str = ""
 
 
 _registro: dict[str, Accion] = {}
 
 
-def registrar(*acciones: Accion) -> None:
+def registrar(modulo: str, *acciones: Accion) -> None:
     for accion in acciones:
         if accion.intencion in _registro:
             raise ValueError(f"La acción {accion.intencion!r} ya está registrada")
-        _registro[accion.intencion] = accion
+        _registro[accion.intencion] = replace(accion, modulo=modulo)
 
 
 def buscar(intencion: object) -> Accion | None:

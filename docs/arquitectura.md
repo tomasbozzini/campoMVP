@@ -225,7 +225,9 @@ de 2b, 7 y 8b):
       `cambiar rubro`, `cambiar matrícula`.
 - [x] 2a · Auditoría de acciones sensibles (`python -m app auditoria`).
 - [x] 2b · Alta por código de invitación, solicitudes e intentos fallidos.
-- [ ] 3 · Prompt armado con los módulos del perfil.
+- [x] 3 · Prompt armado con los módulos del perfil: el núcleo pone lo común a todos y cada
+      módulo suma sus intenciones, campos, formatos y reglas; una acción de un módulo que la
+      persona no tiene no se ejecuta. Con solo el módulo común, el texto es el mismo de antes.
 - [ ] 4 · Glosario para Whisper según el perfil.
 - [ ] 5 · Establecimientos y lotes como tablas; `mis campos`.
 - [ ] 6 · Sesiones con apertura, cierre y resumen.
