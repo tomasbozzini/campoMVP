@@ -40,6 +40,6 @@ async def _ciclo_de_vida(_app: FastAPI) -> AsyncIterator[None]:
         log.warning("El servidor se apaga con %d personas con mensajes sin procesar", webhook.fila.en_curso())
 
 
-app = FastAPI(title="Asistente de campo", lifespan=_ciclo_de_vida)
+app = FastAPI(title="CampoBot", lifespan=_ciclo_de_vida)
 app.include_router(paginas.rutas)
 app.include_router(webhook.rutas)

@@ -1,6 +1,6 @@
-# Asistente de campo por WhatsApp 🐄
+# CampoBot · asistente de campo por WhatsApp 🐄
 
-Asistente **personal** por WhatsApp para anotar el trabajo en el campo y consultarlo después, en lenguaje natural y con audios.
+CampoBot (nombre provisorio) es un asistente **personal** por WhatsApp para anotar el trabajo en el campo y consultarlo después, en lenguaje natural y con audios.
 
 > **Arquitectura y plan de desarrollo:** ver [`docs/arquitectura.md`](docs/arquitectura.md).
 

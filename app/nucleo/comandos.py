@@ -15,8 +15,8 @@ from app.salidas.whatsapp import SEPARADOR as LINEA
 
 log = logging.getLogger(__name__)
 
-AYUDA = """🐄 *TU ASISTENTE DE CAMPO*
-_Tu cuaderno de trabajo, por WhatsApp._
+AYUDA = """🐄 *CAMPOBOT*
+_Tu cuaderno de trabajo en el campo, por WhatsApp._
 
 ✍️ *Anotar*
       › Estoy en La Esperanza
@@ -115,7 +115,7 @@ def borrar_datos(db: Session, usuario: Usuario) -> str:
     return (
         "🗑️ *DATOS BORRADOS*\n\n"
         "Eliminé tu cuaderno, tus mensajes y tu número. No queda nada tuyo guardado.\n"
-        "Gracias por haber usado el asistente 👋"
+        "Gracias por haber usado CampoBot 👋"
     )
 
 
@@ -136,7 +136,7 @@ def admin(db: Session, texto: str) -> str | None:
         return "No entendí el número. Escribilo con código de país, ej: *autorizar 5492494123456*"
     if m.group(1).lower() == "autorizar":
         usuarios.autorizar(db, telefono)
-        return f"✅ {telefono} ya puede usar el asistente."
+        return f"✅ {telefono} ya puede usar CampoBot."
     if not usuarios.quitar(db, telefono):
         return f"{telefono} no tenía acceso."
     return f"🚫 Le saqué el acceso a {telefono}. Sus registros se conservan."

@@ -141,5 +141,5 @@ def test_el_texto_del_mensaje_no_se_loguea_en_el_camino_normal(servidor, monkeyp
     with TestClient(main.app) as c:
         c.post("/webhook", json=_webhook("ayuda"))
         c.post("/webhook", json=_webhook("ayuda"))  # reintento de Meta
-    assert "TU ASISTENTE" in servidor[0][1]
+    assert "CAMPOBOT" in servidor[0][1]
     _sin_datos_personales(logs())

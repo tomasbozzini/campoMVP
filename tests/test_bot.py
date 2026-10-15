@@ -52,7 +52,7 @@ def test_admin_autoriza_y_quita_por_whatsapp(db, fake_llm, monkeypatch):
     # Meta guarda los números argentinos sin el 9: igual tiene que reconocerlo.
     r = pipeline.manejar_mensaje(db, admin, "autorizar +54 249 412-3456", hoy=HOY)
     assert "5492494123456 ya puede usar" in r
-    assert "TU ASISTENTE" in pipeline.manejar_mensaje(db, "5492494123456", "ayuda", hoy=HOY)
+    assert "CAMPOBOT" in pipeline.manejar_mensaje(db, "5492494123456", "ayuda", hoy=HOY)
     assert "autorizar" not in pipeline.manejar_mensaje(db, "5492494123456", "ayuda", hoy=HOY)
     assert "5492494123456" in pipeline.manejar_mensaje(db, admin, "autorizados", hoy=HOY)
 

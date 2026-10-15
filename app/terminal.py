@@ -116,7 +116,7 @@ def _db(args: argparse.Namespace) -> None:
 
 
 def _argumentos() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="python -m app", description="Asistente de campo")
+    parser = argparse.ArgumentParser(prog="python -m app", description="CampoBot")
     comandos = parser.add_subparsers(dest="comando", required=True)
 
     chat = comandos.add_parser("chat", help="chatear con el bot desde la terminal")

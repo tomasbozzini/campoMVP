@@ -66,7 +66,7 @@ def test_limite_diario(db, respuestas, monkeypatch):
     # al otro día se renueva
     assert pipeline.manejar_mensaje(db, u.telefono, "x", hoy=date(2026, 10, 10)) == pipeline.FUERA_DE_ALCANCE
     # los comandos no gastan cupo
-    assert "TU ASISTENTE DE CAMPO" in pipeline.manejar_mensaje(db, u.telefono, "ayuda", hoy=HOY)
+    assert "CAMPOBOT" in pipeline.manejar_mensaje(db, u.telefono, "ayuda", hoy=HOY)
 
 
 def test_usuario_sin_campo_no_usa_la_ia(db, respuestas):

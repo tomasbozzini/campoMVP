@@ -17,7 +17,7 @@ _PLANTILLA = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Política de privacidad · Asistente de campo</title>
+<title>Política de privacidad · CampoBot</title>
 <style>
   :root {{ --bg: #f6f7f4; --fg: #1d2620; --muted: #5d6b61; --line: #d4dbd5; --accent: #2f7a4a; }}
   @media (prefers-color-scheme: dark) {{
@@ -38,10 +38,10 @@ _PLANTILLA = """<!doctype html>
 <body>
 <main>
 <h1>Política de privacidad</h1>
-<p class="fecha">Asistente de campo por WhatsApp · Última actualización: {fecha}</p>
+<p class="fecha">CampoBot, asistente de campo por WhatsApp · Última actualización: {fecha}</p>
 
-<p>Esta política explica qué datos guarda el Asistente de campo, para qué los usa, con quién los
-comparte y cómo podés ejercer tus derechos. Al usar el asistente aceptás este tratamiento de tus datos.</p>
+<p>Esta política explica qué datos guarda CampoBot, para qué los usa, con quién los
+comparte y cómo podés ejercer tus derechos. Al usar CampoBot aceptás este tratamiento de tus datos.</p>
 
 <h2>1. Quién es el responsable</h2>
 <p>El responsable de los datos es <strong>{responsable}</strong>. Para cualquier consulta o pedido sobre
@@ -50,8 +50,8 @@ tus datos podés escribir a <strong>{contacto}</strong>.</p>
 <h2>2. Qué datos guardamos</h2>
 <ul>
   <li>Tu número de WhatsApp y el nombre de tu perfil.</li>
-  <li>Lo que anotás en el asistente: tareas, animales, lotes, establecimientos, productos, fechas y cantidades.</li>
-  <li>Tus últimos mensajes con el asistente (los más recientes, para entender tus respuestas cortas). Se reemplazan solos a medida que escribís.</li>
+  <li>Lo que anotás en CampoBot: tareas, animales, lotes, establecimientos, productos, fechas y cantidades.</li>
+  <li>Tus últimos mensajes con CampoBot (los más recientes, para entender tus respuestas cortas). Se reemplazan solos a medida que escribís.</li>
   <li>La cantidad de mensajes que mandás por día, para aplicar el límite de uso.</li>
   <li>El identificador técnico que WhatsApp le asigna a cada mensaje, durante 7 días, para no procesar dos veces el mismo mensaje. Después se borra solo.</li>
 </ul>
@@ -61,29 +61,29 @@ datos bancarios, documentos de identidad ni tu ubicación.</p>
 <h2>3. Para qué los usamos</h2>
 <ul>
   <li>Para guardar lo que anotás y mostrártelo cuando lo consultás, corregís o borrás.</li>
-  <li>Para controlar quién tiene acceso al asistente y evitar abusos.</li>
+  <li>Para controlar quién tiene acceso a CampoBot y evitar abusos.</li>
 </ul>
 <p>No usamos tus datos para publicidad, no los vendemos y no armamos perfiles comerciales.</p>
 
 <h2>4. Quién más ve tus datos</h2>
 <p><strong>Ningún otro usuario.</strong> Tu cuaderno es personal: ni siquiera el dueño o encargado de un
 campo puede ver lo que vos anotaste sobre ese campo.</p>
-<p>Para funcionar, el asistente usa estos proveedores, que tratan los datos solo para prestar el servicio:</p>
+<p>Para funcionar, CampoBot usa estos proveedores, que tratan los datos solo para prestar el servicio:</p>
 <ul>
-  <li><strong>Meta (WhatsApp Business Platform)</strong>: transporta tus mensajes entre tu celular y el asistente.</li>
+  <li><strong>Meta (WhatsApp Business Platform)</strong>: transporta tus mensajes entre tu celular y CampoBot.</li>
   <li><strong>Groq, Inc.</strong>: interpreta el texto de tus mensajes y transcribe tus audios con inteligencia artificial.</li>
-  <li><strong>El proveedor de servidores y base de datos</strong> donde está alojado el asistente.</li>
+  <li><strong>El proveedor de servidores y base de datos</strong> donde está alojado CampoBot.</li>
 </ul>
-<p>Algunos de estos proveedores están fuera de la Argentina (por ejemplo, en Estados Unidos). Al usar el
-asistente aceptás esa transferencia internacional de datos, que se hace solo para prestarte el servicio.</p>
+<p>Algunos de estos proveedores están fuera de la Argentina (por ejemplo, en Estados Unidos). Al usar
+CampoBot aceptás esa transferencia internacional de datos, que se hace solo para prestarte el servicio.</p>
 
 <h2>5. Precios y productos veterinarios</h2>
-<p>Los precios que muestra el asistente son valores de referencia publicados por fuentes oficiales o
+<p>Los precios que muestra CampoBot son valores de referencia publicados por fuentes oficiales o
 mercados regulados, con su fuente y fecha. La información de productos veterinarios proviene del registro
 público de SENASA. Nada de esto es una recomendación de compra, venta, uso o tratamiento.</p>
 
 <h2>6. Cuánto tiempo guardamos tus datos</h2>
-<p>Mientras uses el asistente. Podés borrar registros puntuales cuando quieras, y si borrás tus datos
+<p>Mientras uses CampoBot. Podés borrar registros puntuales cuando quieras, y si borrás tus datos
 (ver punto 7) se eliminan todos de forma definitiva. Los identificadores técnicos de los mensajes se borran
 solos a los 7 días.</p>
 
@@ -100,14 +100,14 @@ suprimir tus datos. Podés hacerlo desde el mismo chat:</p>
 corridos y los de rectificación o supresión dentro de los 5 días hábiles.</p>
 
 <h2>8. Seguridad</h2>
-<p>Solo pueden usar el asistente los números habilitados por el administrador. Los mensajes llegan
+<p>Solo pueden usar CampoBot los números habilitados por el administrador. Los mensajes llegan
 verificados por Meta, la comunicación viaja cifrada (HTTPS) y el acceso a la base de datos está restringido.</p>
 
 <h2>9. Menores de edad</h2>
-<p>El asistente está pensado para personas que trabajan en el campo y no está dirigido a menores de 18 años.</p>
+<p>CampoBot está pensado para personas que trabajan en el campo y no está dirigido a menores de 18 años.</p>
 
 <h2>10. Cambios a esta política</h2>
-<p>Si cambiamos esta política, actualizamos la fecha de arriba y lo avisamos por el asistente cuando el
+<p>Si cambiamos esta política, actualizamos la fecha de arriba y lo avisamos por CampoBot cuando el
 cambio sea importante.</p>
 
 <div class="legal">

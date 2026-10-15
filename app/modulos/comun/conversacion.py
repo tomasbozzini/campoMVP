@@ -9,7 +9,7 @@ from app.nucleo.acciones import Accion
 from app.nucleo.contexto import Contexto
 
 SALUDO = (
-    "👋 *¡Hola!*\n\nContame qué hiciste y lo anoto, o preguntame por lo que tenés anotado.\n"
+    "👋 *¡Hola! Soy CampoBot.*\n\nContame qué hiciste y lo anoto, o preguntame por lo que tenés anotado.\n"
     "Mandá *ayuda* para ver ejemplos."
 )
 GRACIAS = "¡De nada! 👍"

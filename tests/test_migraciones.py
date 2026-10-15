@@ -3,19 +3,17 @@
 import shutil
 import subprocess
 import sys
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import pytest
 from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
-from sqlalchemy import Column, MetaData, String, inspect, text
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import Boolean, Column, Date, DateTime, MetaData, String, bindparam, inspect, text
 
 from app.infra import migrar
 from app.infra.db import Base
-from app.infra.modelos import Evento, Usuario
 
 RAIZ = Path(__file__).parent.parent
 ULTIMA = ScriptDirectory(str(migrar.CARPETA)).get_current_head() or ""
@@ -24,6 +22,33 @@ ULTIMA = ScriptDirectory(str(migrar.CARPETA)).get_current_head() or ""
 @pytest.fixture
 def engine(motor):
     return motor
+
+
+def migrar_hasta(engine, revision: str) -> None:
+    """Deja la base en esa revisión, como estaba una base de producción antes de un cambio."""
+    with engine.begin() as conexion:
+        command.upgrade(migrar._config(conexion), revision)
+
+
+def _usuario_y_lluvia(engine) -> None:
+    """Un usuario con un registro, cargados con SQL: sirve para cualquier versión del esquema."""
+    # Con tipo, SQLAlchemy convierte los valores igual que en la base real (en SQLite, a texto).
+    tipos = (bindparam("si", type_=Boolean), bindparam("ahora", type_=DateTime(timezone=True)))
+    valores = {"si": True, "ahora": datetime(2026, 10, 1, tzinfo=UTC), "fecha": date(2026, 10, 1)}
+    with engine.begin() as c:
+        c.execute(
+            text(
+                "insert into usuarios (id, telefono, autorizado, creado) values (1, '5491100000001', :si, :ahora)"
+            ).bindparams(*tipos),
+            valores,
+        )
+        c.execute(
+            text(
+                "insert into eventos (id, usuario_id, categoria, tipo, valor, fecha_evento, creado) "
+                "values (1, 1, 'campo', 'lluvia', 20, :fecha, :ahora)"
+            ).bindparams(*tipos[1:], bindparam("fecha", type_=Date)),
+            valores,
+        )
 
 
 def _version_y_diferencias(engine):
@@ -37,13 +62,7 @@ def test_base_vacia_queda_igual_que_los_modelos(engine):
 
 
 def test_base_de_antes_de_alembic_se_adopta_sin_perder_datos(engine):
-    Base.metadata.create_all(engine)  # como la creaba el código hasta ahora
-    with sessionmaker(bind=engine)() as db:
-        u = Usuario(telefono="5491100000001", autorizado=True)
-        db.add(u)
-        db.flush()
-        db.add(Evento(usuario_id=u.id, categoria="campo", tipo="lluvia", valor=20, fecha_evento=date(2026, 10, 1)))
-        db.commit()
+    _base_vieja_con_datos(engine)
 
     migrar.preparar_base(engine)
     migrar.preparar_base(engine)  # correrlo de nuevo no cambia nada
@@ -55,7 +74,7 @@ def test_base_de_antes_de_alembic_se_adopta_sin_perder_datos(engine):
 
 
 def test_base_vieja_que_no_coincide_no_se_toca(engine):
-    Base.metadata.create_all(engine)
+    migrar.esquema_base().create_all(engine)
     with engine.begin() as c:
         # Una base de antes de la columna mensaje_id.
         c.execute(text("drop index ix_eventos_mensaje_id"))
@@ -67,14 +86,13 @@ def test_base_vieja_que_no_coincide_no_se_toca(engine):
 
 
 def _base_vieja_con_datos(engine, sin: tuple[str, ...] = ()):
-    """Una base como la creaba el código antes de Alembic (create_all), con un usuario y un registro."""
-    Base.metadata.create_all(engine, tables=[t for n, t in Base.metadata.tables.items() if n not in sin])
-    with sessionmaker(bind=engine)() as db:
-        u = Usuario(telefono="5491100000001", autorizado=True)
-        db.add(u)
-        db.flush()
-        db.add(Evento(usuario_id=u.id, categoria="campo", tipo="lluvia", valor=20, fecha_evento=date(2026, 10, 1)))
-        db.commit()
+    """Una base como la creaba el código antes de Alembic (create_all), con un usuario y un registro.
+
+    Se arma con el esquema de la 0001 y no con los modelos actuales, que ya van varias
+    migraciones más adelante: así eran las bases de antes de Alembic."""
+    esquema = migrar.esquema_base()
+    esquema.create_all(engine, tables=[t for n, t in esquema.tables.items() if n not in sin])
+    _usuario_y_lluvia(engine)
 
 
 MIGRACION_NUEVA = '''"""Prueba: una migración posterior a la base, que agrega una columna."""
@@ -157,3 +175,16 @@ def test_una_migracion_generada_pasa_ruff(engine, tmp_path, monkeypatch):
             [sys.executable, "-m", "ruff", *chequeo, str(generada)], cwd=RAIZ, capture_output=True, text=True
         )
         assert resultado.returncode == 0, resultado.stdout + resultado.stderr
+
+
+def test_una_base_con_datos_en_cada_version_llega_a_la_ultima(engine):
+    """Una base de producción en la 0002, con datos, se pone al día sin perderlos."""
+    migrar_hasta(engine, "0002")
+    _usuario_y_lluvia(engine)
+
+    migrar.preparar_base(engine)
+
+    assert _version_y_diferencias(engine) == (ULTIMA, [])
+    with engine.connect() as c:
+        assert c.execute(text("select telefono from usuarios")).scalars().all() == ["5491100000001"]
+        assert c.execute(text("select valor from eventos")).scalars().all() == [20]

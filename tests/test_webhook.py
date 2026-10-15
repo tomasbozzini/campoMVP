@@ -51,7 +51,7 @@ def test_mensaje_de_texto_y_reintento_duplicado(cliente, monkeypatch):
     cliente.post("/webhook", json=_payload("wamid.1", "ayuda"))  # reintento de Meta
     assert cliente.esperar()
     assert len(cliente.enviados) == 1
-    assert "TU ASISTENTE" in cliente.enviados[0][1]
+    assert "CAMPOBOT" in cliente.enviados[0][1]
 
 
 def test_audio_de_numero_sin_acceso_no_se_transcribe(cliente, monkeypatch):

@@ -3,3 +3,6 @@ venv/
 __pycache__/
 *.db
 .pytest_cache/
+
+# Documentos privados (especificación funcional): no se suben
+docs/privado/

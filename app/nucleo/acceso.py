@@ -8,7 +8,7 @@ from app.infra.modelos import Usuario
 
 NO_AUTORIZADO = """👋 *¡Hola!*
 
-Este número todavía no tiene acceso al asistente.
+Este número todavía no tiene acceso a CampoBot.
 Pedile al administrador que te habilite."""
 
 

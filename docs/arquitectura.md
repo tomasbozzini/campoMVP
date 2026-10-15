@@ -214,6 +214,65 @@ en cada punto, primero un test que reproduce el problema.
   - Los avisos al administrador y al usuario tienen que respetar la ventana de 24 h de
     WhatsApp: fuera de ella son mensajes pagos.
 
+**Pasos** (un commit por paso, CI en verde; se frena para probar desde el celular después
+de 2b, 7 y 8b):
+
+- [x] 0 · Preparación: nombre CampoBot en los textos, `docs/privado/` fuera del repo, tests de
+      migraciones con bases viejas armadas con el esquema congelado de la `0001`.
+- [ ] 1a · Cuentas: todo pertenece a una cuenta; el cuaderno filtra por cuenta.
+- [ ] 1b · Perfil: nombre y apellido, rubro y localidad con preguntas fijas; `mis datos`,
+      `cambiar rubro`, `cambiar matrícula`.
+- [ ] 2a · Auditoría de acciones sensibles.
+- [ ] 2b · Alta por código de invitación, solicitudes e intentos fallidos.
+- [ ] 3 · Prompt armado con los módulos del perfil.
+- [ ] 4 · Glosario para Whisper según el perfil.
+- [ ] 5 · Establecimientos y lotes como tablas; `mis campos`.
+- [ ] 6 · Sesiones con apertura, cierre y resumen.
+- [ ] 7 · Pendientes.
+- [ ] 8a · Envío de documentos por WhatsApp y PDF.
+- [ ] 8b · Excel y CSV.
+- [ ] 9a · Modo prueba.
+- [ ] 9b · Set de evaluación y `python -m app eval`.
+
+**Decisiones de producto de la etapa 1:**
+
+- **Usuarios existentes:** al escribir, si les falta nombre, rubro o localidad, el mensaje se
+  descarta, se hacen las preguntas fijas y al final se les pide repetirlo. Los administradores
+  también las responden.
+- **Rubro:** Veterinario, Agrónomo o asesor, Productor, Otro. Se ve con `mis datos` (nombre,
+  rubro, localidad y matrícula) y se cambia con `cambiar rubro`.
+- **Localidad:** texto libre, prolijo (mayúscula inicial, sin espacios de más).
+- **Matrícula:** opcional y fuera del alta (que sigue siendo de 3 preguntas); se carga con
+  `cambiar matrícula`. Si está, va en el membrete del PDF.
+- **Código de invitación:** 8 caracteres (`CAMPO-XXXX-XXXX`), precargado en el link. Al usarse
+  queda atado a ese número, que puede retomar el alta durante 7 días; después se borra lo
+  cargado y el código queda gastado.
+- **Intentos fallidos:** 5 cada 24 h por número (teléfono guardado con HMAC y `CLAVE_HASH`),
+  sin avisar del bloqueo.
+- **Auditoría:** solo ids numéricos; las filas se conservan después de `borrar mis datos`. Se
+  consulta con `python -m app auditoria`.
+- **Establecimientos y lotes:** comando fijo `mis campos` (sin IA) que los lista. Unir
+  duplicados queda para más adelante.
+- **Sesiones:** una abierta por persona; al abrir otra, la anterior se cierra con su resumen.
+  Un registro que no nombra campo va a la sesión y hereda su campo y lote; uno de otro
+  establecimiento queda fuera, con aviso. Se cierra sola a las 12 h sin actividad: cuando la
+  persona vuelve a escribir se le avisa y se le muestra el resumen (sin mensajes automáticos).
+- **Pendientes:** se anotan, se consultan, se marcan hechos ("ya está lo del lote 3") y se
+  borran. Los vencidos van primero y destacados (⚠️).
+- **Salidas:** "Excel" o "planilla" → .xlsx; CSV solo si lo pide, con `;` y BOM. El PDF lleva
+  nombre, rubro y localidad (y matrícula, si está) y al pie: "Registro de lo informado por el
+  profesional. CampoBot es un auxiliar de cálculo y registro: no realiza recomendaciones ni
+  reemplaza la prescripción profesional." En esta etapa el PDF le llega solo al profesional,
+  que lo reenvía; el envío directo al productor va después de las alertas pagas.
+- **Modo prueba:** `modo prueba` / `fin modo prueba`, solo el administrador en su número.
+  `eval revisar` lee la base local; para otra base, `--base` explícito y en solo lectura. Lo
+  aprobado se guarda solo en `evaluacion/set.json`.
+- **Set de evaluación:** las frases de la especificación entran con lo esperado hoy; cada
+  etapa sube la versión y cambia lo esperado. `python -m app eval` contra Groq solo cuando
+  cambia el prompt o un esquema, informando llamadas, tokens y latencia.
+- **Trilla (etapa 3):** el bot informa qué componente de la pérdida supera la tolerancia del
+  INTA, citando la fuente, sin decir qué hacer.
+
 ### Etapa 2 · Módulo ganadero
 
 Tacto y cierre (preñez por cabeza/cuerpo/cola, % y CC promedio, PDF), raspaje (RP, muestreos,

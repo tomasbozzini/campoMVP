@@ -144,7 +144,7 @@ def test_el_webhook_procesa_en_el_orden_en_que_se_escribieron(servidor, monkeypa
     }
     with TestClient(main.app) as c:
         c.post("/webhook", json=payload)
-    assert ["TU ASISTENTE" in t for _, t in servidor] == [True, False]
+    assert ["CAMPOBOT" in t for _, t in servidor] == [True, False]
     assert "TUS DATOS" in servidor[1][1]
 
 
