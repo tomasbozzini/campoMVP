@@ -8,8 +8,8 @@ jobs:
   verificar:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"  # la misma que el Dockerfile
           cache: pip
@@ -45,8 +45,8 @@ jobs:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/campo
       TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/campo_test
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
