@@ -2,7 +2,7 @@
 
 import json
 
-from groq import APIError, Groq
+from groq import APIError, Groq, omit
 
 from app.ia.proveedor import ErrorIA
 
@@ -36,12 +36,14 @@ class ProveedorGroq:
             raise ErrorIA("Groq devolvió una respuesta vacía")
         return json.loads(contenido)
 
-    def transcribir(self, audio: bytes, nombre_archivo: str) -> str:
+    def transcribir(self, audio: bytes, nombre_archivo: str, glosario: str) -> str:
         try:
             resultado = self._cliente.audio.transcriptions.create(
                 file=(nombre_archivo, audio),
                 model=self._modelo_audio,
                 language="es",
+                # Whisper lo toma como texto anterior al audio: copia cómo se escriben esas palabras.
+                prompt=glosario or omit,
             )
         except APIError as e:
             raise _error(e) from None

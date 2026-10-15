@@ -26,6 +26,11 @@ def puede_usar_ia(db: Session, telefono: str) -> bool:
     return usuario is not None and usuario.autorizado
 
 
+def rubro(db: Session, telefono: str) -> str | None:
+    """El rubro de ese número (para el glosario de los audios); None si no tiene."""
+    return db.scalar(select(Usuario.rubro).where(Usuario.telefono == telefono))
+
+
 def usuario_con_acceso(db: Session, telefono: str, nombre: str | None) -> Usuario | None:
     """El usuario si tiene acceso; None si no. Los administradores se dan de alta solos."""
     usuario = db.scalar(select(Usuario).where(Usuario.telefono == telefono))

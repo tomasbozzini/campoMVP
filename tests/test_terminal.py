@@ -87,7 +87,7 @@ class GroqQueLoguea:
         logging.getLogger("httpx").info('HTTP Request: POST https://api.groq.com/openai/v1/chat "HTTP/1.1 200 OK"')
         return {"acciones": [{"intencion": "saludo"}]}
 
-    def transcribir(self, audio, nombre_archivo):
+    def transcribir(self, audio, nombre_archivo, glosario):
         return ""
 
 

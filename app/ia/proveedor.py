@@ -17,7 +17,9 @@ class ProveedorIA(Protocol):
         """Respuesta del modelo como JSON ya leído (sin validar: lo valida quien la usa)."""
         ...
 
-    def transcribir(self, audio: bytes, nombre_archivo: str) -> str: ...
+    def transcribir(self, audio: bytes, nombre_archivo: str, glosario: str) -> str:
+        """El texto del audio. `glosario`: palabras que tiene que escribir bien (puede ser vacío)."""
+        ...
 
 
 _proveedor: ProveedorIA | None = None

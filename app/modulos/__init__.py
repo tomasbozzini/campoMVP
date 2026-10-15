@@ -1,9 +1,10 @@
-"""Módulos de funcionalidades. Cada uno declara sus acciones y lo que le suma al prompt;
-`cargar()` los registra.
+"""Módulos de funcionalidades. Cada uno declara sus acciones, lo que le suma al prompt y su
+glosario para la transcripción; `cargar()` los registra.
 
-Para sumar un módulo: crear su paquete `app/modulos/<nombre>/` con una lista ACCIONES y su
-PROMPT (`ia.prompt.Parte`, que ofrece justo esas acciones), agregarlo a MODULOS y a los
-rubros que lo usan en MODULOS_POR_RUBRO.
+Para sumar un módulo: crear su paquete `app/modulos/<nombre>/` con una lista ACCIONES, su
+PROMPT (`ia.prompt.Parte`, que ofrece justo esas acciones) y su GLOSARIO (las palabras que
+Whisper tiene que escribir bien), agregarlo a MODULOS y a los rubros que lo usan en
+MODULOS_POR_RUBRO.
 """
 
 import threading
@@ -27,17 +28,24 @@ MODULOS_POR_RUBRO: dict[str, tuple[str, ...]] = {
     "productor": ("ganaderia", "agricultura"),
 }
 
+# Whisper lee como mucho 224 tokens de glosario. En castellano son unos 3 caracteres por
+# token: con 500 caracteres queda margen. Un test lo verifica para cada rubro.
+LARGO_MAXIMO_GLOSARIO = 500
+
 _candado = threading.Lock()
 _cargados = False
 _partes: dict[str, Parte] = {}
+_glosarios: dict[str, tuple[str, ...]] = {}
 
 
-def registrar(nombre: str, lista: Sequence[Accion], parte: Parte) -> None:
-    """Las acciones de un módulo y su parte del prompt, que tiene que ofrecer justo esas."""
+def registrar(nombre: str, lista: Sequence[Accion], parte: Parte, glosario: Sequence[str] = ()) -> None:
+    """Las acciones de un módulo, su parte del prompt (que tiene que ofrecer justo esas) y
+    su glosario."""
     if sorted(parte.intenciones) != sorted(a.intencion for a in lista):
         raise ValueError(f"El prompt del módulo {nombre!r} no ofrece las mismas intenciones que sus acciones")
     acciones.registrar(nombre, *lista)
     _partes[nombre] = parte
+    _glosarios[nombre] = tuple(glosario)
 
 
 def cargar() -> None:
@@ -49,7 +57,7 @@ def cargar() -> None:
             return
         for nombre in MODULOS:
             modulo = import_module(f"app.modulos.{nombre}")
-            registrar(nombre, modulo.ACCIONES, modulo.PROMPT)
+            registrar(nombre, modulo.ACCIONES, modulo.PROMPT, modulo.GLOSARIO)
         _cargados = True
 
 
@@ -62,3 +70,10 @@ def del_rubro(rubro: str | None) -> list[str]:
 def partes(nombres: Sequence[str]) -> list[Parte]:
     """Las partes del prompt de esos módulos, en ese orden."""
     return [_partes[nombre] for nombre in nombres]
+
+
+def glosario(nombres: Sequence[str]) -> str:
+    """El glosario para Whisper con las palabras de esos módulos, en ese orden y sin
+    repetir: "vaquillonas, novillos, ...". Vacío si no tienen ninguna."""
+    palabras = dict.fromkeys(p for nombre in nombres for p in _glosarios[nombre])
+    return ", ".join(palabras) + "." if palabras else ""

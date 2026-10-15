@@ -15,5 +15,7 @@ def interpretar(
     return proveedor.obtener().completar_json(prompt.sistema(hoy, partes), prompt.mensaje(texto, historial))
 
 
-def transcribir(audio: bytes, nombre_archivo: str = "audio.ogg") -> str:
-    return proveedor.obtener().transcribir(audio, nombre_archivo)
+def transcribir(audio: bytes, nombre_archivo: str = "audio.ogg", *, glosario: str) -> str:
+    """El texto del audio. `glosario`: las palabras de los módulos de la persona, para que
+    las escriba bien ("vaquillonas, novillos, ..."); vacío si no hay."""
+    return proveedor.obtener().transcribir(audio, nombre_archivo, glosario)

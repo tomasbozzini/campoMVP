@@ -46,7 +46,7 @@ bot> Eso no lo puedo responder. Solo puedo: ...
 - **Responde preguntas** sobre lo que anotaste vos (también por establecimiento). Los totales los calcula el código, no la IA, para que las sumas den bien.
 - **Informa precios de referencia** de granos y hacienda de fuentes oficiales y mercados regulados, siempre con la fuente, la fecha de publicación, la moneda, si incluye impuestos u otros costos, y el link.
 - **Verifica productos veterinarios en SENASA**: si un producto figura en el registro, con número, titular y estado. **No** informa precios de medicamentos ni de instrumental, ni dosis o indicaciones.
-- **Entiende audios**: los transcribe con Whisper en Groq.
+- **Entiende audios**: los transcribe con Whisper en Groq, con un glosario de palabras del campo según el rubro de cada persona (vaquillonas, caravana, ivermectina...).
 - **Solo para personas invitadas**: quien escribe sin código de invitación recibe un mensaje fijo ("CampoBot está en prueba privada") y no se gasta IA ni se guarda nada.
 - **Perfil por rubro**: nombre y apellido, rubro (veterinario, agrónomo o asesor, o productor) y localidad, con preguntas fijas al empezar. `mis datos` los muestra; `cambiar rubro` y `cambiar matrícula` los cambian.
   - `borrar`: deshace lo último que anotaste.
@@ -101,7 +101,7 @@ WhatsApp ──► Meta Cloud API ──► POST /webhook (api/webhook.py)
 | `app/canales/` | WhatsApp: lectura del webhook, envío de mensajes, descarga de audios, firma |
 | `app/nucleo/` | El camino del mensaje (`pipeline.py`), acceso, comandos fijos, charla reciente, registro de acciones y el `Cuaderno`: la única puerta a los datos de cada persona |
 | `app/ia/` | El proveedor de IA detrás de una interfaz (hoy Groq), el armado del prompt y los tipos que validan su salida |
-| `app/modulos/comun/` | Las acciones: registrar, corregir, borrar, consultar, establecimiento, saludo/aclarar, precios y SENASA. Cada una con su esquema y su manejador; lo que el módulo le suma al prompt está en `prompt.py` |
+| `app/modulos/comun/` | Las acciones: registrar, corregir, borrar, consultar, establecimiento, saludo/aclarar, precios y SENASA. Cada una con su esquema y su manejador; lo que el módulo le suma al prompt está en `prompt.py` y su glosario para Whisper en `glosario.py` |
 | `app/fuentes/` | Descarga y carga de precios oficiales y del registro de SENASA |
 | `app/salidas/` | Formato de los mensajes de WhatsApp y la página de privacidad |
 | `app/infra/` | Configuración, base de datos, modelos, migraciones (Alembic), logs y la fila por número |
@@ -109,7 +109,7 @@ WhatsApp ──► Meta Cloud API ──► POST /webhook (api/webhook.py)
 
 **Para sumar una acción**: un archivo en el módulo con su esquema (qué puede devolver la IA), su manejador (qué hace el código) y `ACCION = Accion("intencion", Esquema, manejar)`; se agrega a `ACCIONES` del módulo y se describe en la parte del prompt del módulo (`prompt.py`: la intención, sus campos, qué es y sus reglas). El núcleo no se toca.
 
-**Prompt por perfil**: cada persona recibe un prompt armado con los módulos de su rubro (`MODULOS_POR_RUBRO` en `app/modulos/__init__.py`): el común lo tienen todos; ganadería (veterinario y productor) y agricultura (agrónomo y productor) se suman cuando existan. Si la IA devuelve una acción de un módulo que la persona no tiene, se trata como fuera de alcance.
+**Prompt por perfil**: cada persona recibe un prompt armado con los módulos de su rubro (`MODULOS_POR_RUBRO` en `app/modulos/__init__.py`): el común lo tienen todos; ganadería (veterinario y productor) y agricultura (agrónomo y productor) se suman cuando existan. Si la IA devuelve una acción de un módulo que la persona no tiene, se trata como fuera de alcance. Los audios se transcriben con el glosario de esos mismos módulos (las palabras que Whisper suele escribir mal), que entra en el `prompt` de Whisper: hasta 500 caracteres por rubro, y un test lo verifica.
 
 ## Alcance estricto y seguridad
 

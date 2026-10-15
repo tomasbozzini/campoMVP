@@ -4,6 +4,7 @@ from datetime import date
 from types import SimpleNamespace
 
 import pytest
+from groq import omit
 
 from app import modulos
 from app.ia import interprete, prompt, proveedor
@@ -19,14 +20,14 @@ class ProveedorFalso:
     def __init__(self, respuesta: object) -> None:
         self.respuesta = respuesta
         self.pedidos: list[tuple[str, str]] = []
-        self.audios: list[tuple[bytes, str]] = []
+        self.audios: list[tuple[bytes, str, str]] = []
 
     def completar_json(self, sistema: str, mensaje: str) -> object:
         self.pedidos.append((sistema, mensaje))
         return self.respuesta
 
-    def transcribir(self, audio: bytes, nombre_archivo: str) -> str:
-        self.audios.append((audio, nombre_archivo))
+    def transcribir(self, audio: bytes, nombre_archivo: str, glosario: str) -> str:
+        self.audios.append((audio, nombre_archivo, glosario))
         return "vacuné 20 vacas"
 
 
@@ -56,8 +57,8 @@ def test_el_mensaje_no_puede_cerrar_las_marcas(falso):
 
 
 def test_transcribir_usa_el_proveedor(falso):
-    assert interprete.transcribir(b"ogg") == "vacuné 20 vacas"
-    assert falso.audios == [(b"ogg", "audio.ogg")]
+    assert interprete.transcribir(b"ogg", glosario="vaquillonas.") == "vacuné 20 vacas"
+    assert falso.audios == [(b"ogg", "audio.ogg", "vaquillonas.")]
 
 
 def test_proveedor_groq_lee_el_json_y_el_texto():
@@ -79,8 +80,11 @@ def test_proveedor_groq_lee_el_json_y_el_texto():
     assert groq.completar_json("sis", "msj") == {"acciones": []}
     assert pedidos["chat"]["model"] == "modelo-x"
     assert pedidos["chat"]["response_format"] == {"type": "json_object"}
-    assert groq.transcribir(b"ogg", "a.ogg") == "hola"
+    assert groq.transcribir(b"ogg", "a.ogg", "vaquillonas, novillos.") == "hola"
     assert pedidos["audio"]["model"] == "whisper-x" and pedidos["audio"]["language"] == "es"
+    assert pedidos["audio"]["prompt"] == "vaquillonas, novillos."
+    groq.transcribir(b"ogg", "a.ogg", "")
+    assert pedidos["audio"]["prompt"] is omit  # sin glosario no se manda un prompt vacío
 
 
 @pytest.mark.parametrize("contenido", [None, ""])

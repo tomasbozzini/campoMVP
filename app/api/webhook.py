@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, Query, Request, Response
 from sqlalchemy import delete
 from sqlalchemy.exc import IntegrityError
 
+from app import modulos
 from app.canales import whatsapp
 from app.canales.whatsapp import MensajeEntrante
 from app.ia import interprete
@@ -84,6 +85,7 @@ def procesar_mensaje(mensaje: MensajeEntrante) -> None:
             with SessionLocal() as db:
                 habilitado = acceso.puede_usar_ia(db, telefono)
                 en_alta = not habilitado and alta.en_curso(db, telefono) is not None
+                glosario = modulos.glosario(modulos.del_rubro(acceso.rubro(db, telefono)))
             if not habilitado:
                 # Sin IA para quien no tiene acceso: el alta se responde por escrito.
                 whatsapp.enviar_texto(telefono, alta.POR_ESCRITO if en_alta else acceso.NO_AUTORIZADO)
@@ -92,7 +94,7 @@ def procesar_mensaje(mensaje: MensajeEntrante) -> None:
             if len(audio) > config.max_audio_bytes:
                 whatsapp.enviar_texto(telefono, AUDIO_LARGO)
                 return
-            texto = interprete.transcribir(audio)
+            texto = interprete.transcribir(audio, glosario=glosario)
             prefijo = f"🎤 _{texto[: config.max_largo_mensaje]}_\n\n"
         else:
             whatsapp.enviar_texto(telefono, TIPO_NO_SOPORTADO)

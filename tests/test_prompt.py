@@ -1,17 +1,20 @@
-"""El prompt se arma con los módulos del rubro de cada persona."""
+"""El prompt y el glosario de los audios se arman con los módulos del rubro de cada persona."""
 
 from datetime import date
 
 import pytest
+from fastapi.testclient import TestClient
 
-from app import modulos
+from app import main, modulos
+from app.api import webhook
+from app.canales import whatsapp
 from app.ia import prompt, proveedor
 from app.ia.esquemas import EsquemaAccion
 from app.ia.prompt import Parte
 from app.nucleo import acciones, pipeline
 from app.nucleo.acciones import Accion
 from app.nucleo.perfil import RUBROS
-from tests.ayudas import con_perfil
+from tests.ayudas import con_perfil, con_perfil_en
 
 HOY = date(2026, 10, 13)
 TACTO_ANOTADO = "🐄 Tacto anotado"
@@ -25,26 +28,33 @@ PARTE_TACTO = Parte(
 )
 
 
+GLOSARIO_GANADERO = ("raspaje", "tricomoniasis", "vaquillonas")
+
+
 @pytest.fixture
 def ganaderia(monkeypatch):
     """Un módulo ganadero de mentira, que tienen los veterinarios y los productores."""
     monkeypatch.setattr(acciones, "_registro", dict(acciones._registro))
     monkeypatch.setattr(modulos, "_partes", dict(modulos._partes))
+    monkeypatch.setattr(modulos, "_glosarios", dict(modulos._glosarios))
     monkeypatch.setattr(modulos, "MODULOS", [*modulos.MODULOS, "ganaderia"])
-    modulos.registrar("ganaderia", [Accion("tacto", EsquemaAccion, lambda _ctx, _datos: TACTO_ANOTADO)], PARTE_TACTO)
+    accion = Accion("tacto", EsquemaAccion, lambda _ctx, _datos: TACTO_ANOTADO)
+    modulos.registrar("ganaderia", [accion], PARTE_TACTO, GLOSARIO_GANADERO)
 
 
 class ProveedorFalso:
     def __init__(self, respuesta: object) -> None:
         self.respuesta = respuesta
         self.sistemas: list[str] = []
+        self.glosarios: list[str] = []
 
     def completar_json(self, sistema: str, mensaje: str) -> object:
         self.sistemas.append(sistema)
         return self.respuesta
 
-    def transcribir(self, audio: bytes, nombre_archivo: str) -> str:
-        raise AssertionError("no se usa")
+    def transcribir(self, audio: bytes, nombre_archivo: str, glosario: str) -> str:
+        self.glosarios.append(glosario)
+        return "tacto 30 vacas"
 
 
 @pytest.fixture
@@ -117,3 +127,48 @@ def test_el_prompt_de_un_modulo_ofrece_justo_sus_acciones(monkeypatch):
     with pytest.raises(ValueError, match="ganaderia"):
         modulos.registrar("ganaderia", [accion], Parte(intenciones=(), campos="", descripciones=""))
     assert acciones.buscar("tacto") is None and "ganaderia" not in modulos._partes
+
+
+# --- Glosario para Whisper ------------------------------------------------------------
+
+
+def test_el_glosario_del_modulo_comun():
+    glosario = modulos.glosario(["comun"])
+    assert glosario.startswith("vaquillonas, novillos, terneros, ") and glosario.endswith(", cebada.")
+    assert "ivermectina" in glosario and "SENASA" in glosario
+
+
+def test_cada_modulo_suma_su_glosario_sin_repetir(ganaderia):
+    comun = modulos.glosario(["comun"])
+    con_ganaderia = modulos.glosario(["comun", "ganaderia"])
+    assert con_ganaderia == comun.removesuffix(".") + ", raspaje, tricomoniasis."  # vaquillonas ya estaba
+    assert "raspaje" not in comun
+
+
+def test_sin_palabras_el_glosario_queda_vacio(ganaderia):
+    modulos.registrar("vacio", [], Parte(intenciones=(), campos="", descripciones=""))
+    assert modulos.glosario(["vacio"]) == ""
+
+
+@pytest.mark.parametrize("rubro", list(RUBROS))
+def test_el_glosario_de_cada_rubro_entra_en_whisper(rubro):
+    """Whisper lee como mucho 224 tokens de glosario: con más, falla o lo corta."""
+    assert len(modulos.glosario(modulos.del_rubro(rubro))) <= modulos.LARGO_MAXIMO_GLOSARIO
+
+
+def test_cada_audio_se_transcribe_con_el_glosario_de_su_rubro(servidor, motor, ganaderia, ia, monkeypatch):
+    con_perfil_en(motor, "5491100000001", rubro="veterinario")
+    con_perfil_en(motor, "5491100000002", rubro="agronomo")
+    monkeypatch.setattr(whatsapp, "descargar_media", lambda _id: b"ogg")
+
+    def audio(telefono: str, wamid: str) -> dict:
+        mensaje = {"from": telefono, "id": wamid, "type": "audio", "audio": {"id": "media1"}}
+        return {"entry": [{"changes": [{"value": {"messages": [mensaje]}}]}]}
+
+    with TestClient(main.app) as c:
+        c.post("/webhook", json=audio("5491100000001", "wamid.v"))
+        assert webhook.fila.esperar(5)
+        c.post("/webhook", json=audio("5491100000002", "wamid.a"))
+        assert webhook.fila.esperar(5)
+    assert ia.glosarios == [modulos.glosario(["comun", "ganaderia"]), modulos.glosario(["comun"])]
+    assert servidor[0] == ("5491100000001", f"🎤 _tacto 30 vacas_\n\n{TACTO_ANOTADO}")
