@@ -183,8 +183,8 @@ en cada punto, primero un test que reproduce el problema.
 ### Etapa 1 · Núcleo profesional
 
 - **Alta por código de invitación** (ver "Alta de usuarios" abajo).
-- Perfiles por rubro que habilitan módulos: veterinario → ganadería; agrónomo / asesor →
-  agricultura; productor → ambos; otro → solo el módulo común.
+- Perfiles por rubro que habilitan módulos, además del común que tienen todos: veterinario →
+  ganadería; agrónomo / asesor → agricultura; productor → ambos.
 - Establecimientos y lotes como entidades; sesiones con apertura, cierre y resumen.
 - Salidas: PDF con marca del producto y Excel/CSV enviados por WhatsApp.
 - Glosario para Whisper por perfil.
@@ -242,7 +242,9 @@ de 2b, 7 y 8b):
 - **Usuarios existentes:** al escribir, si les falta nombre, rubro o localidad, el mensaje se
   descarta, se hacen las preguntas fijas y al final se les pide repetirlo. Los administradores
   también las responden.
-- **Rubro:** Veterinario, Agrónomo o asesor, Productor, Otro. Se ve con `mis datos` (nombre,
+- **Rubro:** Veterinario, Agrónomo o asesor, o Productor. La opción "Otro" se sacó: a quien
+  la tenía se le vuelve a preguntar el rubro la próxima vez que escribe (el mensaje se
+  descarta, como con cualquier dato que falta). Se ve con `mis datos` (nombre,
   rubro, localidad y matrícula) y se cambia con `cambiar rubro`.
 - **Localidad:** texto libre, prolijo (mayúscula inicial, sin espacios de más).
 - **Matrícula:** opcional y fuera del alta (que sigue siendo de 3 preguntas); se carga con

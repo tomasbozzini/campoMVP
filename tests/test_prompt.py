@@ -55,7 +55,7 @@ def ia():
     proveedor.usar(None)
 
 
-@pytest.mark.parametrize("rubro", [*RUBROS, None, "astronauta"])
+@pytest.mark.parametrize("rubro", [*RUBROS, None, "otro"])
 def test_hoy_todos_los_rubros_usan_solo_el_modulo_comun(rubro):
     """Ganadería y agricultura todavía no existen: nadie las tiene en el prompt."""
     assert modulos.del_rubro(rubro) == ["comun"]
@@ -66,7 +66,6 @@ def test_cada_rubro_suma_los_modulos_que_le_tocan(monkeypatch):
     assert modulos.del_rubro("veterinario") == ["comun", "ganaderia"]
     assert modulos.del_rubro("agronomo") == ["comun", "agricultura"]
     assert modulos.del_rubro("productor") == ["comun", "ganaderia", "agricultura"]
-    assert modulos.del_rubro("otro") == ["comun"]
 
 
 def test_cada_modulo_suma_su_parte_en_su_lugar(ganaderia):
@@ -92,9 +91,9 @@ def test_sin_el_modulo_su_parte_no_esta_en_el_prompt(ganaderia):
 
 def test_cada_persona_recibe_el_prompt_de_su_rubro(db, ganaderia, ia):
     veterinaria = con_perfil(db, "5491100000001", rubro="veterinario")
-    otra = con_perfil(db, "5491100000002", rubro="otro")
+    agronoma = con_perfil(db, "5491100000002", rubro="agronomo")
     pipeline.manejar_mensaje(db, veterinaria.telefono, "tacto 30 vacas", hoy=HOY)
-    pipeline.manejar_mensaje(db, otra.telefono, "tacto 30 vacas", hoy=HOY)
+    pipeline.manejar_mensaje(db, agronoma.telefono, "tacto 30 vacas", hoy=HOY)
     assert ia.sistemas == [
         prompt.sistema(HOY, modulos.partes(["comun", "ganaderia"])),
         prompt.sistema(HOY, modulos.partes(["comun"])),
@@ -104,9 +103,9 @@ def test_cada_persona_recibe_el_prompt_de_su_rubro(db, ganaderia, ia):
 def test_una_accion_de_un_modulo_que_no_tiene_no_se_ejecuta(db, ganaderia, ia):
     """Aunque la IA la devuelva: el código decide qué puede hacer cada persona."""
     veterinaria = con_perfil(db, "5491100000001", rubro="veterinario")
-    otra = con_perfil(db, "5491100000002", rubro="otro")
+    agronoma = con_perfil(db, "5491100000002", rubro="agronomo")
     assert pipeline.manejar_mensaje(db, veterinaria.telefono, "tacto 30 vacas", hoy=HOY) == TACTO_ANOTADO
-    assert pipeline.manejar_mensaje(db, otra.telefono, "tacto 30 vacas", hoy=HOY) == pipeline.FUERA_DE_ALCANCE
+    assert pipeline.manejar_mensaje(db, agronoma.telefono, "tacto 30 vacas", hoy=HOY) == pipeline.FUERA_DE_ALCANCE
 
 
 def test_el_prompt_de_un_modulo_ofrece_justo_sus_acciones(monkeypatch):

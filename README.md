@@ -48,7 +48,7 @@ bot> Eso no lo puedo responder. Solo puedo: ...
 - **Verifica productos veterinarios en SENASA**: si un producto figura en el registro, con número, titular y estado. **No** informa precios de medicamentos ni de instrumental, ni dosis o indicaciones.
 - **Entiende audios**: los transcribe con Whisper en Groq.
 - **Solo para personas invitadas**: quien escribe sin código de invitación recibe un mensaje fijo ("CampoBot está en prueba privada") y no se gasta IA ni se guarda nada.
-- **Perfil por rubro**: nombre y apellido, rubro (veterinario, agrónomo o asesor, productor u otro) y localidad, con preguntas fijas al empezar. `mis datos` los muestra; `cambiar rubro` y `cambiar matrícula` los cambian.
+- **Perfil por rubro**: nombre y apellido, rubro (veterinario, agrónomo o asesor, o productor) y localidad, con preguntas fijas al empezar. `mis datos` los muestra; `cambiar rubro` y `cambiar matrícula` los cambian.
   - `borrar`: deshace lo último que anotaste.
   - `ayuda`: muestra los ejemplos.
 

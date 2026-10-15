@@ -21,7 +21,6 @@ RUBROS = {
     "veterinario": "Veterinario",
     "agronomo": "Agrónomo o asesor",
     "productor": "Productor",
-    "otro": "Otro",
 }
 
 # Las preguntas del alta, en orden, con el dato que completan.
@@ -41,14 +40,13 @@ PREGUNTAS = {
         "¿A qué te dedicás? Respondé con el número:\n"
         "      *1* Veterinario\n"
         "      *2* Agrónomo o asesor\n"
-        "      *3* Productor\n"
-        "      *4* Otro"
+        "      *3* Productor"
     ),
     "localidad": "¿De qué *localidad* sos? Por ejemplo: _Tandil_.",
 }
 NO_ENTENDI = {
     "nombre": "🤔 Necesito tu nombre y apellido, por ejemplo: _Juan Pérez_.",
-    "rubro": "🤔 No entendí. Elegí una opción del 1 al 4.",
+    "rubro": "🤔 No entendí. Elegí una opción del 1 al 3.",
     "localidad": "🤔 No entendí la localidad. Escribila sola, por ejemplo: _Tandil_.",
 }
 
@@ -63,15 +61,15 @@ PREGUNTA_MATRICULA = (
     "¿Cuál es tu *matrícula*? Escribila como figura, por ejemplo: _MP 1234_.\n_Para borrarla, mandá *ninguna*._"
 )
 SIN_CAMBIOS = "👌 Listo, no cambié nada."
+RUBRO_DE_NUEVO = "Cambiaron las opciones de rubro: necesito que vuelvas a elegir el tuyo."
 
 # Palabras que identifican cada rubro en una respuesta escrita (sin tildes, minúscula).
 _PALABRAS_RUBRO = {
     "veterinario": ("veterinari", "vete"),
     "agronomo": ("agronom", "asesor"),
     "productor": ("productor",),
-    "otro": ("otro", "otra"),
 }
-_NUMEROS_RUBRO = {"1": "veterinario", "2": "agronomo", "3": "productor", "4": "otro"}
+_NUMEROS_RUBRO = {"1": "veterinario", "2": "agronomo", "3": "productor"}
 # Palabras que van en minúscula dentro de un nombre o una localidad ("25 de Mayo").
 _PARTICULAS = {"de", "del", "la", "las", "los", "el", "y", "e", "da", "di", "van", "von"}
 _PREFIJOS_NOMBRE = ("me llamo ", "mi nombre es ", "soy ")
@@ -113,7 +111,7 @@ def leer_nombre(texto: str) -> str | None:
 
 
 def leer_rubro(texto: str) -> str | None:
-    """El rubro elegido, por número (1 a 4) o por nombre. None si no se entiende o hay más de uno."""
+    """El rubro elegido, por número (1 a 3) o por nombre. None si no se entiende o hay más de uno."""
     respuesta = _normalizar(texto)
     numeros = set(re.findall(r"\d+", respuesta))
     if len(numeros) == 1 and (numero := numeros.pop()) in _NUMEROS_RUBRO and len(respuesta) <= 12:
@@ -140,14 +138,23 @@ def leer_matricula(texto: str) -> str | None:
 _LECTORES = {"nombre": leer_nombre, "rubro": leer_rubro, "localidad": leer_localidad}
 
 
+def _tiene(usuario: Usuario, campo: str) -> bool:
+    """Si el dato está respondido. Un rubro que ya no se ofrece (el "otro" de antes) cuenta
+    como sin responder: se vuelve a preguntar."""
+    valor = getattr(usuario, campo)
+    return valor in RUBROS if campo == "rubro" else bool(valor)
+
+
 def falta(usuario: Usuario) -> str | None:
     """La primera pregunta del alta que falta responder; None si el perfil está completo."""
-    return next((pregunta for pregunta, campo in ALTA.items() if not getattr(usuario, campo)), None)
+    return next((pregunta for pregunta, campo in ALTA.items() if not _tiene(usuario, campo)), None)
 
 
 def intro(usuario: Usuario, titulo: str = "👋 *¡Hola! Soy CampoBot.*") -> str:
     """La presentación antes de la primera pregunta, con cuántos datos faltan."""
-    faltan = sum(1 for campo in ALTA.values() if not getattr(usuario, campo))
+    faltan = sum(1 for campo in ALTA.values() if not _tiene(usuario, campo))
+    if faltan == 1 and usuario.rubro:
+        return f"{titulo}\n\n{RUBRO_DE_NUEVO}\n\n"
     datos = "un dato tuyo" if faltan == 1 else f"{faltan} datos tuyos"
     return f"{titulo}\n\nAntes de seguir necesito {datos}. Es una sola vez.\n\n"
 
@@ -173,12 +180,16 @@ def alta(ctx: Contexto, respuesta_fija: str | None) -> str:
     return f"{respuesta_fija}\n\n{LINEA}\n{pregunta}" if respuesta_fija else pregunta
 
 
+def _rubro(usuario: Usuario) -> str:
+    return RUBROS.get(usuario.rubro or "", "sin elegir")
+
+
 def mis_datos(usuario: Usuario) -> str:
     matricula = usuario.matricula or "_sin cargar_"
     return (
         "👤 *MIS DATOS*\n\n"
         f"      › Nombre: {usuario.nombre_completo}\n"
-        f"      › Rubro: {RUBROS.get(usuario.rubro or '', 'Otro')}\n"
+        f"      › Rubro: {_rubro(usuario)}\n"
         f"      › Localidad: {usuario.localidad}\n"
         f"      › Matrícula: {matricula}\n\n"
         f"{LINEA}\n"
@@ -222,7 +233,7 @@ def comando(ctx: Contexto) -> str | None:
         return mis_datos(usuario)
     if pedido in CAMBIAR_RUBRO:
         usuario.pregunta = CAMBIO_RUBRO
-        return f"Ahora figurás como *{RUBROS.get(usuario.rubro or '', 'Otro')}*.\n\n{PREGUNTAS['rubro']}"
+        return f"Ahora figurás como *{_rubro(usuario)}*.\n\n{PREGUNTAS['rubro']}"
     if pedido in CAMBIAR_MATRICULA:
         usuario.pregunta = CAMBIO_MATRICULA
         return PREGUNTA_MATRICULA

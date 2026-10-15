@@ -35,7 +35,7 @@ class Usuario(Base):
     nombre: Mapped[str | None] = mapped_column(String(120))  # nombre de perfil de WhatsApp
     # Perfil, completado con preguntas fijas (app/nucleo/perfil.py). El rubro define los módulos.
     nombre_completo: Mapped[str | None] = mapped_column(String(80))
-    rubro: Mapped[str | None] = mapped_column(String(20))  # veterinario | agronomo | productor | otro
+    rubro: Mapped[str | None] = mapped_column(String(20))  # veterinario | agronomo | productor
     localidad: Mapped[str | None] = mapped_column(String(80))
     matricula: Mapped[str | None] = mapped_column(String(30))  # opcional, va en el membrete del PDF
     # Pregunta fija que espera respuesta (alta o cambio de un dato del perfil).

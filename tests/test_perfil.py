@@ -74,6 +74,33 @@ def test_si_falta_un_solo_dato_pregunta_solo_ese(db, ia):
     assert u.rubro == "agronomo" and u.localidad == "Tandil"
 
 
+def test_a_quien_tenia_rubro_otro_se_le_vuelve_a_preguntar(db, ia):
+    """La opción "Otro" se sacó: la próxima vez que escribe, elige uno de los tres."""
+    u = con_perfil(db, TEL, rubro="otro")
+    r = _mandar(db, "vacuné 20 vacas")
+    assert perfil.RUBRO_DE_NUEVO in r and perfil.PREGUNTAS["rubro"] in r
+    assert "Otro" not in r and "*4*" not in r
+    assert ia == []  # el mensaje no llega a la IA ni se anota
+
+    r = _mandar(db, "4")
+    assert perfil.NO_ENTENDI["rubro"] in r and "del 1 al 3" in r
+    assert u.rubro == "otro"
+    r = _mandar(db, "3")
+    assert "¡Listo, Juana!" in r and "mandámelo de nuevo" in r
+    assert (u.rubro, u.nombre_completo, u.localidad, u.pregunta) == ("productor", "Juana Gómez", "Tandil", None)
+
+    _mandar(db, "vacuné 20 vacas")
+    assert ia == ["vacuné 20 vacas"]
+
+
+def test_el_rubro_se_elige_entre_tres_opciones(db, ia):
+    con_perfil(db, TEL)
+    r = _mandar(db, "cambiar rubro")
+    assert "*1* Veterinario" in r and "*3* Productor" in r and "Otro" not in r
+    _mandar(db, "4")  # no es una opción: el cambio se descarta y sigue el camino normal
+    assert db.scalar(select(Usuario).where(Usuario.telefono == TEL)).rubro == "productor"
+
+
 def test_ayuda_y_privacidad_se_responden_durante_el_alta(db, ia):
     usuarios.autorizar(db, TEL)
     r = _mandar(db, "ayuda")
@@ -150,12 +177,13 @@ def test_cambiar_matricula(db, ia):
         ("1", "veterinario"),
         ("2.", "agronomo"),
         ("opción 3", "productor"),
-        ("4", "otro"),
+        ("4", None),  # era "Otro", que ya no está
         ("Soy veterinaria", "veterinario"),
         ("Ingeniero agrónomo", "agronomo"),
         ("asesor", "agronomo"),
         ("productor", "productor"),
-        ("otra cosa", "otro"),
+        ("otro", None),
+        ("otra cosa", None),
         ("5", None),
         ("veterinario y productor", None),
         ("no sé", None),

@@ -18,14 +18,13 @@ COMUN = "comun"
 # Los módulos que existen, en el orden en que se arma el prompt.
 MODULOS = [COMUN]
 
-# Los módulos de cada rubro, además del común, que lo tienen todos. Los que todavía no
-# existen (no están en MODULOS) no se ofrecen: ganadería llega en la etapa 2 y
-# agricultura en la 3.
+# Los módulos de cada rubro (`perfil.RUBROS`), además del común, que lo tienen todos. Los
+# que todavía no existen (no están en MODULOS) no se ofrecen: ganadería llega en la etapa 2
+# y agricultura en la 3.
 MODULOS_POR_RUBRO: dict[str, tuple[str, ...]] = {
     "veterinario": ("ganaderia",),
     "agronomo": ("agricultura",),
     "productor": ("ganaderia", "agricultura"),
-    "otro": (),
 }
 
 _candado = threading.Lock()

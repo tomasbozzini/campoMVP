@@ -51,7 +51,7 @@ tus datos podés escribir a <strong>{contacto}</strong>.</p>
 <ul>
   <li>Tu número de WhatsApp y el nombre de tu perfil.</li>
   <li>Los datos que respondés al empezar: tu nombre y apellido, tu rubro (veterinario, agrónomo o asesor,
-  productor u otro) y tu localidad. Y tu matrícula profesional, solo si la cargás.</li>
+  o productor) y tu localidad. Y tu matrícula profesional, solo si la cargás.</li>
   <li>Lo que anotás en CampoBot: tareas, animales, lotes, establecimientos, productos, fechas y cantidades.</li>
   <li>Tus últimos mensajes con CampoBot (los más recientes, para entender tus respuestas cortas). Se reemplazan solos a medida que escribís.</li>
   <li>La cantidad de mensajes que mandás por día, para aplicar el límite de uso.</li>
