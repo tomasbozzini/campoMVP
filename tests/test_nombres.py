@@ -42,8 +42,32 @@ NOMBRES = {
         "uq": set(),
     },
     "intentos_alta": {"pk": "intentos_alta_pkey", "fk": set(), "uq": set()},
-    "usuarios": {"pk": "usuarios_pkey", "fk": {"usuarios_cuenta_id_fkey"}, "uq": set()},
-    "eventos": {"pk": "eventos_pkey", "fk": {"eventos_cuenta_id_fkey", "eventos_usuario_id_fkey"}, "uq": set()},
+    "usuarios": {
+        "pk": "usuarios_pkey",
+        "fk": {"usuarios_cuenta_id_fkey", "usuarios_establecimiento_actual_id_fkey"},
+        "uq": set(),
+    },
+    "eventos": {
+        "pk": "eventos_pkey",
+        "fk": {
+            "eventos_cuenta_id_fkey",
+            "eventos_usuario_id_fkey",
+            "eventos_establecimiento_id_fkey",
+            "eventos_lote_id_fkey",
+            "eventos_lote_destino_id_fkey",
+        },
+        "uq": set(),
+    },
+    "establecimientos": {
+        "pk": "establecimientos_pkey",
+        "fk": {"establecimientos_cuenta_id_fkey"},
+        "uq": {"establecimientos_cuenta_id_clave_key"},
+    },
+    "lotes": {
+        "pk": "lotes_pkey",
+        "fk": {"lotes_cuenta_id_fkey", "lotes_establecimiento_id_fkey"},
+        "uq": {"lotes_cuenta_id_establecimiento_id_nombre_key"},
+    },
 }
 
 

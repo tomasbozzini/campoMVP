@@ -8,7 +8,6 @@ from app.infra.modelos import Evento
 from app.modulos.comun.registros import CATEGORIAS, DatosEvento, fecha_valida
 from app.nucleo.acciones import Accion
 from app.nucleo.contexto import Contexto
-from app.nucleo.normalizar import clave_establecimiento
 from app.salidas import whatsapp as formato
 from app.salidas.whatsapp import SEPARADOR as LINEA
 
@@ -46,16 +45,21 @@ def heredar_contexto(eventos: list[DatosEvento]) -> None:
 
 def manejar(ctx: Contexto, datos: Registrar) -> str:
     heredar_contexto(datos.eventos)
-    usuario = ctx.usuario
+    validos = [e for e in datos.eventos if e.categoria in CATEGORIAS]
+    if not validos:
+        return NADA_CLARO
+
+    usuario, cuaderno = ctx.usuario, ctx.cuaderno
     # Si el mensaje nombra un establecimiento, pasa a ser el actual; si no, se usa el último.
-    if datos.establecimiento:
-        usuario.establecimiento_actual = datos.establecimiento
-    establecimiento = datos.establecimiento or usuario.establecimiento_actual
+    if datos.establecimiento and (nombrado := cuaderno.establecimiento(datos.establecimiento)):
+        usuario.establecimiento_actual = nombrado
+    establecimiento = usuario.establecimiento_actual
     mensaje_id = str(uuid.uuid4())  # une los eventos del mensaje para poder "borrar" todo junto
     guardados = [
         Evento(
             establecimiento=establecimiento,
-            establecimiento_clave=clave_establecimiento(establecimiento),
+            lote=cuaderno.lote(e.lote, establecimiento),
+            lote_destino=cuaderno.lote(e.lote_destino, establecimiento),
             categoria=e.categoria,
             tipo=e.tipo or "otro",
             descripcion=e.descripcion,
@@ -64,8 +68,6 @@ def manejar(ctx: Contexto, datos: Registrar) -> str:
             cantidad_animales=e.cantidad_animales,
             categoria_animal=e.categoria_animal,
             caravana=e.caravana,
-            lote=e.lote,
-            lote_destino=e.lote_destino,
             valor=e.valor,
             unidad=e.unidad,
             fecha_evento=fecha_valida(e.fecha_evento, ctx.hoy),
@@ -73,14 +75,10 @@ def manejar(ctx: Contexto, datos: Registrar) -> str:
             mensaje_original=ctx.texto,
             mensaje_id=mensaje_id,
         )
-        for e in datos.eventos
-        if e.categoria in CATEGORIAS
+        for e in validos
     ]
-    if not guardados:
-        return NADA_CLARO
-
-    ctx.cuaderno.agregar(guardados)
-    donde = f"📍 {establecimiento}" if establecimiento else "📍 _sin establecimiento_"
+    cuaderno.agregar(guardados)
+    donde = f"📍 {establecimiento.nombre}" if establecimiento else "📍 _sin establecimiento_"
     cantidad = f"{len(guardados)} registros" if len(guardados) > 1 else "1 registro"
     partes = [f"✅ *ANOTADO*\n{donde} · {cantidad}", formato.tarjetas(guardados, lugar=False)]
     if any(e.confianza == "baja" for e in guardados):

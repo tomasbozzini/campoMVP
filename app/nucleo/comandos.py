@@ -47,6 +47,7 @@ _Tu cuaderno de trabajo en el campo, por WhatsApp._
 🔒 Lo que anotás es solo tuyo.
 
 *borrar* → deshace lo último que anotaste
+*mis campos* → tus establecimientos y lotes
 *mis datos* → tu nombre, rubro y localidad
 *privacidad* → cómo se usan tus datos
 *borrar mis datos* → elimina todo lo tuyo

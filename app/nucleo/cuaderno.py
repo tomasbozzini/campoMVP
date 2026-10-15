@@ -1,5 +1,5 @@
-"""Acceso a los datos de UNA persona: el cuaderno de su cuenta, su charla con el bot, su
-cupo diario y los borrados que esperan confirmación.
+"""Acceso a los datos de UNA persona: el cuaderno de su cuenta (registros, establecimientos
+y lotes), su charla con el bot, su cupo diario y los borrados que esperan confirmación.
 
 Es la única puerta a esas tablas. Lo que se anota es de la cuenta y se filtra por la cuenta
 de quien abrió el cuaderno (hoy, 1 persona = 1 cuenta); la charla, el cupo y los borrados
@@ -11,14 +11,34 @@ por `cuenta_id` ni por `usuario_id` a mano.
 from dataclasses import dataclass
 from datetime import date, datetime
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
-from app.infra.modelos import BorradoPendiente, Evento, MensajeChat, Solicitud, UsoDiario, Usuario
+from app.infra.modelos import (
+    BorradoPendiente,
+    Establecimiento,
+    Evento,
+    Lote,
+    MensajeChat,
+    Solicitud,
+    UsoDiario,
+    Usuario,
+)
 from app.nucleo import auditoria
+from app.nucleo.normalizar import clave_establecimiento, normalizar_lote
 
 # Tope de registros que devuelve una búsqueda.
 MAX_EVENTOS = 5000
+
+
+@dataclass(frozen=True)
+class Campo:
+    """Un establecimiento con sus lotes y cuántos registros tiene. Sin establecimiento: los
+    lotes sueltos y los registros que no dicen dónde fueron."""
+
+    establecimiento: Establecimiento | None
+    lotes: list[str]
+    registros: int
 
 
 @dataclass(frozen=True)
@@ -82,13 +102,18 @@ class Cuaderno:
         modelo nunca escribe SQL ni ve los resultados."""
         q = select(Evento).where(Evento.cuenta_id == self.cuenta_id)
         if filtros.establecimiento_clave:
-            q = q.where(Evento.establecimiento_clave == filtros.establecimiento_clave)
+            campo = select(Establecimiento.id).where(
+                Establecimiento.cuenta_id == self.cuenta_id, Establecimiento.clave == filtros.establecimiento_clave
+            )
+            q = q.where(Evento.establecimiento_id.in_(campo))
         if filtros.categoria:
             q = q.where(Evento.categoria == filtros.categoria.lower())
         if filtros.tipo:
             q = q.where(Evento.tipo == filtros.tipo.lower())
         if filtros.lote:
-            q = q.where((Evento.lote == filtros.lote) | (Evento.lote_destino == filtros.lote))
+            # El lote de cualquier campo, como origen o como destino.
+            lotes = select(Lote.id).where(Lote.cuenta_id == self.cuenta_id, Lote.nombre == filtros.lote)
+            q = q.where(Evento.lote_id.in_(lotes) | Evento.lote_destino_id.in_(lotes))
         if filtros.caravana:
             q = q.where(func.lower(Evento.caravana) == filtros.caravana.lower())
         if filtros.categoria_animal:
@@ -103,6 +128,72 @@ class Cuaderno:
             q = q.where(Evento.fecha_evento <= filtros.hasta)
         q = q.order_by(Evento.fecha_evento.desc(), Evento.id.desc()).limit(MAX_EVENTOS)
         return list(self.db.scalars(q).all())
+
+    # --- Establecimientos y lotes ---------------------------------------------
+
+    def establecimiento(self, nombre: str | None) -> Establecimiento | None:
+        """El establecimiento con ese nombre, escrito como sea ("Estancia La Esperanza", "la
+        esperanza"). Si es la primera vez que lo nombra, se crea con el nombre como lo escribió."""
+        clave = clave_establecimiento(nombre)
+        if not nombre or not clave:
+            return None
+        existente = self.db.scalar(
+            select(Establecimiento).where(Establecimiento.cuenta_id == self.cuenta_id, Establecimiento.clave == clave)
+        )
+        if existente is not None:
+            return existente
+        nuevo = Establecimiento(cuenta_id=self.cuenta_id, nombre=" ".join(nombre.split()), clave=clave)
+        self.db.add(nuevo)
+        self.db.flush()
+        return nuevo
+
+    def lote(self, nombre: str | None, establecimiento: Establecimiento | None) -> Lote | None:
+        """El lote con ese nombre en ese establecimiento (o suelto, sin establecimiento). Si no
+        existe, se crea. El establecimiento tiene que ser de esta cuenta."""
+        limpio = normalizar_lote(nombre)
+        if not limpio:
+            return None
+        if establecimiento is not None and establecimiento.cuenta_id != self.cuenta_id:
+            raise ValueError("El establecimiento es de otra cuenta")
+        establecimiento_id = establecimiento.id if establecimiento else None
+        existente = self.db.scalar(
+            select(Lote).where(
+                Lote.cuenta_id == self.cuenta_id,
+                Lote.establecimiento_id.is_(None)
+                if establecimiento_id is None
+                else Lote.establecimiento_id == establecimiento_id,
+                Lote.nombre == limpio,
+            )
+        )
+        if existente is not None:
+            return existente
+        nuevo = Lote(cuenta_id=self.cuenta_id, establecimiento_id=establecimiento_id, nombre=limpio)
+        self.db.add(nuevo)
+        self.db.flush()
+        return nuevo
+
+    def campos(self) -> list[Campo]:
+        """Los establecimientos por nombre, con sus lotes y cuántos registros tiene cada uno.
+        Al final, lo que no tiene establecimiento (si hay algo)."""
+        establecimientos = self.db.scalars(
+            select(Establecimiento).where(Establecimiento.cuenta_id == self.cuenta_id).order_by(Establecimiento.clave)
+        ).all()
+        lotes: dict[int | None, list[str]] = {}
+        for establecimiento_id, nombre in self.db.execute(
+            select(Lote.establecimiento_id, Lote.nombre).where(Lote.cuenta_id == self.cuenta_id)
+        ):
+            lotes.setdefault(establecimiento_id, []).append(nombre)
+        registros: dict[int | None, int] = dict(
+            self.db.execute(
+                select(Evento.establecimiento_id, func.count(Evento.id))
+                .where(Evento.cuenta_id == self.cuenta_id)
+                .group_by(Evento.establecimiento_id)
+            ).all()
+        )
+        campos = [Campo(e, _ordenar_lotes(lotes.get(e.id, [])), registros.get(e.id, 0)) for e in establecimientos]
+        if lotes.get(None) or registros.get(None):
+            campos.append(Campo(None, _ordenar_lotes(lotes.get(None, [])), registros.get(None, 0)))
+        return campos
 
     # --- Borrado grande esperando confirmación ---------------------------------
 
@@ -164,6 +255,16 @@ class Cuaderno:
 
         Hoy cada persona tiene su propia cuenta, así que se borra todo lo de la cuenta."""
         self.db.execute(delete(Evento).where(Evento.cuenta_id == self.cuenta_id))
+        self.db.execute(
+            update(Usuario).where(Usuario.cuenta_id == self.cuenta_id).values(establecimiento_actual_id=None)
+        )
+        self.db.execute(delete(Lote).where(Lote.cuenta_id == self.cuenta_id))
+        self.db.execute(delete(Establecimiento).where(Establecimiento.cuenta_id == self.cuenta_id))
         for modelo in (MensajeChat, UsoDiario, BorradoPendiente, Solicitud):
             self.db.execute(delete(modelo).where(modelo.usuario_id == self.usuario_id))
         self.db.flush()
+
+
+def _ordenar_lotes(nombres: list[str]) -> list[str]:
+    """Los números en orden de número (2, 10) y después los nombres (potrero grande)."""
+    return sorted(nombres, key=lambda n: (0, int(n), "") if n.isdecimal() else (1, 0, n))

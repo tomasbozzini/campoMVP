@@ -12,8 +12,11 @@ class Establecimiento(EsquemaAccion):
 
 
 def manejar(ctx: Contexto, datos: Establecimiento) -> str:
-    ctx.usuario.establecimiento_actual = datos.establecimiento
-    return f"📍 *{datos.establecimiento}*\n\nListo, lo próximo que anotes queda guardado acá."
+    campo = ctx.cuaderno.establecimiento(datos.establecimiento)
+    if campo is None:
+        return "🤔 No entendí en qué establecimiento estás."
+    ctx.usuario.establecimiento_actual = campo
+    return f"📍 *{campo.nombre}*\n\nListo, lo próximo que anotes queda guardado acá."
 
 
 ACCION = Accion("establecimiento", Establecimiento, manejar)

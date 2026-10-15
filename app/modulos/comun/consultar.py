@@ -68,8 +68,9 @@ def manejar(ctx: Contexto, datos: Consultar) -> str:
     if not eventos:
         return SIN_RESULTADOS
 
-    lugares = {e.establecimiento for e in eventos}
-    subtitulo = [f"📍 {eventos[0].establecimiento}"] if len(lugares) == 1 and eventos[0].establecimiento else []
+    lugares = {e.establecimiento_id for e in eventos}
+    unico = eventos[0].nombre_establecimiento if len(lugares) == 1 else None
+    subtitulo = [f"📍 {unico}"] if unico else []
     subtitulo.append(f"{len(eventos)} registro{'s' if len(eventos) != 1 else ''}")
     partes = ["📋 *TUS REGISTROS*\n" + " · ".join(subtitulo)]
 

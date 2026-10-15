@@ -76,11 +76,13 @@ def coincide(e: Evento, ref: Referencia) -> bool:
         not e.categoria_animal or formato.singular(ref.categoria_animal.lower()) not in e.categoria_animal.lower()
     ):
         return False
-    if ref.lote and e.lote != ref.lote:
+    if ref.lote and e.nombre_lote != ref.lote:
         return False
-    if ref.lote_destino and e.lote_destino != ref.lote_destino:
+    if ref.lote_destino and e.nombre_lote_destino != ref.lote_destino:
         return False
-    if ref.establecimiento and e.establecimiento_clave != clave_establecimiento(ref.establecimiento):
+    if ref.establecimiento and (
+        e.establecimiento is None or e.establecimiento.clave != clave_establecimiento(ref.establecimiento)
+    ):
         return False
     if ref.tipo and (e.tipo or "").lower() != ref.tipo.lower():
         return False

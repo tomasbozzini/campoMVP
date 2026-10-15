@@ -2,7 +2,7 @@ from datetime import UTC, date, datetime
 from typing import Any
 
 from sqlalchemy import JSON, Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.infra.db import Base
 
@@ -43,7 +43,38 @@ class Usuario(Base):
     # Solo los números autorizados por un administrador pueden usar el bot.
     autorizado: Mapped[bool] = mapped_column(Boolean, default=False)
     # Último establecimiento que nombró: se usa cuando anota algo sin decir dónde fue.
-    establecimiento_actual: Mapped[str | None] = mapped_column(String(120))
+    establecimiento_actual_id: Mapped[int | None] = mapped_column(ForeignKey("establecimientos.id"))
+    creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_ahora)
+
+    establecimiento_actual: Mapped["Establecimiento | None"] = relationship(lazy="joined")
+
+
+class Establecimiento(Base):
+    """Un campo donde trabaja la persona ("La Esperanza"). Es de la cuenta: otra persona que
+    trabaja en el mismo campo tiene el suyo, con sus propios registros."""
+
+    __tablename__ = "establecimientos"
+    __table_args__ = (UniqueConstraint("cuenta_id", "clave"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    cuenta_id: Mapped[int] = mapped_column(ForeignKey("cuentas.id"), index=True)
+    nombre: Mapped[str] = mapped_column(String(120))  # como lo escribió la primera vez
+    # Para reconocerlo escrito de otra forma: "Estancia La Esperanza" y "la esperanza" son el mismo.
+    clave: Mapped[str] = mapped_column(String(120))
+    creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_ahora)
+
+
+class Lote(Base):
+    """Un lote o potrero de un establecimiento. Si se nombró sin decir el campo, queda suelto
+    (sin establecimiento): "el lote 3" de La Esperanza y el suelto son lotes distintos."""
+
+    __tablename__ = "lotes"
+    __table_args__ = (UniqueConstraint("cuenta_id", "establecimiento_id", "nombre"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    cuenta_id: Mapped[int] = mapped_column(ForeignKey("cuentas.id"), index=True)
+    establecimiento_id: Mapped[int | None] = mapped_column(ForeignKey("establecimientos.id"), index=True)
+    nombre: Mapped[str] = mapped_column(String(60))  # sin la palabra "lote": "3", "potrero grande"
     creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_ahora)
 
 
@@ -59,9 +90,10 @@ class Evento(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     cuenta_id: Mapped[int] = mapped_column(ForeignKey("cuentas.id"), index=True)
     usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)  # quién lo anotó
-    # Dónde pasó, como lo escribió la persona ("La Esperanza") y normalizado para buscar.
-    establecimiento: Mapped[str | None] = mapped_column(String(120))
-    establecimiento_clave: Mapped[str | None] = mapped_column(String(120), index=True)
+    # Dónde pasó. El establecimiento y los lotes son de la misma cuenta que el registro.
+    establecimiento_id: Mapped[int | None] = mapped_column(ForeignKey("establecimientos.id"), index=True)
+    lote_id: Mapped[int | None] = mapped_column(ForeignKey("lotes.id"), index=True)  # lote o potrero / de origen
+    lote_destino_id: Mapped[int | None] = mapped_column(ForeignKey("lotes.id"), index=True)  # traslados: a dónde
     # Un mensaje puede traer varios eventos; comparten este id para que "borrar"
     # los deshaga juntos y no toque los del mensaje anterior.
     mensaje_id: Mapped[str | None] = mapped_column(String(36), index=True)
@@ -78,8 +110,6 @@ class Evento(Base):
     cantidad_animales: Mapped[int | None] = mapped_column(Integer)
     categoria_animal: Mapped[str | None] = mapped_column(String(40))  # vacas, terneros, novillos...
     caravana: Mapped[str | None] = mapped_column(String(40), index=True)
-    lote: Mapped[str | None] = mapped_column(String(60), index=True)
-    lote_destino: Mapped[str | None] = mapped_column(String(60))
     valor: Mapped[float | None] = mapped_column(Float)  # kg, mm de lluvia, hectáreas, $...
     unidad: Mapped[str | None] = mapped_column(String(20))
 
@@ -88,6 +118,23 @@ class Evento(Base):
     mensaje_original: Mapped[str | None] = mapped_column(Text)
     extra: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_ahora)
+
+    # Se cargan con el registro: se muestran siempre que se muestra un registro.
+    establecimiento: Mapped[Establecimiento | None] = relationship(lazy="joined")
+    lote: Mapped[Lote | None] = relationship(foreign_keys=[lote_id], lazy="joined")
+    lote_destino: Mapped[Lote | None] = relationship(foreign_keys=[lote_destino_id], lazy="joined")
+
+    @property
+    def nombre_establecimiento(self) -> str | None:
+        return self.establecimiento.nombre if self.establecimiento else None
+
+    @property
+    def nombre_lote(self) -> str | None:
+        return self.lote.nombre if self.lote else None
+
+    @property
+    def nombre_lote_destino(self) -> str | None:
+        return self.lote_destino.nombre if self.lote_destino else None
 
 
 class MensajeProcesado(Base):

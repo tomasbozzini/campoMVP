@@ -10,12 +10,14 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
-from sqlalchemy import Boolean, Column, Date, DateTime, MetaData, String, bindparam, inspect, text
+from sqlalchemy import Boolean, Column, Date, DateTime, MetaData, String, bindparam, inspect, select, text
 from sqlalchemy.orm import sessionmaker
 
 from app.infra import migrar
 from app.infra.db import Base
+from app.infra.modelos import Usuario
 from app.nucleo import usuarios
+from app.nucleo.cuaderno import Cuaderno
 
 RAIZ = Path(__file__).parent.parent
 ULTIMA = ScriptDirectory(str(migrar.CARPETA)).get_current_head() or ""
@@ -232,6 +234,130 @@ def test_0003_cada_usuario_existente_recibe_su_cuenta_con_sus_registros(engine):
         nuevo = usuarios.nuevo(db, "5491100000004")
         db.commit()
         assert nuevo.cuenta_id not in cuentas.values()
+
+
+def _base_0006_con_campos(engine) -> tuple[int, int]:
+    """Dos personas (cada una con su cuenta) con registros que nombran campos y lotes como
+    texto, como quedaban antes de la 0007."""
+    migrar_hasta(engine, "0006")
+    with engine.begin() as c:
+        cuentas = []
+        creado = bindparam("creado", type_=DateTime(timezone=True))
+        for telefono, actual in (("5491100000001", "Estancia La Pastora"), ("5491100000002", "El Ombú")):
+            cuenta_id = c.execute(
+                text("insert into cuentas (creado) values (:creado) returning id").bindparams(creado),
+                {"creado": datetime(2026, 10, 1, tzinfo=UTC)},
+            ).scalar_one()
+            usuario_id = c.execute(
+                text(
+                    "insert into usuarios (telefono, autorizado, creado, cuenta_id, establecimiento_actual) "
+                    "values (:telefono, true, :creado, :cuenta, :actual) returning id"
+                ).bindparams(creado),
+                {
+                    "telefono": telefono,
+                    "creado": datetime(2026, 10, 1, tzinfo=UTC),
+                    "cuenta": cuenta_id,
+                    "actual": actual,
+                },
+            ).scalar_one()
+            cuentas.append((usuario_id, cuenta_id))
+        (uno, cuenta_uno), (dos, cuenta_dos) = cuentas
+        registros = [
+            # (usuario, cuenta, establecimiento, clave, lote, lote_destino)
+            (uno, cuenta_uno, "La Pastora", "la pastora", "3", None),
+            (uno, cuenta_uno, "la pastora", "la pastora", "Lote 3", "5"),  # otra forma, mismo campo y lote
+            (uno, cuenta_uno, None, None, "3", None),  # lote suelto
+            (uno, cuenta_uno, None, None, None, None),
+            (dos, cuenta_dos, "La Pastora", "la pastora", "3", None),  # el mismo nombre en otra cuenta
+        ]
+        for usuario_id, cuenta_id, nombre, clave, lote, destino in registros:
+            c.execute(
+                text(
+                    "insert into eventos (usuario_id, cuenta_id, establecimiento, establecimiento_clave, lote, "
+                    "lote_destino, categoria, tipo, fecha_evento, creado) values (:u, :c, :n, :k, :l, :d, "
+                    "'sanidad', 'vacunacion', :fecha, :creado)"
+                ).bindparams(bindparam("fecha", type_=Date), bindparam("creado", type_=DateTime(timezone=True))),
+                {
+                    "u": usuario_id,
+                    "c": cuenta_id,
+                    "n": nombre,
+                    "k": clave,
+                    "l": lote,
+                    "d": destino,
+                    "fecha": date(2026, 10, 1),
+                    "creado": datetime(2026, 10, 1, tzinfo=UTC),
+                },
+            )
+    return cuenta_uno, cuenta_dos
+
+
+def test_0007_los_campos_y_lotes_de_texto_pasan_a_tablas(engine):
+    cuenta_uno, cuenta_dos = _base_0006_con_campos(engine)
+
+    migrar.preparar_base(engine)
+
+    assert _version_y_diferencias(engine) == (ULTIMA, [])
+    with engine.connect() as c:
+        campos = c.execute(text("select id, cuenta_id, nombre, clave from establecimientos order by id")).all()
+        lotes = c.execute(text("select id, cuenta_id, establecimiento_id, nombre from lotes order by id")).all()
+        eventos = c.execute(text("select establecimiento_id, lote_id, lote_destino_id from eventos order by id")).all()
+        actuales = c.execute(text("select establecimiento_actual_id from usuarios order by id")).scalars().all()
+        assert "establecimiento" not in {col["name"] for col in inspect(c).get_columns("eventos")}
+    # Un establecimiento por cuenta y clave, con el nombre del primer registro. El actual del
+    # segundo usuario ("El Ombú") no estaba en ningún registro: se crea.
+    pastora_uno, pastora_dos, ombu = campos
+    assert pastora_uno[1:] == (cuenta_uno, "La Pastora", "la pastora")
+    assert pastora_dos[1:] == (cuenta_dos, "La Pastora", "la pastora")
+    assert ombu[1:] == (cuenta_dos, "El Ombú", "el ombu")
+    lote3, lote5, suelto, lote3_dos = lotes
+    assert lote3[1:] == (cuenta_uno, pastora_uno[0], "3")
+    assert lote5[1:] == (cuenta_uno, pastora_uno[0], "5")  # el destino, en el campo del registro
+    assert suelto[1:] == (cuenta_uno, None, "3")
+    assert lote3_dos[1:] == (cuenta_dos, pastora_dos[0], "3")
+    assert eventos == [
+        (pastora_uno[0], lote3[0], None),
+        (pastora_uno[0], lote3[0], lote5[0]),
+        (None, suelto[0], None),
+        (None, None, None),
+        (pastora_dos[0], lote3_dos[0], None),
+    ]
+    assert actuales == [pastora_uno[0], ombu[0]]
+
+    # Los que se crean después no chocan con los que creó la migración.
+    with sessionmaker(bind=engine)() as db:
+        usuario = db.scalars(select(Usuario).where(Usuario.cuenta_id == cuenta_uno)).one()
+        cuaderno = Cuaderno(db, usuario)
+        pastora, esperanza = cuaderno.establecimiento("estancia la pastora"), cuaderno.establecimiento("La Esperanza")
+        assert pastora is not None and pastora.id == pastora_uno[0]
+        assert esperanza is not None and esperanza.id not in {f[0] for f in campos}
+        assert cuaderno.lote("7", esperanza) is not None
+        db.commit()
+
+
+def test_0007_vuelve_atras_sin_perder_los_nombres(engine):
+    _base_0006_con_campos(engine)
+    migrar.preparar_base(engine)
+
+    with engine.begin() as c:
+        command.downgrade(migrar._config(c), "0006")
+
+    with engine.connect() as c:
+        assert migrar.version(c) == "0006"
+        assert c.execute(
+            text("select establecimiento, establecimiento_clave, lote, lote_destino from eventos order by id")
+        ).all() == [
+            ("La Pastora", "la pastora", "3", None),
+            ("La Pastora", "la pastora", "3", "5"),
+            (None, None, "3", None),
+            (None, None, None, None),
+            ("La Pastora", "la pastora", "3", None),
+        ]
+        # Vuelve el nombre del establecimiento, no cómo lo había escrito ("Estancia La Pastora").
+        assert c.execute(text("select establecimiento_actual from usuarios order by id")).scalars().all() == [
+            "La Pastora",
+            "El Ombú",
+        ]
+        assert "establecimientos" not in inspect(c).get_table_names()
 
 
 def test_0003_no_adivina_de_quien_son_registros_sin_usuario(engine):

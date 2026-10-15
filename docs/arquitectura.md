@@ -234,7 +234,10 @@ de 2b, 7 y 8b):
       transcripción no trae palabras o solo trae palabras del glosario (Whisper lo devuelve
       a veces con un audio en silencio o muy corto), es un audio vacío: no llega a la IA y
       se le pide a la persona que lo repita.
-- [ ] 5 · Establecimientos y lotes como tablas; `mis campos`.
+- [x] 5 · Establecimientos y lotes como tablas; `mis campos`. La `0007` pasa a tablas los
+      nombres que estaban como texto en los registros (un establecimiento por cuenta y
+      clave, con el nombre del primer registro; un lote por cuenta, establecimiento y
+      nombre) y borra las columnas de texto. Hacer una copia de la base antes de migrar.
 - [ ] 6 · Sesiones con apertura, cierre y resumen.
 - [ ] 7 · Pendientes.
 - [ ] 8a · Envío de documentos por WhatsApp y PDF.

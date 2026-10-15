@@ -21,7 +21,7 @@ from app import modulos
 from app.ia import interprete
 from app.ia.esquemas import EsquemaAccion
 from app.infra.config import config
-from app.modulos.comun import borrar
+from app.modulos.comun import borrar, campos
 from app.nucleo import acciones, alta, charla, comandos, invitaciones, perfil
 from app.nucleo.acceso import es_admin, usuario_con_acceso
 from app.nucleo.acciones import Accion
@@ -103,6 +103,8 @@ def _responder(ctx: Contexto, telefono: str) -> str:
         return alta.YA_TENES_ACCESO
     if comando in comandos.DESHACER:
         return borrar.borrar_ultimo(ctx.cuaderno)
+    if comandos.normalizar(texto) in campos.PEDIR:
+        return campos.mis_campos(ctx.cuaderno, ctx.usuario)
     if comando in comandos.VER_PRIVACIDAD:
         return comandos.privacidad()
 

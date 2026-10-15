@@ -93,7 +93,7 @@ def test_registrar_vacunacion(db, fake_llm):
 
     evento = db.scalar(select(Evento))
     assert evento.usuario_id == usuario.id
-    assert evento.lote == "3"
+    assert evento.nombre_lote == "3"
     assert evento.mensaje_original == texto
 
 
@@ -225,7 +225,7 @@ def test_eventos_del_mismo_mensaje_heredan_lote_y_categoria(db, fake_llm):
     assert "🔻 *Muerte*\n      1 ternero · Lote 5\n      📅 Jue 08/10/2026" in r
 
     muerte = db.scalar(select(Evento).where(Evento.tipo == "muerte"))
-    assert muerte.lote == "5" and muerte.categoria_animal == "terneros"
+    assert muerte.nombre_lote == "5" and muerte.categoria_animal == "terneros"
 
 
 def test_no_hereda_cuando_el_mensaje_tiene_varios_lotes(db, fake_llm):
@@ -277,7 +277,7 @@ def test_traslado_no_hereda_lote_de_origen(db, fake_llm):
     }
     pipeline.manejar_mensaje(db, usuario.telefono, "traslado", hoy=HOY)
     traslado = db.scalar(select(Evento).where(Evento.tipo == "traslado"))
-    assert traslado.lote is None and traslado.lote_destino == "5"
+    assert traslado.lote is None and traslado.nombre_lote_destino == "5"
 
 
 def test_borrar_no_toca_mensajes_que_cayeron_en_el_mismo_timestamp(db, fake_llm):
@@ -474,12 +474,12 @@ def test_corregir_sin_referencia_toma_el_ultimo_y_no_toca_otros_usuarios(db, fak
 
     r = pipeline.manejar_mensaje(db, u.telefono, "lo de recién fue en el lote 4", hoy=HOY)
     assert "No encontré cuál de tus registros" in r
-    assert db.scalar(select(Evento)).lote == "3"  # el registro del otro usuario no se tocó
+    assert db.scalar(select(Evento)).nombre_lote == "3"  # el registro del otro usuario no se tocó
 
     _vacunar_vaquillonas(respuestas, db, u)
     pipeline.manejar_mensaje(db, u.telefono, "lo de recién fue en el lote 4", hoy=HOY)
     mio = db.scalar(select(Evento).where(Evento.usuario_id == u.id))
-    assert mio.lote == "4"
+    assert mio.nombre_lote == "4"
 
 
 def test_corregir_no_acepta_fechas_futuras_ni_campos_raros(db, fake_llm):
@@ -550,7 +550,7 @@ def test_borrar_la_lluvia_de_la_pastora(db, fake_llm):
     r = pipeline.manejar_mensaje(db, u.telefono, "borrá la lluvia de la pastora", hoy=HOY)
     assert "BORRADO" in r and "La Pastora" in r
     lluvias = db.scalars(select(Evento).where(Evento.tipo == "lluvia")).all()
-    assert [e.establecimiento for e in lluvias] == ["El Ombú"]
+    assert [e.nombre_establecimiento for e in lluvias] == ["El Ombú"]
 
 
 def test_borrar_ambiguo_no_borra_y_muestra_opciones(db, fake_llm):

@@ -11,7 +11,7 @@ from datetime import UTC, date, datetime
 from sqlalchemy import Table, func, select
 
 from app.infra.db import Base
-from app.infra.modelos import BorradoPendiente, Cuenta, Evento, MensajeChat, UsoDiario, Usuario
+from app.infra.modelos import BorradoPendiente, Cuenta, Establecimiento, Evento, Lote, MensajeChat, UsoDiario, Usuario
 from app.nucleo import pipeline, usuarios
 
 HOY = date(2026, 10, 15)
@@ -19,9 +19,23 @@ HOY = date(2026, 10, 15)
 
 def _todo_lo_de(db, u: Usuario) -> None:
     """Una fila de la persona en cada tabla que guarda algo suyo."""
+    campo = Establecimiento(cuenta_id=u.cuenta_id, nombre="La Pastora", clave="la pastora")
+    db.add(campo)
+    db.flush()
+    lote = Lote(cuenta_id=u.cuenta_id, establecimiento_id=campo.id, nombre="3")
+    u.establecimiento_actual = campo
     db.add_all(
         [
-            Evento(cuenta_id=u.cuenta_id, usuario_id=u.id, categoria="campo", tipo="lluvia", fecha_evento=HOY),
+            lote,
+            Evento(
+                cuenta_id=u.cuenta_id,
+                usuario_id=u.id,
+                categoria="campo",
+                tipo="lluvia",
+                fecha_evento=HOY,
+                establecimiento=campo,
+                lote=lote,
+            ),
             MensajeChat(usuario_id=u.id, rol="usuario", texto="hola"),
             UsoDiario(usuario_id=u.id, fecha=HOY, cantidad=1),
             BorradoPendiente(usuario_id=u.id, ids=[1], creado=datetime.now(UTC)),

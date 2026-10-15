@@ -93,12 +93,13 @@ def detalle(e: Evento) -> str:
         partes.append(singular(e.categoria_animal) if e.caravana else e.categoria_animal)
     if e.caravana:
         partes.append(f"Caravana {e.caravana}")
-    if e.lote and e.lote_destino:
-        partes.append(f"Lote {e.lote} → {e.lote_destino}")
-    elif e.lote_destino:
-        partes.append(f"→ Lote {e.lote_destino}")
-    elif e.lote:
-        partes.append(f"Lote {e.lote}")
+    lote, destino = e.nombre_lote, e.nombre_lote_destino
+    if lote and destino:
+        partes.append(f"Lote {lote} → {destino}")
+    elif destino:
+        partes.append(f"→ Lote {destino}")
+    elif lote:
+        partes.append(f"Lote {lote}")
     if e.dosis:
         partes.append(e.dosis)
     if e.valor is not None:
@@ -113,7 +114,7 @@ def tarjeta(e: Evento, lugar: bool = True, fecha: bool = True) -> str:
         lineas.append(SANGRIA + d)
     pie = []
     if lugar and e.establecimiento:
-        pie.append(f"📍 {e.establecimiento}")
+        pie.append(f"📍 {e.establecimiento.nombre}")
     if fecha:
         pie.append(f"📅 {fecha_corta(e.fecha_evento)}")
     if pie:
@@ -131,7 +132,7 @@ def linea(e: Evento) -> str:
     if d := detalle(e):
         partes.append(d)
     if e.establecimiento:
-        partes.append(f"📍 {e.establecimiento}")
+        partes.append(f"📍 {e.establecimiento.nombre}")
     partes.append(e.fecha_evento.strftime("%d/%m"))
     return " · ".join(partes)
 
@@ -147,27 +148,39 @@ def por_dia(eventos: list[Evento], lugar: bool = True) -> str:
     return "\n\n".join(bloques)
 
 
+ETIQUETAS = {
+    "tipo": "Tipo",
+    "producto": "Producto",
+    "dosis": "Dosis",
+    "cantidad_animales": "Cantidad",
+    "categoria_animal": "Categoría",
+    "caravana": "Caravana",
+    "lote": "Lote",
+    "lote_destino": "Lote destino",
+    "valor": "Valor",
+    "unidad": "Unidad",
+    "fecha_evento": "Fecha",
+    "establecimiento": "Establecimiento",
+    "descripcion": "Descripción",
+}
+# El lote y el establecimiento se comparan y se muestran por su nombre.
+_POR_NOMBRE = {
+    "lote": "nombre_lote",
+    "lote_destino": "nombre_lote_destino",
+    "establecimiento": "nombre_establecimiento",
+}
+
+
+def _valor(e: Evento, campo: str) -> Any:
+    return getattr(e, _POR_NOMBRE.get(campo, campo))
+
+
 def cambios(antes: dict[str, Any], despues: Evento) -> list[str]:
     """Qué campos cambió una corrección, para mostrar solo eso."""
-    etiquetas = {
-        "tipo": "Tipo",
-        "producto": "Producto",
-        "dosis": "Dosis",
-        "cantidad_animales": "Cantidad",
-        "categoria_animal": "Categoría",
-        "caravana": "Caravana",
-        "lote": "Lote",
-        "lote_destino": "Lote destino",
-        "valor": "Valor",
-        "unidad": "Unidad",
-        "fecha_evento": "Fecha",
-        "establecimiento": "Establecimiento",
-        "descripcion": "Descripción",
-    }
     lineas = []
-    for campo, etiqueta in etiquetas.items():
+    for campo, etiqueta in ETIQUETAS.items():
         viejo: Any = antes.get(campo)
-        nuevo: Any = getattr(despues, campo)
+        nuevo: Any = _valor(despues, campo)
         if viejo == nuevo:
             continue
         if campo == "fecha_evento":
@@ -183,19 +196,4 @@ def cambios(antes: dict[str, Any], despues: Evento) -> list[str]:
 
 def foto(e: Evento) -> dict[str, Any]:
     """Los valores de un registro antes de corregirlo."""
-    campos = (
-        "tipo",
-        "producto",
-        "dosis",
-        "cantidad_animales",
-        "categoria_animal",
-        "caravana",
-        "lote",
-        "lote_destino",
-        "valor",
-        "unidad",
-        "fecha_evento",
-        "establecimiento",
-        "descripcion",
-    )
-    return {c: getattr(e, c) for c in campos}
+    return {campo: _valor(e, campo) for campo in ETIQUETAS}

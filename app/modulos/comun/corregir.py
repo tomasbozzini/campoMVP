@@ -8,7 +8,6 @@ from app.ia.esquemas import Esquema, EsquemaAccion, SiNoVacio, texto
 from app.modulos.comun.registros import DatosEvento, Referencia, coincide, fecha_valida
 from app.nucleo.acciones import Accion
 from app.nucleo.contexto import Contexto
-from app.nucleo.normalizar import clave_establecimiento
 from app.salidas import whatsapp as formato
 from app.salidas.whatsapp import SEPARADOR as LINEA
 
@@ -51,13 +50,19 @@ def manejar(ctx: Contexto, datos: Corregir) -> str:
 
     antes = formato.foto(evento)
     aplicados = 0
+    # Los lotes se buscan al final, en el establecimiento que quede: si cambia el campo, el
+    # "lote 3" pasa a ser el lote 3 del campo nuevo.
+    lote, destino = evento.nombre_lote, evento.nombre_lote_destino
     for campo in CORREGIBLES:
         valor = getattr(cambios, campo)
         if valor is None:
             continue
         if campo == "establecimiento":
-            evento.establecimiento = valor
-            evento.establecimiento_clave = clave_establecimiento(valor)
+            evento.establecimiento = ctx.cuaderno.establecimiento(valor)
+        elif campo == "lote":
+            lote = valor
+        elif campo == "lote_destino":
+            destino = valor
         elif campo == "fecha_evento":
             evento.fecha_evento = fecha_valida(valor, ctx.hoy)
         else:
@@ -65,6 +70,8 @@ def manejar(ctx: Contexto, datos: Corregir) -> str:
         aplicados += 1
     if not aplicados:
         return SIN_CAMBIOS
+    evento.lote = ctx.cuaderno.lote(lote, evento.establecimiento)
+    evento.lote_destino = ctx.cuaderno.lote(destino, evento.establecimiento)
 
     ctx.db.flush()
     cambios_hechos = formato.cambios(antes, evento)
