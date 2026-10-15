@@ -32,7 +32,14 @@ class Usuario(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     cuenta_id: Mapped[int] = mapped_column(ForeignKey("cuentas.id"), index=True)
     telefono: Mapped[str] = mapped_column(String(20), unique=True, index=True)
-    nombre: Mapped[str | None] = mapped_column(String(120))
+    nombre: Mapped[str | None] = mapped_column(String(120))  # nombre de perfil de WhatsApp
+    # Perfil, completado con preguntas fijas (app/nucleo/perfil.py). El rubro define los módulos.
+    nombre_completo: Mapped[str | None] = mapped_column(String(80))
+    rubro: Mapped[str | None] = mapped_column(String(20))  # veterinario | agronomo | productor | otro
+    localidad: Mapped[str | None] = mapped_column(String(80))
+    matricula: Mapped[str | None] = mapped_column(String(30))  # opcional, va en el membrete del PDF
+    # Pregunta fija que espera respuesta (alta o cambio de un dato del perfil).
+    pregunta: Mapped[str | None] = mapped_column(String(20))
     # Solo los números autorizados por un administrador pueden usar el bot.
     autorizado: Mapped[bool] = mapped_column(Boolean, default=False)
     # Último establecimiento que nombró: se usa cuando anota algo sin decir dónde fue.

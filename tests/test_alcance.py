@@ -12,7 +12,8 @@ from app.ia import interprete
 from app.infra.config import config
 from app.infra.modelos import Cotizacion
 from app.modulos.comun import conversacion, precios, senasa
-from app.nucleo import acceso, pipeline, usuarios
+from app.nucleo import acceso, pipeline
+from tests.ayudas import con_perfil
 
 HOY = date(2026, 10, 9)
 URL_PIZARRA = "https://www.cac.bcr.com.ar/es/precios-de-pizarra"
@@ -27,7 +28,7 @@ def respuestas(monkeypatch):
 
 
 def _usuario(db, telefono="5491100000001"):
-    return usuarios.autorizar(db, telefono)
+    return con_perfil(db, telefono)
 
 
 @pytest.mark.parametrize(

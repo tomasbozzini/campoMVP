@@ -13,7 +13,8 @@ from app.modulos.comun.borrar import Borrar
 from app.modulos.comun.conversacion import Aclarar, Saludo
 from app.modulos.comun.registrar import Registrar
 from app.modulos.comun.registros import DatosEvento
-from app.nucleo import acciones, pipeline, usuarios
+from app.nucleo import acciones, pipeline
+from tests.ayudas import con_perfil
 
 HOY = date(2026, 10, 13)
 
@@ -72,7 +73,7 @@ def test_borrado_sin_lista_es_lo_ultimo_pero_con_basura_no():
 
 
 def test_un_borrado_con_basura_no_borra_lo_ultimo(db, monkeypatch):
-    u = usuarios.autorizar(db, "5491100000001")
+    u = con_perfil(db, "5491100000001")
     respuestas = {
         "llovio": {"intencion": "registrar", "eventos": [{"categoria": "campo", "tipo": "lluvia", "valor": 20}]},
         "borra eso": {"intencion": "borrar", "borrado": {"registros": ["algo que no es un objeto"]}},

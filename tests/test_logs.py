@@ -20,6 +20,7 @@ from app.infra.config import config
 from app.infra.logs import configurar_logs, enmascarar
 from app.infra.modelos import MensajeProcesado
 from app.nucleo import charla
+from tests.ayudas import con_perfil_en
 
 TELEFONO = "5492494123456"
 TEXTO = "Vacuné 20 vaquillonas de Juan Pérez en La Esperanza"
@@ -64,8 +65,9 @@ def _sin_datos_personales(salida: str) -> None:
         assert dato not in salida, f"{dato!r} aparece en los logs:\n{salida}"
 
 
-def test_un_error_de_groq_no_lleva_el_texto_ni_el_telefono_al_log(servidor, monkeypatch, logs):
+def test_un_error_de_groq_no_lleva_el_texto_ni_el_telefono_al_log(servidor, motor, monkeypatch, logs):
     monkeypatch.setattr(config, "admin_telefonos", {TELEFONO})
+    con_perfil_en(motor, TELEFONO)
     proveedor.usar(_groq_que_falla())
     try:
         with TestClient(main.app) as c:
@@ -78,9 +80,10 @@ def test_un_error_de_groq_no_lleva_el_texto_ni_el_telefono_al_log(servidor, monk
     _sin_datos_personales(salida)
 
 
-def test_un_error_de_la_base_no_muestra_los_parametros(servidor, monkeypatch, logs):
+def test_un_error_de_la_base_no_muestra_los_parametros(servidor, motor, monkeypatch, logs):
     """Un error de la base en medio del mensaje: el log no muestra lo que se iba a guardar."""
     monkeypatch.setattr(config, "admin_telefonos", {TELEFONO})
+    con_perfil_en(motor, TELEFONO)
 
     def guardar_roto(cuaderno, texto_usuario, _respuesta):
         cuaderno.db.execute(

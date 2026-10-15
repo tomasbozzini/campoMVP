@@ -21,7 +21,7 @@ from app.ia import interprete
 from app.ia.esquemas import EsquemaAccion
 from app.infra.config import config
 from app.modulos.comun import borrar
-from app.nucleo import acciones, charla, comandos
+from app.nucleo import acciones, charla, comandos, perfil
 from app.nucleo.acceso import NO_AUTORIZADO, es_admin, usuario_con_acceso
 from app.nucleo.acciones import Accion
 from app.nucleo.contexto import Contexto
@@ -66,15 +66,32 @@ def manejar_mensaje(db: Session, telefono: str, texto: str, nombre: str | None =
     if comando == comandos.CONFIRMAR_BORRAR_DATOS:
         # Después de esto no se guarda nada más de esta persona, ni siquiera este mensaje.
         return comandos.borrar_datos(db, usuario)
+    if perfil.falta(usuario):
+        # Primero las preguntas fijas del alta. Nada de esto va a la charla ni a la IA.
+        return perfil.alta(ctx, _respuesta_fija(texto, telefono))
     respuesta = _responder(ctx, telefono)
-    charla.guardar(ctx.cuaderno, texto, respuesta)
+    if ctx.guardar_charla:
+        charla.guardar(ctx.cuaderno, texto, respuesta)
     return respuesta
+
+
+def _respuesta_fija(texto: str, telefono: str) -> str | None:
+    """Los comandos que se responden igual durante el alta: ayuda y privacidad."""
+    comando = texto.lower().strip(" !.¡")
+    if comando in comandos.PEDIR_AYUDA:
+        return comandos.ayuda(es_admin(telefono))
+    if comando in comandos.VER_PRIVACIDAD:
+        return comandos.privacidad()
+    return None
 
 
 def _responder(ctx: Contexto, telefono: str) -> str:
     texto = ctx.texto
     comando = texto.lower().strip(" !.¡")
     if (respuesta := borrar.resolver_pendiente(ctx.cuaderno, comando)) is not None:
+        return respuesta
+    if (respuesta := perfil.comando(ctx)) is not None:
+        ctx.guardar_charla = False  # trae nombre, localidad, matrícula
         return respuesta
     if es_admin(telefono) and (respuesta := comandos.admin(ctx.db, texto)):
         return respuesta

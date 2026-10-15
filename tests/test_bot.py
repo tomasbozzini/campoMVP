@@ -12,8 +12,9 @@ from app.ia import interprete
 from app.infra.config import config
 from app.infra.modelos import BorradoPendiente, Evento, MensajeChat, Usuario
 from app.modulos.comun import borrar, conversacion
-from app.nucleo import acceso, charla, pipeline, usuarios
+from app.nucleo import acceso, charla, pipeline
 from app.nucleo.cuaderno import Cuaderno
+from tests.ayudas import con_perfil
 
 HOY = date(2026, 10, 9)
 
@@ -33,8 +34,8 @@ def fake_llm(monkeypatch):
 
 
 def _con_campo(db, telefono="5492494000001"):
-    """Un usuario autorizado, con su cuaderno vacío."""
-    return usuarios.autorizar(db, telefono)
+    """Un usuario autorizado que ya completó el alta, con su cuaderno vacío."""
+    return con_perfil(db, telefono)
 
 
 def test_numero_sin_acceso_no_usa_el_bot(db, fake_llm):
@@ -46,7 +47,7 @@ def test_numero_sin_acceso_no_usa_el_bot(db, fake_llm):
 
 def test_admin_autoriza_y_quita_por_whatsapp(db, fake_llm, monkeypatch):
     monkeypatch.setattr(config, "admin_telefonos", {"5492494000009"})
-    admin = "5492494000009"
+    admin = con_perfil(db, "5492494000009").telefono
     assert "autorizar" in pipeline.manejar_mensaje(db, admin, "ayuda", hoy=HOY)
 
     # Meta guarda los números argentinos sin el 9: igual tiene que reconocerlo.

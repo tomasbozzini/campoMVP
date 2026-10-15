@@ -10,7 +10,7 @@ from html import escape
 
 from app.infra.config import config
 
-ULTIMA_ACTUALIZACION = "13 de octubre de 2026"
+ULTIMA_ACTUALIZACION = "15 de octubre de 2026"
 
 _PLANTILLA = """<!doctype html>
 <html lang="es">
@@ -50,6 +50,8 @@ tus datos podés escribir a <strong>{contacto}</strong>.</p>
 <h2>2. Qué datos guardamos</h2>
 <ul>
   <li>Tu número de WhatsApp y el nombre de tu perfil.</li>
+  <li>Los datos que respondés al empezar: tu nombre y apellido, tu rubro (veterinario, agrónomo o asesor,
+  productor u otro) y tu localidad. Y tu matrícula profesional, solo si la cargás.</li>
   <li>Lo que anotás en CampoBot: tareas, animales, lotes, establecimientos, productos, fechas y cantidades.</li>
   <li>Tus últimos mensajes con CampoBot (los más recientes, para entender tus respuestas cortas). Se reemplazan solos a medida que escribís.</li>
   <li>La cantidad de mensajes que mandás por día, para aplicar el límite de uso.</li>
@@ -61,6 +63,8 @@ datos bancarios, documentos de identidad ni tu ubicación.</p>
 <h2>3. Para qué los usamos</h2>
 <ul>
   <li>Para guardar lo que anotás y mostrártelo cuando lo consultás, corregís o borrás.</li>
+  <li>Tu rubro, para mostrarte las funciones de tu actividad. Tu nombre, rubro, localidad y matrícula, para
+  identificarte en los reportes que pidas.</li>
   <li>Para controlar quién tiene acceso a CampoBot y evitar abusos.</li>
 </ul>
 <p>No usamos tus datos para publicidad, no los vendemos y no armamos perfiles comerciales.</p>
@@ -91,7 +95,7 @@ solos a los 7 días.</p>
 <p>Según la Ley 25.326 de Protección de Datos Personales tenés derecho a acceder, rectificar, actualizar y
 suprimir tus datos. Podés hacerlo desde el mismo chat:</p>
 <ul>
-  <li><strong>Ver tus datos</strong>: mandá <code>¿qué tengo anotado?</code></li>
+  <li><strong>Ver tus datos</strong>: mandá <code>mis datos</code> y <code>¿qué tengo anotado?</code></li>
   <li><strong>Corregirlos</strong>: decile qué cambiar, por ejemplo <code>no eran 20, eran 25</code>.</li>
   <li><strong>Borrar registros</strong>: por ejemplo <code>borrá la lluvia de La Pastora</code>.</li>
   <li><strong>Borrar todo, incluido tu número</strong>: mandá <code>borrar mis datos</code> y confirmá.</li>

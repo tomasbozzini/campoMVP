@@ -8,7 +8,8 @@ import pytest
 from app.ia import interprete, prompt, proveedor
 from app.ia.proveedor import ErrorIA
 from app.ia.proveedor_groq import ProveedorGroq
-from app.nucleo import pipeline, usuarios
+from app.nucleo import pipeline
+from tests.ayudas import con_perfil
 
 HOY = date(2026, 10, 13)
 
@@ -89,7 +90,7 @@ def test_una_respuesta_vacia_de_groq_es_un_error_y_queda_en_el_log(db, caplog, c
     with pytest.raises(ErrorIA, match="vacía"):
         groq.completar_json("sis", "msj")
 
-    usuarios.autorizar(db, "5491100000001")
+    con_perfil(db, "5491100000001")
     proveedor.usar(groq)
     try:
         respuesta = pipeline.manejar_mensaje(db, "5491100000001", "llovieron 20 mm", hoy=HOY)

@@ -46,6 +46,7 @@ _Tu cuaderno de trabajo en el campo, por WhatsApp._
 🔒 Lo que anotás es solo tuyo.
 
 *borrar* → deshace lo último que anotaste
+*mis datos* → tu nombre, rubro y localidad
 *privacidad* → cómo se usan tus datos
 *borrar mis datos* → elimina todo lo tuyo
 *ayuda* → muestra este menú"""
@@ -59,7 +60,7 @@ AYUDA_ADMIN = """
 
 PEDIR_AYUDA = {"ayuda", "help", "menu", "menú"}
 DESHACER = {"borrar", "deshacer"}
-VER_PRIVACIDAD = {"privacidad", "mis datos", "datos"}
+VER_PRIVACIDAD = {"privacidad", "datos"}
 
 # Derecho de supresión (Ley 25.326): la persona puede borrar todo lo suyo desde el chat.
 PEDIR_BORRAR_DATOS = {"borrar mis datos", "eliminar mis datos", "borrar mi cuenta", "eliminar mi cuenta"}
@@ -78,12 +79,12 @@ def ayuda(es_admin: bool) -> str:
 def privacidad() -> str:
     texto = (
         "🔒 *TUS DATOS*\n\n"
-        "      › Guardo tu número y lo que anotás, solo para mostrártelo a vos.\n"
+        "      › Guardo tu número, tu nombre, rubro y localidad, y lo que anotás, solo para mostrártelo a vos.\n"
         "      › Nadie más ve tu cuaderno, ni siquiera quien tenga el mismo campo.\n"
         "      › Tus mensajes los interpreta una IA (Groq) y viajan por WhatsApp (Meta).\n"
         "      › No vendo ni comparto tus datos con nadie más.\n\n"
         "*Qué podés hacer*\n"
-        "      › Ver todo lo tuyo: _¿qué tengo anotado?_\n"
+        "      › Ver todo lo tuyo: *mis datos* y _¿qué tengo anotado?_\n"
         "      › Corregir o borrar registros cuando quieras\n"
         "      › Borrar todo, incluido tu número: *borrar mis datos*"
     )
@@ -99,7 +100,7 @@ def pedir_borrar_datos(cuaderno: Cuaderno) -> str:
         "Se van a eliminar para siempre:\n"
         f"      › tu cuaderno ({registros} registro{'s' if registros != 1 else ''})\n"
         "      › tus últimos mensajes con el bot\n"
-        "      › tu número y tu nombre de perfil\n\n"
+        "      › tu número, tu nombre, rubro, localidad y matrícula\n\n"
         "También perdés el acceso: para volver a usarlo, el administrador te tiene que habilitar de nuevo.\n\n"
         f"{LINEA}\n"
         "Si estás seguro, mandá exactamente:\n*confirmo borrar mis datos*\n\n"
@@ -130,7 +131,7 @@ def admin(db: Session, texto: str) -> str | None:
         if not lista:
             return "Todavía no autorizaste a nadie."
         return "Números con acceso:\n" + "\n".join(
-            f"• {u.telefono}" + (f" ({u.nombre})" if u.nombre else "") for u in lista
+            f"• {u.telefono}" + (f" ({nombre})" if (nombre := u.nombre_completo or u.nombre) else "") for u in lista
         )
     m = re.match(r"^(autorizar|quitar)\s+(.+)$", texto, re.IGNORECASE)
     if not m:
