@@ -212,10 +212,10 @@ python -m app chat
 
 ### Probar con el celular (ngrok)
 
-1. En `.env`: `ENTORNO=desarrollo`, `GROQ_API_KEY`, `WA_TOKEN`, `WA_PHONE_NUMBER_ID`, `WA_VERIFY_TOKEN`, `META_APP_SECRET` y tu número en `ADMIN_TELEFONOS`. Con `META_APP_SECRET` puesto, la firma de Meta se valida igual que en producción.
+1. En `.env`: `ENTORNO=desarrollo`, `GROQ_API_KEY`, `WA_TOKEN`, `WA_PHONE_NUMBER_ID`, `WA_VERIFY_TOKEN`, `META_APP_SECRET` y tu número en `ADMIN_TELEFONOS`. Para probar invitaciones, también `CLAVE_HASH` y `WA_NUMERO_BOT`. Con `META_APP_SECRET` puesto, la firma de Meta se valida igual que en producción.
 2. Terminal 1: `uvicorn app.main:app --port 8000`
-3. Terminal 2: `ngrok http 8000`. Copiá la URL `https://....ngrok-free.app` que muestra.
-4. En Meta → *Casos de uso → Conectar en WhatsApp → Personalizar* → *Configuración* (*Configuration*), sección *Webhook*: Callback URL `https://....ngrok-free.app/webhook`, Verify token el de `WA_VERIFY_TOKEN`, y suscripción a **messages**. (Con el plan gratis de ngrok la URL cambia cada vez que lo abrís: hay que actualizarla en Meta.)
+3. Terminal 2: `ngrok http --domain=MI-DOMINIO 8000`, con el dominio fijo gratuito que te da ngrok (en su panel, *Domains*; por ejemplo `algo-algo.ngrok-free.app`). Así la URL es siempre la misma.
+4. En Meta → *Casos de uso → Conectar en WhatsApp → Personalizar* → *Configuración* (*Configuration*), sección *Webhook*: Callback URL `https://MI-DOMINIO/webhook`, Verify token el de `WA_VERIFY_TOKEN`, y suscripción a **messages**. Con el dominio fijo esto se hace una sola vez. (Si usás `ngrok http 8000` sin dominio, la URL cambia cada vez que lo abrís y hay que actualizarla en Meta.)
 5. Mandale `ayuda` al número de prueba desde tu celular. En la terminal 1 ves los logs (con los teléfonos enmascarados).
 
 ### Antes de subir cambios
