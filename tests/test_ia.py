@@ -4,14 +4,17 @@ from datetime import date
 from types import SimpleNamespace
 
 import pytest
+from fastapi.testclient import TestClient
 from groq import omit
 
-from app import modulos
+from app import main, modulos
+from app.api import webhook
+from app.canales import whatsapp
 from app.ia import interprete, prompt, proveedor
 from app.ia.proveedor import ErrorIA
 from app.ia.proveedor_groq import ProveedorGroq
 from app.nucleo import pipeline
-from tests.ayudas import con_perfil
+from tests.ayudas import con_perfil, con_perfil_en
 
 HOY = date(2026, 10, 13)
 
@@ -21,6 +24,7 @@ class ProveedorFalso:
         self.respuesta = respuesta
         self.pedidos: list[tuple[str, str]] = []
         self.audios: list[tuple[bytes, str, str]] = []
+        self.transcripcion = "vacuné 20 vacas"
 
     def completar_json(self, sistema: str, mensaje: str) -> object:
         self.pedidos.append((sistema, mensaje))
@@ -28,7 +32,7 @@ class ProveedorFalso:
 
     def transcribir(self, audio: bytes, nombre_archivo: str, glosario: str) -> str:
         self.audios.append((audio, nombre_archivo, glosario))
-        return "vacuné 20 vacas"
+        return self.transcripcion
 
 
 @pytest.fixture
@@ -59,6 +63,43 @@ def test_el_mensaje_no_puede_cerrar_las_marcas(falso):
 def test_transcribir_usa_el_proveedor(falso):
     assert interprete.transcribir(b"ogg", glosario="vaquillonas.") == "vacuné 20 vacas"
     assert falso.audios == [(b"ogg", "audio.ogg", "vaquillonas.")]
+
+
+GLOSARIO = "vaquillonas, novillos, parición, SENASA."
+
+
+@pytest.mark.parametrize(
+    "transcripcion",
+    [
+        "vaquillonas, novillos, parición, SENASA.",  # el glosario entero
+        "Vaquillonas, novillos.",  # una parte
+        "Paricion. Senasa",  # sin tildes ni comas, en otro orden
+        "",
+        "  ...  ",
+    ],
+)
+def test_un_audio_que_solo_trae_el_glosario_es_un_audio_vacio(falso, transcripcion):
+    """Con un audio en silencio o muy corto, Whisper a veces devuelve el glosario."""
+    falso.transcripcion = transcripcion
+    assert interprete.transcribir(b"ogg", glosario=GLOSARIO) == ""
+
+
+@pytest.mark.parametrize("transcripcion", ["vacuné 20 vaquillonas", "novillos en el lote 3", "hola"])
+def test_un_audio_con_otras_palabras_se_transcribe(falso, transcripcion):
+    falso.transcripcion = transcripcion
+    assert interprete.transcribir(b"ogg", glosario=GLOSARIO) == transcripcion
+
+
+def test_un_audio_vacio_no_llega_a_la_ia(servidor, motor, falso, monkeypatch):
+    con_perfil_en(motor, "5491100000001")
+    monkeypatch.setattr(whatsapp, "descargar_media", lambda _id: b"ogg")
+    falso.transcripcion = modulos.glosario(["comun"])
+    mensaje = {"from": "5491100000001", "id": "wamid.s", "type": "audio", "audio": {"id": "media1"}}
+    with TestClient(main.app) as c:
+        c.post("/webhook", json={"entry": [{"changes": [{"value": {"messages": [mensaje]}}]}]})
+        assert webhook.fila.esperar(5)
+    assert servidor == [("5491100000001", webhook.AUDIO_VACIO)]
+    assert falso.pedidos == []
 
 
 def test_proveedor_groq_lee_el_json_y_el_texto():

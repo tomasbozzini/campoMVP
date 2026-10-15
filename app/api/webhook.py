@@ -26,6 +26,7 @@ rutas = APIRouter()
 fila = FilaPorClave()
 
 AUDIO_LARGO = "✋ El audio es muy largo.\nMandá audios más cortos, de a un tema por vez."
+AUDIO_VACIO = "🤔 No escuché nada en el audio.\nProbá de nuevo, hablando cerca del teléfono, o escribime."
 TIPO_NO_SOPORTADO = "Por ahora solo entiendo mensajes de texto y audios 🙏"
 ERROR = "😕 Uy, algo falló procesando tu mensaje.\nProbá de nuevo en un rato."
 
@@ -95,6 +96,10 @@ def procesar_mensaje(mensaje: MensajeEntrante) -> None:
                 whatsapp.enviar_texto(telefono, AUDIO_LARGO)
                 return
             texto = interprete.transcribir(audio, glosario=glosario)
+            if not texto:
+                log.info("Audio sin palabras (vacío o solo el glosario): no se procesa")
+                whatsapp.enviar_texto(telefono, AUDIO_VACIO)
+                return
             prefijo = f"🎤 _{texto[: config.max_largo_mensaje]}_\n\n"
         else:
             whatsapp.enviar_texto(telefono, TIPO_NO_SOPORTADO)

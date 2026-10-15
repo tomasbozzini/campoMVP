@@ -230,7 +230,10 @@ de 2b, 7 y 8b):
       persona no tiene no se ejecuta. Con solo el módulo común, el texto es el mismo de antes.
 - [x] 4 · Glosario para Whisper según el perfil: cada módulo declara las palabras que Whisper
       suele escribir mal y el audio se transcribe con las de los módulos del rubro, sin
-      repetir (hasta 500 caracteres, por el límite de 224 tokens de Whisper).
+      repetir (hasta 500 caracteres, por el límite de 224 tokens de Whisper). Si la
+      transcripción no trae palabras o solo trae palabras del glosario (Whisper lo devuelve
+      a veces con un audio en silencio o muy corto), es un audio vacío: no llega a la IA y
+      se le pide a la persona que lo repita.
 - [ ] 5 · Establecimientos y lotes como tablas; `mis campos`.
 - [ ] 6 · Sesiones con apertura, cierre y resumen.
 - [ ] 7 · Pendientes.
@@ -286,6 +289,10 @@ Tacto y cierre (preñez por cabeza/cuerpo/cola, % y CC promedio, PDF), raspaje (
 resultado de laboratorio, pendiente de repetición), sanidad (planes oficiales, dosis, consumo,
 carencia), visita y honorarios (tarifas del profesional).
 
+**Glosario:** pasan del glosario del módulo común al de ganadería ivermectina, aftosa,
+brucelosis, tacto, manga y destete, así el común queda corto y el rubro tiene lugar para
+las suyas.
+
 **Aceptación:** los ejemplos de la especificación funcionan de punta a punta
 ("Terminamos lote vaquillonas San Pedro…", "Toro caravana 405 raspaje negativo…",
 "Pasamos 140 terneros con 4 ml de Ivermectina 1%…").
@@ -294,6 +301,9 @@ carencia), visita y honorarios (tarifas del profesional).
 
 Siembra y densidad, fertilización e índice salino, nutrición, recorrida (con ubicación),
 caldo y Delta T, pérdidas de trilla (INTA), silobolsas, carta de porte.
+
+**Glosario:** pasan del glosario del módulo común al de agricultura fumigación,
+fertilización, girasol y sorgo.
 
 **Aceptación:** los ejemplos de la especificación funcionan de punta a punta
 ("Para 160 ha: 2.2 l Atrazina…", "Aros en soja lote 5…", "Cerramos bolsa 3 de trigo…",

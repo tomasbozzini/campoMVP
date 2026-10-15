@@ -1,9 +1,11 @@
 """Lo que el núcleo le pide a la IA: interpretar un mensaje y transcribir un audio."""
 
+import re
 from collections.abc import Sequence
 from datetime import date
 
 from app.ia import prompt, proveedor
+from app.infra.texto import sin_tildes
 
 
 def interpretar(
@@ -17,5 +19,19 @@ def interpretar(
 
 def transcribir(audio: bytes, nombre_archivo: str = "audio.ogg", *, glosario: str) -> str:
     """El texto del audio. `glosario`: las palabras de los módulos de la persona, para que
-    las escriba bien ("vaquillonas, novillos, ..."); vacío si no hay."""
-    return proveedor.obtener().transcribir(audio, nombre_archivo, glosario)
+    las escriba bien ("vaquillonas, novillos, ..."); vacío si no hay.
+
+    Devuelve "" si el audio no trae nada: con un audio en silencio o muy corto, Whisper a
+    veces devuelve el glosario (o parte) en vez de una transcripción."""
+    texto = proveedor.obtener().transcribir(audio, nombre_archivo, glosario)
+    return "" if _solo_glosario(texto, glosario) else texto
+
+
+def _palabras(texto: str) -> set[str]:
+    return set(re.findall(r"\w+", sin_tildes(texto.lower())))
+
+
+def _solo_glosario(texto: str, glosario: str) -> bool:
+    """Si la transcripción no tiene palabras, o todas son del glosario ("Vaquillonas,
+    novillos."). Con una sola que no sea del glosario ("vacuné vaquillonas") es un mensaje."""
+    return _palabras(texto) <= _palabras(glosario)
