@@ -3,15 +3,15 @@
 from datetime import date
 
 import pytest
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import sessionmaker
 
 from app import terminal
 from app.ia import interprete
 from app.infra import migrar
 from app.infra.config import config
-from app.infra.modelos import Auditoria, Usuario
-from app.nucleo import auditoria, pipeline
+from app.infra.modelos import Auditoria, Solicitud, Usuario
+from app.nucleo import auditoria, pipeline, usuarios
 from tests.ayudas import con_perfil
 
 HOY = date(2026, 10, 15)
@@ -103,3 +103,10 @@ def test_la_terminal_registra_y_muestra_la_auditoria(motor, monkeypatch, capsys)
     assert "autorizar" in lineas[0] and "por terminal" in lineas[0] and f"sobre #{u.id}" in lineas[0]
     assert "quitar" in lineas[1]
     assert OTRO not in salida
+
+
+def test_autorizar_a_quien_ya_tiene_acceso_no_deja_registro(db):
+    usuarios.autorizar(db, OTRO)
+    usuarios.autorizar(db, OTRO)
+    assert [a[0] for a in _acciones(db)] == [auditoria.AUTORIZAR]
+    assert db.scalar(select(func.count(Solicitud.id))) == 1

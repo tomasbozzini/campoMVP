@@ -190,6 +190,50 @@ class BorradoPendiente(Base):
     creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_ahora)
 
 
+class Invitacion(Base):
+    """Un código para darse de alta. Sirve para una sola persona y vence a los 7 días."""
+
+    __tablename__ = "invitaciones"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    codigo: Mapped[str] = mapped_column(String(20), unique=True)  # CAMPO-XXXX-XXXX
+    creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_ahora)
+    vence: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # Id del administrador que la creó. Sin clave foránea, como en la auditoría.
+    creada_por: Mapped[int | None] = mapped_column(Integer)
+    usada: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    anulada: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class Solicitud(Base):
+    """Un pedido de alta. Con código de invitación se aprueba solo al completar las preguntas;
+    preparado para sumar después la aprobación del administrador (origen "pedido")."""
+
+    __tablename__ = "solicitudes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)
+    invitacion_id: Mapped[int | None] = mapped_column(ForeignKey("invitaciones.id"))
+    origen: Mapped[str] = mapped_column(String(10))  # codigo | pedido | admin
+    estado: Mapped[str] = mapped_column(String(10), index=True)  # pendiente | aprobada | rechazada
+    creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_ahora)
+    resuelto: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class IntentoAlta(Base):
+    """Códigos equivocados por número, para limitar los intentos.
+
+    El teléfono se guarda con HMAC (CLAVE_HASH): de quien no se dio de alta no se guarda
+    nada personal. Se borra a las 24 horas.
+    """
+
+    __tablename__ = "intentos_alta"
+
+    telefono_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    desde: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    cantidad: Mapped[int] = mapped_column(Integer, default=0)
+
+
 class Auditoria(Base):
     """Acciones sensibles: altas y bajas, invitaciones, borrados.
 

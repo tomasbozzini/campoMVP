@@ -7,10 +7,11 @@ from app.infra.config import config
 from app.infra.modelos import Usuario
 from app.nucleo import usuarios
 
-NO_AUTORIZADO = """👋 *¡Hola!*
+# Para quien escribe sin acceso y sin código de invitación (no se guarda nada).
+NO_AUTORIZADO = """👋 *¡Hola! Soy CampoBot.*
 
-Este número todavía no tiene acceso a CampoBot.
-Pedile al administrador que te habilite."""
+Estoy en prueba privada: por ahora solo pueden usarme las personas invitadas.
+Si te pasaron un código de invitación, mandámelo por acá."""
 
 
 def es_admin(telefono: str) -> bool:

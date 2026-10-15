@@ -26,6 +26,7 @@ def _produccion(monkeypatch):
         "wa_token": "token",
         "wa_phone_number_id": "123",
         "groq_api_key": "clave",
+        "clave_hash": "clave-de-prueba",
         "admin_telefonos": {ADMIN},
     }.items():
         monkeypatch.setattr(config, campo, valor)
@@ -68,7 +69,7 @@ def test_produccion_acepta_la_firma_valida(servidor, monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "variable", ["meta_app_secret", "wa_verify_token", "wa_token", "wa_phone_number_id", "groq_api_key"]
+    "variable", ["meta_app_secret", "wa_verify_token", "wa_token", "wa_phone_number_id", "groq_api_key", "clave_hash"]
 )
 def test_produccion_no_arranca_si_falta_una_variable(servidor, monkeypatch, variable):
     _produccion(monkeypatch)

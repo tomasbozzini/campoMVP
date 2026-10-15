@@ -3,13 +3,14 @@ los del administrador."""
 
 import logging
 import re
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
 from app.infra.config import config
-from app.infra.modelos import Cuenta, Usuario
+from app.infra.modelos import Usuario
 from app.infra.texto import sin_tildes
-from app.nucleo import auditoria, usuarios
+from app.nucleo import auditoria, invitaciones, usuarios
 from app.nucleo.cuaderno import Cuaderno
 from app.salidas.whatsapp import SEPARADOR as LINEA
 
@@ -56,7 +57,10 @@ AYUDA_ADMIN = """
 🔑 *Administrador*
 *autorizar 5492494123456* → le da acceso
 *quitar 5492494123456* → le saca el acceso
-*autorizados* → lista de números con acceso"""
+*autorizados* → lista de números con acceso
+*invitar* → crea un código de invitación
+*invitaciones* → códigos vigentes
+*anular CAMPO-XXXX-XXXX* → anula un código"""
 
 PEDIR_AYUDA = {"ayuda", "help", "menu", "menú"}
 DESHACER = {"borrar", "deshacer"}
@@ -109,19 +113,12 @@ def pedir_borrar_datos(cuaderno: Cuaderno) -> str:
 
 
 def borrar_datos(db: Session, usuario: Usuario) -> str:
-    cuaderno = Cuaderno(db, usuario)
-    registros = cuaderno.cantidad()
-    cuaderno.borrar_todo()
+    registros = Cuaderno(db, usuario).cantidad()
     # Solo ids: después de esto no queda nada de la persona, salvo que borró sus datos.
     auditoria.registrar(
         db, auditoria.BORRAR_DATOS, actor=usuario.id, sobre=usuario.id, cuenta=usuario.cuenta_id, registros=registros
     )
-    cuenta = db.get(Cuenta, usuario.cuenta_id)
-    db.delete(usuario)
-    db.flush()
-    if cuenta is not None:  # hoy cada persona tiene su propia cuenta
-        db.delete(cuenta)
-        db.flush()
+    usuarios.eliminar(db, usuario)
     log.info("Usuario %s borró todos sus datos", usuario.id)
     return (
         "🗑️ *DATOS BORRADOS*\n\n"
@@ -132,6 +129,14 @@ def borrar_datos(db: Session, usuario: Usuario) -> str:
 
 def admin(db: Session, texto: str, actor: int) -> str | None:
     """Comandos del administrador (`actor`: su id de usuario); None si el texto no es uno."""
+    pedido = normalizar(texto)
+    ahora = datetime.now(UTC)
+    if pedido == "invitar":
+        return invitaciones.invitar(db, actor, ahora)
+    if pedido == "invitaciones":
+        return invitaciones.listar(db, ahora)
+    if pedido.startswith("anular "):
+        return invitaciones.anular(db, texto, actor, ahora)
     if texto.lower() == "autorizados":
         lista = usuarios.autorizados(db)
         if not lista:

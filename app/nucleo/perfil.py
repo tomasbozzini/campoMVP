@@ -145,10 +145,11 @@ def falta(usuario: Usuario) -> str | None:
     return next((pregunta for pregunta, campo in ALTA.items() if not getattr(usuario, campo)), None)
 
 
-def _intro(usuario: Usuario) -> str:
+def intro(usuario: Usuario, titulo: str = "👋 *¡Hola! Soy CampoBot.*") -> str:
+    """La presentación antes de la primera pregunta, con cuántos datos faltan."""
     faltan = sum(1 for campo in ALTA.values() if not getattr(usuario, campo))
     datos = "un dato tuyo" if faltan == 1 else f"{faltan} datos tuyos"
-    return f"👋 *¡Hola! Soy CampoBot.*\n\nAntes de seguir necesito {datos}. Es una sola vez.\n\n"
+    return f"{titulo}\n\nAntes de seguir necesito {datos}. Es una sola vez.\n\n"
 
 
 def alta(ctx: Contexto, respuesta_fija: str | None) -> str:
@@ -166,9 +167,9 @@ def alta(ctx: Contexto, respuesta_fija: str | None) -> str:
             return LISTO.format(nombre=(usuario.nombre_completo or "").split()[0])
         return PREGUNTAS[usuario.pregunta]
 
-    intro = "" if usuario.pregunta in ALTA else _intro(usuario)
+    presentacion = "" if usuario.pregunta in ALTA else intro(usuario)
     usuario.pregunta = falta(usuario)
-    pregunta = intro + PREGUNTAS[usuario.pregunta or "nombre"]
+    pregunta = presentacion + PREGUNTAS[usuario.pregunta or "nombre"]
     return f"{respuesta_fija}\n\n{LINEA}\n{pregunta}" if respuesta_fija else pregunta
 
 

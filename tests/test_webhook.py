@@ -77,7 +77,7 @@ def test_audio_de_numero_sin_acceso_no_se_transcribe(cliente, monkeypatch):
     }
     cliente.post("/webhook", json=payload)
     assert cliente.esperar()
-    assert "no tiene acceso" in cliente.enviados[-1][1]
+    assert "prueba privada" in cliente.enviados[-1][1]
 
 
 def test_politica_de_privacidad(cliente, monkeypatch):

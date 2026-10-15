@@ -47,19 +47,29 @@ bot> Eso no lo puedo responder. Solo puedo: ...
 - **Informa precios de referencia** de granos y hacienda de fuentes oficiales y mercados regulados, siempre con la fuente, la fecha de publicación, la moneda, si incluye impuestos u otros costos, y el link.
 - **Verifica productos veterinarios en SENASA**: si un producto figura en el registro, con número, titular y estado. **No** informa precios de medicamentos ni de instrumental, ni dosis o indicaciones.
 - **Entiende audios**: los transcribe con Whisper en Groq.
-- **Solo para números autorizados**: un desconocido que escribe recibe "no tenés acceso" y no se gasta IA ni se guarda nada.
+- **Solo para personas invitadas**: quien escribe sin código de invitación recibe un mensaje fijo ("CampoBot está en prueba privada") y no se gasta IA ni se guarda nada.
+- **Perfil por rubro**: nombre y apellido, rubro (veterinario, agrónomo o asesor, productor u otro) y localidad, con preguntas fijas al empezar. `mis datos` los muestra; `cambiar rubro` y `cambiar matrícula` los cambian.
   - `borrar`: deshace lo último que anotaste.
   - `ayuda`: muestra los ejemplos.
 
-## Acceso (números autorizados)
+## Acceso: invitaciones y administradores
 
 Los administradores se configuran con la variable `ADMIN_TELEFONOS` (números separados por coma, en el formato en que los manda WhatsApp: `549` + característica sin 0 + número sin 15). Siempre tienen acceso y, desde su WhatsApp, pueden:
 
-- `autorizar 5492494123456`: le da acceso a ese número.
+- `invitar`: crea un código de invitación (`CAMPO-XXXX-XXXX`) y, si está `WA_NUMERO_BOT`, el link `wa.me` que abre el chat con el código ya escrito. Sirve para una sola persona y vence a los 7 días.
+- `invitaciones`: lista los códigos vigentes y cuántas altas quedaron sin terminar.
+- `anular CAMPO-XXXX-XXXX`: anula un código que todavía no se usó.
+- `autorizar 5492494123456`: le da acceso a ese número directamente.
 - `quitar 5492494123456`: le saca el acceso. Sus registros se conservan.
 - `autorizados`: lista los números con acceso.
 
+**Alta con código**: quien manda un código válido responde tres preguntas fijas, sin IA (nombre y apellido, rubro y localidad), y queda habilitado. El código queda atado a ese número, que tiene 7 días para terminar; después se borra lo que cargó y el código queda gastado. Después de 5 códigos equivocados en 24 horas, ningún código sirve desde ese número (sin avisarle); para contarlos se guarda el teléfono con HMAC (`CLAVE_HASH`), nunca el número.
+
+Los usuarios que ya existían, y los que se autorizan con `autorizar`, responden las mismas preguntas la primera vez que escriben.
+
 También desde la terminal: `python -m app usuarios autorizar 5492494123456` (o `quitar`, `lista`). El chat de prueba `python -m app chat` autoriza solo el número con el que chateás.
+
+**Auditoría**: las altas, bajas, invitaciones, anulaciones y borrados quedan registrados solo con ids numéricos. Se ven con `python -m app auditoria`.
 
 ## Cómo funciona
 
@@ -111,7 +121,7 @@ El bot no es un chat de IA. Está armado para que no se pueda usar para otra cos
 - **Datos aislados por persona:** la IA nunca escribe SQL, solo filtros. Todo acceso a los datos de una persona pasa por una sola capa (`app/nucleo/cuaderno.py`) que filtra por su usuario; un test verifica que ningún otro módulo lo haga a mano.
 - **Límites de uso** (configurables con variables de entorno): `MAX_LARGO_MENSAJE` (800 caracteres), `MAX_AUDIO_BYTES` (~3-4 min de audio) y `LIMITE_DIARIO_IA` (80 mensajes por usuario y por día).
 - Los números no autorizados no llegan a la IA: no se transcriben sus audios ni se interpretan sus mensajes.
-- **Firma de Meta obligatoria**: el webhook valida `X-Hub-Signature-256`. Con `ENTORNO=produccion` (el valor si no se define) el servidor no arranca sin `META_APP_SECRET`, `WA_VERIFY_TOKEN`, `WA_TOKEN`, `WA_PHONE_NUMBER_ID` y `GROQ_API_KEY`, y el error dice cuáles faltan. Si `META_APP_SECRET` está definido, la firma se valida siempre, también en desarrollo; solo con `ENTORNO=desarrollo` y sin secreto se acepta sin firma, para probar en tu compu.
+- **Firma de Meta obligatoria**: el webhook valida `X-Hub-Signature-256`. Con `ENTORNO=produccion` (el valor si no se define) el servidor no arranca sin `META_APP_SECRET`, `WA_VERIFY_TOKEN`, `WA_TOKEN`, `WA_PHONE_NUMBER_ID`, `GROQ_API_KEY` y `CLAVE_HASH`, y el error dice cuáles faltan. Si `META_APP_SECRET` está definido, la firma se valida siempre, también en desarrollo; solo con `ENTORNO=desarrollo` y sin secreto se acepta sin firma, para probar en tu compu.
 - **Mensajes en orden**: los de una misma persona se procesan de a uno y en el orden en que los escribió (por ejemplo, "borrá todo" y después "sí"). Los reintentos de Meta se descartan por su id.
 - **Logs sin datos personales**: los números salen enmascarados (`549*******456`), también en los logs de uvicorn, y no se loguean el texto de los mensajes ni su id de WhatsApp (que lleva el número). Los errores de la base no muestran los valores de la consulta, los de la IA solo dicen el tipo y el código, y el access log no muestra el query string (el `GET /webhook` de Meta trae el token de verificación).
 - **Ids de mensajes por 7 días**: para descartar los reintentos de Meta se guarda el id de cada mensaje recibido; a los 7 días se borra.
@@ -269,7 +279,7 @@ En Railway el proyecto queda armado con **tres servicios**, todos dentro del mis
 
 1. Entrá a [railway.com](https://railway.com) con tu cuenta de GitHub → *New Project* → *Deploy from GitHub repo* → este repo. En *Settings → Source → Branch* elegí la rama del bot.
 2. *New → Database → PostgreSQL*.
-3. En el servicio del bot → *Variables* → *Raw Editor*: `DATABASE_URL=${{Postgres.DATABASE_URL}}`, `ENTORNO=produccion` y el resto de las variables de `.env.example` (`GROQ_API_KEY`, `WA_TOKEN`, `WA_PHONE_NUMBER_ID`, `META_APP_SECRET`, `WA_VERIFY_TOKEN`, `ADMIN_TELEFONOS`, `PRIVACIDAD_*`). Si falta alguna obligatoria, el deploy falla y el log dice cuál.
+3. En el servicio del bot → *Variables* → *Raw Editor*: `DATABASE_URL=${{Postgres.DATABASE_URL}}`, `ENTORNO=produccion` y el resto de las variables de `.env.example` (`GROQ_API_KEY`, `WA_TOKEN`, `WA_PHONE_NUMBER_ID`, `META_APP_SECRET`, `WA_VERIFY_TOKEN`, `ADMIN_TELEFONOS`, `CLAVE_HASH`, `WA_NUMERO_BOT`, `PRIVACIDAD_*`). Si falta alguna obligatoria, el deploy falla y el log dice cuál.
 4. *Settings → Networking → Generate Domain*. Abrí `https://tu-bot.up.railway.app/`: tiene que responder `{"ok": true}`.
 5. Creá el servicio **actualizar-precios** (*New → GitHub Repo*, mismo repo y rama) con el start command y el cron de la tabla, y la variable `DATABASE_URL`. Ejecutalo una vez a mano para cargar los datos iniciales.
 6. En Meta → *Casos de uso → Conectar en WhatsApp → Personalizar* → *Configuración* (*Configuration*), sección *Webhook*: Callback URL `https://tu-bot.up.railway.app/webhook`, el mismo verify token, y suscripción a **messages**. La política de privacidad queda en `https://tu-bot.up.railway.app/privacidad`.

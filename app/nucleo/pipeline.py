@@ -21,8 +21,8 @@ from app.ia import interprete
 from app.ia.esquemas import EsquemaAccion
 from app.infra.config import config
 from app.modulos.comun import borrar
-from app.nucleo import acciones, charla, comandos, perfil
-from app.nucleo.acceso import NO_AUTORIZADO, es_admin, usuario_con_acceso
+from app.nucleo import acciones, alta, charla, comandos, invitaciones, perfil
+from app.nucleo.acceso import es_admin, usuario_con_acceso
 from app.nucleo.acciones import Accion
 from app.nucleo.contexto import Contexto
 
@@ -56,9 +56,10 @@ def _hoy() -> date:
 
 def manejar_mensaje(db: Session, telefono: str, texto: str, nombre: str | None = None, hoy: date | None = None) -> str:
     texto = texto.strip()
-    usuario = usuario_con_acceso(db, telefono, nombre)
+    alta.limpiar(db)
+    usuario = usuario_con_acceso(db, telefono, nombre) or alta.en_curso(db, telefono)
     if usuario is None:
-        return NO_AUTORIZADO
+        return alta.sin_acceso(db, telefono, texto, nombre)
     ctx = Contexto(db, usuario, texto, hoy or _hoy())
     comando = comandos.normalizar(texto)
     if comando in comandos.PEDIR_BORRAR_DATOS:
@@ -66,9 +67,9 @@ def manejar_mensaje(db: Session, telefono: str, texto: str, nombre: str | None =
     if comando == comandos.CONFIRMAR_BORRAR_DATOS:
         # Después de esto no se guarda nada más de esta persona, ni siquiera este mensaje.
         return comandos.borrar_datos(db, usuario)
-    if perfil.falta(usuario):
+    if perfil.falta(usuario) or not usuario.autorizado:
         # Primero las preguntas fijas del alta. Nada de esto va a la charla ni a la IA.
-        return perfil.alta(ctx, _respuesta_fija(texto, telefono))
+        return alta.preguntar(ctx, _respuesta_fija(texto, telefono))
     respuesta = _responder(ctx, telefono)
     if ctx.guardar_charla:
         charla.guardar(ctx.cuaderno, texto, respuesta)
@@ -97,6 +98,8 @@ def _responder(ctx: Contexto, telefono: str) -> str:
         return respuesta
     if comando in comandos.PEDIR_AYUDA:
         return comandos.ayuda(es_admin(telefono))
+    if invitaciones.es_solo_un_codigo(texto):
+        return alta.YA_TENES_ACCESO
     if comando in comandos.DESHACER:
         return borrar.borrar_ultimo(ctx.cuaderno)
     if comando in comandos.VER_PRIVACIDAD:

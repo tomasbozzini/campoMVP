@@ -13,6 +13,10 @@ AUTORIZAR = "autorizar"
 QUITAR = "quitar"
 BORRAR_DATOS = "borrar_datos"
 BORRAR_REGISTROS = "borrar_registros"
+INVITAR = "invitar"
+ANULAR = "anular"
+ALTA = "alta"
+ALTA_VENCIDA = "alta_vencida"
 
 
 def registrar(db: Session, accion: str, actor: int | None = None, sobre: int | None = None, **detalle: int) -> None:

@@ -224,7 +224,7 @@ de 2b, 7 y 8b):
 - [x] 1b · Perfil: nombre y apellido, rubro y localidad con preguntas fijas; `mis datos`,
       `cambiar rubro`, `cambiar matrícula`.
 - [x] 2a · Auditoría de acciones sensibles (`python -m app auditoria`).
-- [ ] 2b · Alta por código de invitación, solicitudes e intentos fallidos.
+- [x] 2b · Alta por código de invitación, solicitudes e intentos fallidos.
 - [ ] 3 · Prompt armado con los módulos del perfil.
 - [ ] 4 · Glosario para Whisper según el perfil.
 - [ ] 5 · Establecimientos y lotes como tablas; `mis campos`.

@@ -5,12 +5,18 @@ Los administradores (ADMIN_TELEFONOS) lo hacen por WhatsApp con "autorizar <núm
 """
 
 import re
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.infra.modelos import Cuenta, Usuario
+from app.infra.modelos import Cuenta, Solicitud, Usuario
 from app.nucleo import auditoria
+from app.nucleo.cuaderno import Cuaderno
+
+# Solicitudes de alta (ver app/nucleo/alta.py).
+PENDIENTE, APROBADA, RECHAZADA = "pendiente", "aprobada", "rechazada"
+POR_CODIGO, POR_PEDIDO, POR_ADMIN = "codigo", "pedido", "admin"
 
 
 def normalizar_telefono(texto: str) -> str | None:
@@ -40,7 +46,10 @@ def autorizar(db: Session, telefono: str, actor: int | None = None) -> Usuario:
     usuario = db.scalar(select(Usuario).where(Usuario.telefono == telefono))
     if usuario is None:
         usuario = nuevo(db, telefono)
+    elif usuario.autorizado:
+        return usuario  # ya tenía acceso: no cambia nada (el chat de la terminal lo pide cada vez)
     usuario.autorizado = True
+    db.add(Solicitud(usuario_id=usuario.id, origen=POR_ADMIN, estado=APROBADA, resuelto=datetime.now(UTC)))
     db.flush()
     auditoria.registrar(db, auditoria.AUTORIZAR, actor=actor, sobre=usuario.id)
     return usuario
@@ -55,6 +64,17 @@ def quitar(db: Session, telefono: str, actor: int | None = None) -> bool:
     db.flush()
     auditoria.registrar(db, auditoria.QUITAR, actor=actor, sobre=usuario.id)
     return True
+
+
+def eliminar(db: Session, usuario: Usuario) -> None:
+    """Borra a la persona con todo lo suyo y su cuenta (hoy, 1 persona = 1 cuenta)."""
+    Cuaderno(db, usuario).borrar_todo()
+    cuenta = db.get(Cuenta, usuario.cuenta_id)
+    db.delete(usuario)
+    db.flush()
+    if cuenta is not None:
+        db.delete(cuenta)
+        db.flush()
 
 
 def autorizados(db: Session) -> list[Usuario]:

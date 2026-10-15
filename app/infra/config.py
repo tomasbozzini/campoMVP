@@ -52,6 +52,13 @@ class Configuracion(BaseSettings):
     # Números de WhatsApp de los administradores, separados por coma (ej: 5492494123456).
     # Siempre tienen acceso y pueden autorizar a otros con "autorizar <número>".
     admin_telefonos: Annotated[set[str], NoDecode] = set()
+    # El número del bot, como se ve en WhatsApp (ej: 5492494000000): arma el link de las
+    # invitaciones (wa.me/<número>?text=<código>). Sin él, "invitar" da solo el código.
+    wa_numero_bot: str = ""
+    # Clave para guardar los teléfonos de quienes prueban códigos equivocados sin guardar el
+    # número (HMAC). Obligatoria en producción; generala con:
+    # python -c "import secrets; print(secrets.token_hex(32))"
+    clave_hash: str = ""
 
     # Datos para la política de privacidad que se publica en /privacidad
     privacidad_responsable: str = ""  # nombre o razón social
@@ -113,6 +120,7 @@ class Configuracion(BaseSettings):
             "WA_TOKEN": self.wa_token,
             "WA_PHONE_NUMBER_ID": self.wa_phone_number_id,
             "GROQ_API_KEY": self.groq_api_key,
+            "CLAVE_HASH": self.clave_hash,
         }
         return [nombre for nombre, valor in obligatorias.items() if not valor.strip()]
 

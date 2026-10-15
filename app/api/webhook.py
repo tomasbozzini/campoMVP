@@ -17,7 +17,7 @@ from app.infra.config import config
 from app.infra.db import SessionLocal
 from app.infra.modelos import MensajeProcesado
 from app.infra.orden import FilaPorClave
-from app.nucleo import acceso, pipeline
+from app.nucleo import acceso, alta, pipeline
 
 log = logging.getLogger(__name__)
 
@@ -83,8 +83,10 @@ def procesar_mensaje(mensaje: MensajeEntrante) -> None:
         elif mensaje.tipo == "audio" and mensaje.audio_id:
             with SessionLocal() as db:
                 habilitado = acceso.puede_usar_ia(db, telefono)
+                en_alta = not habilitado and alta.en_curso(db, telefono) is not None
             if not habilitado:
-                whatsapp.enviar_texto(telefono, acceso.NO_AUTORIZADO)
+                # Sin IA para quien no tiene acceso: el alta se responde por escrito.
+                whatsapp.enviar_texto(telefono, alta.POR_ESCRITO if en_alta else acceso.NO_AUTORIZADO)
                 return
             audio = whatsapp.descargar_media(mensaje.audio_id)
             if len(audio) > config.max_audio_bytes:

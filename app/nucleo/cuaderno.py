@@ -14,7 +14,7 @@ from datetime import date, datetime
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
-from app.infra.modelos import BorradoPendiente, Evento, MensajeChat, UsoDiario, Usuario
+from app.infra.modelos import BorradoPendiente, Evento, MensajeChat, Solicitud, UsoDiario, Usuario
 from app.nucleo import auditoria
 
 # Tope de registros que devuelve una búsqueda.
@@ -164,6 +164,6 @@ class Cuaderno:
 
         Hoy cada persona tiene su propia cuenta, así que se borra todo lo de la cuenta."""
         self.db.execute(delete(Evento).where(Evento.cuenta_id == self.cuenta_id))
-        for modelo in (MensajeChat, UsoDiario, BorradoPendiente):
+        for modelo in (MensajeChat, UsoDiario, BorradoPendiente, Solicitud):
             self.db.execute(delete(modelo).where(modelo.usuario_id == self.usuario_id))
         self.db.flush()
