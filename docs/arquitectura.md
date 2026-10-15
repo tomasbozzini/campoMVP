@@ -223,7 +223,7 @@ de 2b, 7 y 8b):
       las migraciones son transaccionales (BEGIN explícito): si una falla, no queda a medias.
 - [x] 1b · Perfil: nombre y apellido, rubro y localidad con preguntas fijas; `mis datos`,
       `cambiar rubro`, `cambiar matrícula`.
-- [ ] 2a · Auditoría de acciones sensibles.
+- [x] 2a · Auditoría de acciones sensibles (`python -m app auditoria`).
 - [ ] 2b · Alta por código de invitación, solicitudes e intentos fallidos.
 - [ ] 3 · Prompt armado con los módulos del perfil.
 - [ ] 4 · Glosario para Whisper según el perfil.

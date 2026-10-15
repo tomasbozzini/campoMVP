@@ -1,0 +1,25 @@
+"""Registro de acciones sensibles (altas, bajas, invitaciones, borrados).
+
+Guarda solo ids numéricos y cantidades. Se consulta desde la terminal:
+python -m app auditoria
+"""
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.infra.modelos import Auditoria
+
+AUTORIZAR = "autorizar"
+QUITAR = "quitar"
+BORRAR_DATOS = "borrar_datos"
+BORRAR_REGISTROS = "borrar_registros"
+
+
+def registrar(db: Session, accion: str, actor: int | None = None, sobre: int | None = None, **detalle: int) -> None:
+    db.add(Auditoria(accion=accion, actor=actor, sobre=sobre, detalle=detalle or None))
+    db.flush()
+
+
+def ultimas(db: Session, limite: int = 50) -> list[Auditoria]:
+    """Las últimas acciones, de la más nueva a la más vieja."""
+    return list(db.scalars(select(Auditoria).order_by(Auditoria.id.desc()).limit(limite)).all())

@@ -93,7 +93,7 @@ def _responder(ctx: Contexto, telefono: str) -> str:
     if (respuesta := perfil.comando(ctx)) is not None:
         ctx.guardar_charla = False  # trae nombre, localidad, matrícula
         return respuesta
-    if es_admin(telefono) and (respuesta := comandos.admin(ctx.db, texto)):
+    if es_admin(telefono) and (respuesta := comandos.admin(ctx.db, texto, ctx.usuario.id)):
         return respuesta
     if comando in comandos.PEDIR_AYUDA:
         return comandos.ayuda(es_admin(telefono))

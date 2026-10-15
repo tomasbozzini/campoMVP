@@ -188,3 +188,21 @@ class BorradoPendiente(Base):
     usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), primary_key=True)
     ids: Mapped[list[int]] = mapped_column(JSON)
     creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_ahora)
+
+
+class Auditoria(Base):
+    """Acciones sensibles: altas y bajas, invitaciones, borrados.
+
+    Solo ids numéricos y cantidades: nunca teléfonos, nombres ni textos. Las filas se
+    conservan después de "borrar mis datos"; por eso `actor` y `sobre` no son claves
+    foráneas ni se llaman `usuario_id` (el id queda, la persona ya no existe).
+    """
+
+    __tablename__ = "auditoria"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_ahora, index=True)
+    accion: Mapped[str] = mapped_column(String(30))
+    actor: Mapped[int | None] = mapped_column(Integer)  # usuario que la hizo; None = desde la terminal
+    sobre: Mapped[int | None] = mapped_column(Integer)  # usuario afectado
+    detalle: Mapped[dict[str, int] | None] = mapped_column(JSON)  # cantidades e ids

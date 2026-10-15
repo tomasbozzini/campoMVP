@@ -15,6 +15,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.infra.modelos import BorradoPendiente, Evento, MensajeChat, UsoDiario, Usuario
+from app.nucleo import auditoria
 
 # Tope de registros que devuelve una búsqueda.
 MAX_EVENTOS = 5000
@@ -69,7 +70,12 @@ class Cuaderno:
     def borrar(self, ids: list[int]) -> int:
         """Borra esos registros, solo si son de esta cuenta. Devuelve cuántos borró."""
         resultado = self.db.execute(delete(Evento).where(Evento.id.in_(ids), Evento.cuenta_id == self.cuenta_id))
-        return int(getattr(resultado, "rowcount", 0) or 0)
+        borrados = int(getattr(resultado, "rowcount", 0) or 0)
+        if borrados:
+            auditoria.registrar(
+                self.db, auditoria.BORRAR_REGISTROS, actor=self.usuario_id, cuenta=self.cuenta_id, cantidad=borrados
+            )
+        return borrados
 
     def buscar(self, filtros: Filtros) -> list[Evento]:
         """Busca con los filtros que armó el código a partir de lo que pidió la IA. El

@@ -34,6 +34,7 @@ NOMBRES_0001 = {
 NOMBRES = {
     **NOMBRES_0001,
     "cuentas": {"pk": "cuentas_pkey", "fk": set(), "uq": set()},
+    "auditoria": {"pk": "auditoria_pkey", "fk": set(), "uq": set()},
     "usuarios": {"pk": "usuarios_pkey", "fk": {"usuarios_cuenta_id_fkey"}, "uq": set()},
     "eventos": {"pk": "eventos_pkey", "fk": {"eventos_cuenta_id_fkey", "eventos_usuario_id_fkey"}, "uq": set()},
 }

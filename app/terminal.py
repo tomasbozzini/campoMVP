@@ -12,6 +12,7 @@ python -m app senasa cargar registro.csv --fecha 2026-10-10 --url https://...
 python -m app senasa ver ivermectina
 python -m app db migrar                          crea la base o la pone al día (sin perder datos)
 python -m app db estado                          versión de la base y diferencias con el código
+python -m app auditoria [--limite 50]            últimas acciones sensibles (solo ids)
 """
 
 import argparse
@@ -30,7 +31,7 @@ from app.infra.config import config
 from app.infra.db import SessionLocal, engine
 from app.infra.logs import configurar_logs
 from app.modulos.comun import precios, senasa
-from app.nucleo import pipeline, usuarios
+from app.nucleo import auditoria, pipeline, usuarios
 
 TELEFONO_CHAT = "5490000000000"
 
@@ -103,6 +104,18 @@ def _senasa(db: Session, args: argparse.Namespace) -> None:
         print(senasa.responder(db, args.texto))
 
 
+def _auditoria(db: Session, args: argparse.Namespace) -> None:
+    filas = auditoria.ultimas(db, args.limite)
+    if not filas:
+        print("Todavía no hay acciones registradas.")
+    for f in reversed(filas):
+        fecha = f.fecha.astimezone(config.zona_horaria) if f.fecha.tzinfo else f.fecha
+        actor = f"#{f.actor}" if f.actor is not None else "terminal"
+        sobre = f"#{f.sobre}" if f.sobre is not None else "-"
+        detalle = " ".join(f"{clave}={valor}" for clave, valor in (f.detalle or {}).items())
+        print(f"{fecha:%Y-%m-%d %H:%M}  {f.accion:<18} por {actor:<9} sobre {sobre:<6} {detalle}".rstrip())
+
+
 def _db(args: argparse.Namespace) -> None:
     if args.accion == "migrar":
         try:
@@ -149,6 +162,10 @@ def _argumentos() -> argparse.ArgumentParser:
     cargar.add_argument("--url", required=True, help="página oficial de SENASA de donde salen los datos")
     acciones.add_parser("ver", help="lo que respondería el bot").add_argument("texto")
     registro.set_defaults(ejecutar=_senasa)
+
+    registro_acciones = comandos.add_parser("auditoria", help="últimas acciones sensibles (solo ids)")
+    registro_acciones.add_argument("--limite", type=int, default=50, help="cuántas mostrar (50 por defecto)")
+    registro_acciones.set_defaults(ejecutar=_auditoria)
 
     base = comandos.add_parser("db", help="base de datos y migraciones")
     acciones = base.add_subparsers(dest="accion", required=True)

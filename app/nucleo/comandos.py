@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.infra.config import config
 from app.infra.modelos import Cuenta, Usuario
 from app.infra.texto import sin_tildes
-from app.nucleo import usuarios
+from app.nucleo import auditoria, usuarios
 from app.nucleo.cuaderno import Cuaderno
 from app.salidas.whatsapp import SEPARADOR as LINEA
 
@@ -109,7 +109,13 @@ def pedir_borrar_datos(cuaderno: Cuaderno) -> str:
 
 
 def borrar_datos(db: Session, usuario: Usuario) -> str:
-    Cuaderno(db, usuario).borrar_todo()
+    cuaderno = Cuaderno(db, usuario)
+    registros = cuaderno.cantidad()
+    cuaderno.borrar_todo()
+    # Solo ids: después de esto no queda nada de la persona, salvo que borró sus datos.
+    auditoria.registrar(
+        db, auditoria.BORRAR_DATOS, actor=usuario.id, sobre=usuario.id, cuenta=usuario.cuenta_id, registros=registros
+    )
     cuenta = db.get(Cuenta, usuario.cuenta_id)
     db.delete(usuario)
     db.flush()
@@ -124,8 +130,8 @@ def borrar_datos(db: Session, usuario: Usuario) -> str:
     )
 
 
-def admin(db: Session, texto: str) -> str | None:
-    """Comandos del administrador; None si el texto no es uno."""
+def admin(db: Session, texto: str, actor: int) -> str | None:
+    """Comandos del administrador (`actor`: su id de usuario); None si el texto no es uno."""
     if texto.lower() == "autorizados":
         lista = usuarios.autorizados(db)
         if not lista:
@@ -140,8 +146,8 @@ def admin(db: Session, texto: str) -> str | None:
     if telefono is None:
         return "No entendí el número. Escribilo con código de país, ej: *autorizar 5492494123456*"
     if m.group(1).lower() == "autorizar":
-        usuarios.autorizar(db, telefono)
+        usuarios.autorizar(db, telefono, actor)
         return f"✅ {telefono} ya puede usar CampoBot."
-    if not usuarios.quitar(db, telefono):
+    if not usuarios.quitar(db, telefono, actor):
         return f"{telefono} no tenía acceso."
     return f"🚫 Le saqué el acceso a {telefono}. Sus registros se conservan."

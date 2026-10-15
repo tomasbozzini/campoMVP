@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.infra.modelos import Cuenta, Usuario
+from app.nucleo import auditoria
 
 
 def normalizar_telefono(texto: str) -> str | None:
@@ -34,22 +35,25 @@ def nuevo(db: Session, telefono: str, nombre: str | None = None, autorizado: boo
     return usuario
 
 
-def autorizar(db: Session, telefono: str) -> Usuario:
+def autorizar(db: Session, telefono: str, actor: int | None = None) -> Usuario:
+    """Da acceso a ese número. `actor`: el administrador que lo pidió (None: desde la terminal)."""
     usuario = db.scalar(select(Usuario).where(Usuario.telefono == telefono))
     if usuario is None:
         usuario = nuevo(db, telefono)
     usuario.autorizado = True
     db.flush()
+    auditoria.registrar(db, auditoria.AUTORIZAR, actor=actor, sobre=usuario.id)
     return usuario
 
 
-def quitar(db: Session, telefono: str) -> bool:
+def quitar(db: Session, telefono: str, actor: int | None = None) -> bool:
     """Saca el acceso. Los registros de la persona se conservan."""
     usuario = db.scalar(select(Usuario).where(Usuario.telefono == telefono))
     if usuario is None or not usuario.autorizado:
         return False
     usuario.autorizado = False
     db.flush()
+    auditoria.registrar(db, auditoria.QUITAR, actor=actor, sobre=usuario.id)
     return True
 
 
