@@ -24,6 +24,7 @@ from app.infra.modelos import (
     UsoDiario,
     Usuario,
 )
+from app.infra.texto import prolijo
 from app.nucleo import auditoria
 from app.nucleo.normalizar import clave_establecimiento, normalizar_lote
 
@@ -133,7 +134,8 @@ class Cuaderno:
 
     def establecimiento(self, nombre: str | None) -> Establecimiento | None:
         """El establecimiento con ese nombre, escrito como sea ("Estancia La Esperanza", "la
-        esperanza"). Si es la primera vez que lo nombra, se crea con el nombre como lo escribió."""
+        esperanza"). Si es la primera vez que lo nombra, se crea con el nombre como lo escribió,
+        prolijo ("estancia LA PASTORA" -> "Estancia la Pastora")."""
         clave = clave_establecimiento(nombre)
         if not nombre or not clave:
             return None
@@ -142,7 +144,7 @@ class Cuaderno:
         )
         if existente is not None:
             return existente
-        nuevo = Establecimiento(cuenta_id=self.cuenta_id, nombre=" ".join(nombre.split()), clave=clave)
+        nuevo = Establecimiento(cuenta_id=self.cuenta_id, nombre=prolijo(nombre), clave=clave)
         self.db.add(nuevo)
         self.db.flush()
         return nuevo

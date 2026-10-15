@@ -45,14 +45,14 @@ def heredar_contexto(eventos: list[DatosEvento]) -> None:
 
 def manejar(ctx: Contexto, datos: Registrar) -> str:
     heredar_contexto(datos.eventos)
+    usuario, cuaderno = ctx.usuario, ctx.cuaderno
+    # Si el mensaje nombra un establecimiento, pasa a ser el actual (aunque no traiga nada
+    # que se pueda anotar); si no, se usa el último que nombró.
+    if datos.establecimiento and (nombrado := cuaderno.establecimiento(datos.establecimiento)):
+        usuario.establecimiento_actual = nombrado
     validos = [e for e in datos.eventos if e.categoria in CATEGORIAS]
     if not validos:
         return NADA_CLARO
-
-    usuario, cuaderno = ctx.usuario, ctx.cuaderno
-    # Si el mensaje nombra un establecimiento, pasa a ser el actual; si no, se usa el último.
-    if datos.establecimiento and (nombrado := cuaderno.establecimiento(datos.establecimiento)):
-        usuario.establecimiento_actual = nombrado
     establecimiento = usuario.establecimiento_actual
     mensaje_id = str(uuid.uuid4())  # une los eventos del mensaje para poder "borrar" todo junto
     guardados = [

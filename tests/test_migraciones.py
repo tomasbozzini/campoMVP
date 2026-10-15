@@ -360,6 +360,23 @@ def test_0007_vuelve_atras_sin_perder_los_nombres(engine):
         assert "establecimientos" not in inspect(c).get_table_names()
 
 
+def test_0008_los_nombres_de_los_campos_quedan_prolijos(engine):
+    _base_0006_con_campos(engine)
+    migrar_hasta(engine, "0007")
+    with engine.begin() as c:
+        c.execute(text("update establecimientos set nombre = 'estancia  LA PASTORA' where nombre = 'La Pastora'"))
+
+    migrar.preparar_base(engine)
+
+    with engine.connect() as c:
+        nombres = c.execute(text("select nombre, clave from establecimientos order by id")).all()
+    assert nombres == [
+        ("Estancia la Pastora", "la pastora"),  # la clave no cambia
+        ("Estancia la Pastora", "la pastora"),
+        ("El Ombú", "el ombu"),
+    ]
+
+
 def test_0003_no_adivina_de_quien_son_registros_sin_usuario(engine):
     """SQLite no controla las claves foráneas: una base vieja puede tener registros huérfanos."""
     migrar_hasta(engine, "0002")

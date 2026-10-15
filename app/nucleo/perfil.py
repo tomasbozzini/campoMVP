@@ -13,7 +13,7 @@ necesita.
 import re
 
 from app.infra.modelos import Usuario
-from app.infra.texto import sin_tildes
+from app.infra.texto import prolijo, sin_tildes
 from app.nucleo.contexto import Contexto
 from app.salidas.whatsapp import SEPARADOR as LINEA
 
@@ -70,27 +70,15 @@ _PALABRAS_RUBRO = {
     "productor": ("productor",),
 }
 _NUMEROS_RUBRO = {"1": "veterinario", "2": "agronomo", "3": "productor"}
-# Palabras que van en minúscula dentro de un nombre o una localidad ("25 de Mayo").
-_PARTICULAS = {"de", "del", "la", "las", "los", "el", "y", "e", "da", "di", "van", "von"}
 _PREFIJOS_NOMBRE = ("me llamo ", "mi nombre es ", "soy ")
 _PREFIJOS_LOCALIDAD = ("soy de ", "vivo en ", "estoy en ", "de ", "en ")
 _LETRAS_NOMBRE = re.compile(r"^[^\W\d_]+(?:['.\-][^\W\d_]*)*$")
 # Hasta dos siglas cortas y el número: "MP 1234", "M.P. 1234", "CMVPBA 5678", "1234/5".
 _MATRICULA = re.compile(r"^(?:[A-Za-z.]{1,7} ?){0,2}\d[\d./\-]*$")
-_INICIAL = re.compile(r"(^|[-'])(\w)")
 
 
 def _normalizar(texto: str) -> str:
     return " ".join(sin_tildes(texto.lower().strip(" !.¡¿?")).split())
-
-
-def prolijo(texto: str) -> str:
-    """'  tres   ARROYOS ' -> 'Tres Arroyos'; '25 de mayo' -> '25 de Mayo'."""
-    palabras = texto.lower().split()
-    return " ".join(
-        p if i > 0 and p in _PARTICULAS else _INICIAL.sub(lambda m: m.group(1) + m.group(2).upper(), p)
-        for i, p in enumerate(palabras)
-    )
 
 
 def _sin_prefijo(texto: str, prefijos: tuple[str, ...]) -> str:

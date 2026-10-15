@@ -237,7 +237,9 @@ de 2b, 7 y 8b):
 - [x] 5 · Establecimientos y lotes como tablas; `mis campos`. La `0007` pasa a tablas los
       nombres que estaban como texto en los registros (un establecimiento por cuenta y
       clave, con el nombre del primer registro; un lote por cuenta, establecimiento y
-      nombre) y borra las columnas de texto. Hacer una copia de la base antes de migrar.
+      nombre) y borra las columnas de texto (no estaba aprobado; se aceptó después, porque
+      la migración tiene vuelta atrás y está probada). Hacer una copia de la base antes de
+      migrar.
 - [ ] 6 · Sesiones con apertura, cierre y resumen.
 - [ ] 7 · Pendientes.
 - [ ] 8a · Envío de documentos por WhatsApp y PDF.
@@ -264,12 +266,23 @@ de 2b, 7 y 8b):
   sin avisar del bloqueo.
 - **Auditoría:** solo ids numéricos; las filas se conservan después de `borrar mis datos`. Se
   consulta con `python -m app auditoria`.
-- **Establecimientos y lotes:** comando fijo `mis campos` (sin IA) que los lista. Unir
-  duplicados queda para más adelante.
+- **Establecimientos y lotes:** comando fijo `mis campos` (sin IA) que los lista. El nombre
+  de un establecimiento es el de la primera vez que se nombró, guardado prolijo como la
+  localidad ("Estancia de la Sierra", "El Ombú"); la `0008` ordena los que ya existían. Unir
+  duplicados y un comando `renombrar campo` quedan para más adelante.
+- **Campo actual:** un registro que no nombra campo va al último establecimiento que la
+  persona nombró, con "estoy en La Pastora" (aunque no anote nada) o con un registro que
+  nombra un campo. Las consultas, las correcciones y los borrados que nombran un campo no
+  lo cambian. Con una sesión abierta, el campo de los registros sin campo es el de la sesión.
 - **Sesiones:** una abierta por persona; al abrir otra, la anterior se cierra con su resumen.
-  Un registro que no nombra campo va a la sesión y hereda su campo y lote; uno de otro
-  establecimiento queda fuera, con aviso. Se cierra sola a las 12 h sin actividad: cuando la
-  persona vuelve a escribir se le avisa y se le muestra el resumen (sin mensajes automáticos).
+  Se abren con una frase que reconoce la IA, con el campo, el lote y la actividad ("arranco
+  manga en El Retiro", "empiezo siembra lote Los Pinos"), y se cierran con "terminamos",
+  "cerramos" o el comando fijo `cerrar sesión`, que muestra el resumen. "estoy en X" no abre
+  sesión. Un registro que no nombra campo va a la sesión y hereda su campo y lote (la lluvia
+  no hereda el lote: es del campo); uno de otro establecimiento queda fuera, con aviso, y los
+  siguientes sin campo siguen yendo a la sesión. Se cierra sola a las 12 h sin actividad
+  (cualquier mensaje de la persona cuenta): cuando la persona vuelve a escribir se le avisa y
+  se le muestra el resumen (sin mensajes automáticos).
 - **Pendientes:** se anotan, se consultan, se marcan hechos ("ya está lo del lote 3") y se
   borran. Los vencidos van primero y destacados (⚠️).
 - **Salidas:** "Excel" o "planilla" → .xlsx; CSV solo si lo pide, con `;` y BOM. El PDF lleva

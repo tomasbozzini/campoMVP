@@ -61,6 +61,57 @@ def test_el_mismo_campo_escrito_distinto_es_uno_solo(db, ia):
     assert {(e.nombre_establecimiento, e.nombre_lote) for e in eventos} == {("La Esperanza", "3")}
 
 
+def test_el_nombre_se_guarda_prolijo(db, ia):
+    respuestas, _ = ia
+    con_perfil(db, TEL)
+    respuestas["estoy en la pastora"] = {"intencion": "establecimiento", "establecimiento": " estancia  LA PASTORA "}
+    assert "📍 *Estancia la Pastora*" in _mandar(db, "estoy en la pastora")
+    assert db.scalar(select(Establecimiento.nombre)) == "Estancia la Pastora"
+
+
+def test_un_registro_sin_campo_va_al_ultimo_campo_nombrado(db, ia):
+    """Decisiones de producto, "Campo actual": lo cambian "estoy en X" y un registro que nombra
+    un campo; las consultas, las correcciones y los borrados que nombran un campo, no."""
+    respuestas, _ = ia
+    u = con_perfil(db, TEL)
+
+    def campo_del_ultimo():
+        return db.scalars(select(Evento).order_by(Evento.id.desc())).first().nombre_establecimiento
+
+    respuestas["estoy en la pastora"] = {"intencion": "establecimiento", "establecimiento": "La Pastora"}
+    _registrar(respuestas, "vacuné", lote="3")
+    _mandar(db, "estoy en la pastora")  # sin nada para anotar
+    _mandar(db, "vacuné")
+    assert campo_del_ultimo() == "La Pastora"
+
+    respuestas["¿qué hice en el ombú?"] = {"intencion": "consultar", "consulta": {"establecimiento": "El Ombú"}}
+    respuestas["lo de recién fue en el ombú"] = {
+        "intencion": "corregir",
+        "correccion": {"referencia": {}, "cambios": {"lote": "4"}},
+        "establecimiento": "El Ombú",
+    }
+    respuestas["borrá lo del ombú"] = {
+        "intencion": "borrar",
+        "borrado": {"registros": [{"establecimiento": "El Ombú"}]},
+    }
+    for texto in ("¿qué hice en el ombú?", "lo de recién fue en el ombú", "borrá lo del ombú"):
+        _mandar(db, texto)
+        assert u.establecimiento_actual is not None and u.establecimiento_actual.nombre == "La Pastora", texto
+    _mandar(db, "vacuné")
+    assert campo_del_ultimo() == "La Pastora"
+
+    _registrar(respuestas, "en el ombú vacuné", "El Ombú")
+    _mandar(db, "en el ombú vacuné")
+    _mandar(db, "vacuné")
+    assert campo_del_ultimo() == "El Ombú"
+
+    # Un registro que nombra un campo pero no trae nada que se pueda anotar también lo cambia.
+    respuestas["en la pastora anotá"] = {"intencion": "registrar", "establecimiento": "La Pastora", "eventos": []}
+    assert "No me quedó claro" in _mandar(db, "en la pastora anotá")
+    _mandar(db, "vacuné")
+    assert campo_del_ultimo() == "La Pastora"
+
+
 def test_cada_lote_es_de_su_campo(db, ia):
     """El lote 3 de La Esperanza y el de El Ombú son distintos; el que se nombró sin campo queda suelto."""
     respuestas, _ = ia
