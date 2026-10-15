@@ -11,9 +11,11 @@ from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 from sqlalchemy import Boolean, Column, Date, DateTime, MetaData, String, bindparam, inspect, text
+from sqlalchemy.orm import sessionmaker
 
 from app.infra import migrar
 from app.infra.db import Base
+from app.nucleo import usuarios
 
 RAIZ = Path(__file__).parent.parent
 ULTIMA = ScriptDirectory(str(migrar.CARPETA)).get_current_head() or ""
@@ -188,3 +190,61 @@ def test_una_base_con_datos_en_cada_version_llega_a_la_ultima(engine):
     with engine.connect() as c:
         assert c.execute(text("select telefono from usuarios")).scalars().all() == ["5491100000001"]
         assert c.execute(text("select valor from eventos")).scalars().all() == [20]
+
+
+def test_0003_cada_usuario_existente_recibe_su_cuenta_con_sus_registros(engine):
+    migrar_hasta(engine, "0002")
+    _usuario_y_lluvia(engine)  # usuario 1 con un registro
+    with engine.begin() as c:
+        c.execute(
+            text(
+                "insert into usuarios (id, telefono, autorizado, creado) values (2, '5491100000002', :si, :ahora)"
+            ).bindparams(bindparam("si", type_=Boolean), bindparam("ahora", type_=DateTime(timezone=True))),
+            {"si": True, "ahora": datetime(2026, 10, 2, tzinfo=UTC)},
+        )
+        c.execute(
+            text(
+                "insert into eventos (id, usuario_id, categoria, tipo, valor, fecha_evento, creado) "
+                "values (2, 2, 'campo', 'lluvia', 7, :fecha, :ahora), (3, 2, 'campo', 'lluvia', 8, :fecha, :ahora)"
+            ).bindparams(bindparam("fecha", type_=Date), bindparam("ahora", type_=DateTime(timezone=True))),
+            {"fecha": date(2026, 10, 2), "ahora": datetime(2026, 10, 2, tzinfo=UTC)},
+        )
+        c.execute(
+            text(
+                "insert into usuarios (id, telefono, autorizado, creado) values (3, '5491100000003', :no, :ahora)"
+            ).bindparams(bindparam("no", type_=Boolean), bindparam("ahora", type_=DateTime(timezone=True))),
+            {"no": False, "ahora": datetime(2026, 10, 3, tzinfo=UTC)},
+        )
+
+    migrar.preparar_base(engine)
+
+    assert _version_y_diferencias(engine) == (ULTIMA, [])
+    with engine.connect() as c:
+        cuentas = dict(c.execute(text("select id, cuenta_id from usuarios")).all())
+        eventos = c.execute(text("select usuario_id, cuenta_id, valor from eventos order by id")).all()
+        assert c.execute(text("select count(*) from cuentas")).scalar_one() == 3
+    assert len(set(cuentas.values())) == 3  # una cuenta distinta por usuario
+    assert eventos == [(1, cuentas[1], 20), (2, cuentas[2], 7), (2, cuentas[2], 8)]
+
+    # Las altas que siguen no chocan con las cuentas que creó la migración.
+    with sessionmaker(bind=engine)() as db:
+        nuevo = usuarios.nuevo(db, "5491100000004")
+        db.commit()
+        assert nuevo.cuenta_id not in cuentas.values()
+
+
+def test_0003_no_adivina_de_quien_son_registros_sin_usuario(engine):
+    """SQLite no controla las claves foráneas: una base vieja puede tener registros huérfanos."""
+    migrar_hasta(engine, "0002")
+    _usuario_y_lluvia(engine)
+    if engine.dialect.name == "postgresql":
+        pytest.skip("Postgres no deja guardar registros sin usuario")
+    with engine.begin() as c:
+        c.execute(text("update eventos set usuario_id = 99"))
+
+    with pytest.raises(RuntimeError, match="1 registros de usuarios que ya no existen"):
+        migrar.preparar_base(engine)
+    with engine.connect() as c:
+        assert migrar.version(c) == "0002"
+        assert c.execute(text("select usuario_id, valor from eventos")).all() == [(99, 20)]
+    assert "cuentas" not in inspect(engine).get_table_names()  # "no se cambió nada"

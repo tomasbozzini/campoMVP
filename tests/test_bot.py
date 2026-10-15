@@ -318,6 +318,7 @@ def test_borrar_registro_viejo_sin_mensaje_id(db, fake_llm):
     for valor in (10, 20):
         db.add(
             Evento(
+                cuenta_id=usuario.cuenta_id,
                 usuario_id=usuario.id,
                 categoria="campo",
                 tipo="lluvia",
@@ -668,7 +669,7 @@ def test_la_charla_vieja_no_se_usa_y_no_se_acumula(db, fake_llm):
     for m in db.scalars(select(MensajeChat)).all():
         m.creado = datetime.now(UTC) - timedelta(minutes=charla.HISTORIAL_MINUTOS + 1)
     db.flush()
-    assert charla.historial(Cuaderno(db, u.id)) == []
+    assert charla.historial(Cuaderno(db, u)) == []
 
 
 def _cinco_en_la_pastora(respuestas, db, u):

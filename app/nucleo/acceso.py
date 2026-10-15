@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.infra.config import config
 from app.infra.modelos import Usuario
+from app.nucleo import usuarios
 
 NO_AUTORIZADO = """👋 *¡Hola!*
 
@@ -28,9 +29,7 @@ def usuario_con_acceso(db: Session, telefono: str, nombre: str | None) -> Usuari
     """El usuario si tiene acceso; None si no. Los administradores se dan de alta solos."""
     usuario = db.scalar(select(Usuario).where(Usuario.telefono == telefono))
     if usuario is None and es_admin(telefono):
-        usuario = Usuario(telefono=telefono, nombre=nombre, autorizado=True)
-        db.add(usuario)
-        db.flush()
+        usuario = usuarios.nuevo(db, telefono, nombre, autorizado=True)
     if usuario is None or not (usuario.autorizado or es_admin(telefono)):
         return None
     if nombre and not usuario.nombre:

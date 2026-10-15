@@ -19,4 +19,4 @@ class Contexto:
 
     @cached_property
     def cuaderno(self) -> Cuaderno:
-        return Cuaderno(self.db, self.usuario.id)
+        return Cuaderno(self.db, self.usuario)

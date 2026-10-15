@@ -1,9 +1,11 @@
-"""Acceso a los datos de UNA persona: su cuaderno, su charla con el bot, su cupo diario y
-los borrados que esperan confirmación.
+"""Acceso a los datos de UNA persona: el cuaderno de su cuenta, su charla con el bot, su
+cupo diario y los borrados que esperan confirmación.
 
-Es la única puerta a esas tablas. Cada consulta queda filtrada por el usuario con el que
-se abrió el cuaderno, así que no hay forma de leer ni tocar lo de otra persona aunque un
-id venga mal. Fuera de este módulo nadie filtra por `usuario_id` a mano.
+Es la única puerta a esas tablas. Lo que se anota es de la cuenta y se filtra por la cuenta
+de quien abrió el cuaderno (hoy, 1 persona = 1 cuenta); la charla, el cupo y los borrados
+pendientes son de la conversación de cada persona y se filtran por usuario. No hay forma de
+leer ni tocar lo de otra cuenta aunque un id venga mal. Fuera de este módulo nadie filtra
+por `cuenta_id` ni por `usuario_id` a mano.
 """
 
 from dataclasses import dataclass
@@ -12,7 +14,7 @@ from datetime import date, datetime
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
-from app.infra.modelos import BorradoPendiente, Evento, MensajeChat, UsoDiario
+from app.infra.modelos import BorradoPendiente, Evento, MensajeChat, UsoDiario, Usuario
 
 # Tope de registros que devuelve una búsqueda.
 MAX_EVENTOS = 5000
@@ -34,21 +36,23 @@ class Filtros:
 
 
 class Cuaderno:
-    def __init__(self, db: Session, usuario_id: int) -> None:
+    def __init__(self, db: Session, usuario: Usuario) -> None:
         self.db = db
-        self.usuario_id = usuario_id
+        self.usuario_id = usuario.id
+        self.cuenta_id = usuario.cuenta_id
 
     # --- Registros ------------------------------------------------------------
 
     def agregar(self, eventos: list[Evento]) -> None:
         for evento in eventos:
+            evento.cuenta_id = self.cuenta_id
             evento.usuario_id = self.usuario_id
             self.db.add(evento)
         self.db.flush()
 
     def recientes(self, limite: int) -> list[Evento]:
         """Los últimos registros anotados, del más nuevo al más viejo."""
-        q = select(Evento).where(Evento.usuario_id == self.usuario_id).order_by(Evento.id.desc()).limit(limite)
+        q = select(Evento).where(Evento.cuenta_id == self.cuenta_id).order_by(Evento.id.desc()).limit(limite)
         return list(self.db.scalars(q).all())
 
     def ultimo(self) -> Evento | None:
@@ -56,21 +60,21 @@ class Cuaderno:
 
     def del_mensaje(self, mensaje_id: str) -> list[Evento]:
         """Los registros que se anotaron juntos, con un mismo mensaje."""
-        q = select(Evento).where(Evento.usuario_id == self.usuario_id, Evento.mensaje_id == mensaje_id)
+        q = select(Evento).where(Evento.cuenta_id == self.cuenta_id, Evento.mensaje_id == mensaje_id)
         return list(self.db.scalars(q).all())
 
     def cantidad(self) -> int:
-        return self.db.scalar(select(func.count(Evento.id)).where(Evento.usuario_id == self.usuario_id)) or 0
+        return self.db.scalar(select(func.count(Evento.id)).where(Evento.cuenta_id == self.cuenta_id)) or 0
 
     def borrar(self, ids: list[int]) -> int:
-        """Borra esos registros, solo si son de esta persona. Devuelve cuántos borró."""
-        resultado = self.db.execute(delete(Evento).where(Evento.id.in_(ids), Evento.usuario_id == self.usuario_id))
+        """Borra esos registros, solo si son de esta cuenta. Devuelve cuántos borró."""
+        resultado = self.db.execute(delete(Evento).where(Evento.id.in_(ids), Evento.cuenta_id == self.cuenta_id))
         return int(getattr(resultado, "rowcount", 0) or 0)
 
     def buscar(self, filtros: Filtros) -> list[Evento]:
         """Busca con los filtros que armó el código a partir de lo que pidió la IA. El
         modelo nunca escribe SQL ni ve los resultados."""
-        q = select(Evento).where(Evento.usuario_id == self.usuario_id)
+        q = select(Evento).where(Evento.cuenta_id == self.cuenta_id)
         if filtros.establecimiento_clave:
             q = q.where(Evento.establecimiento_clave == filtros.establecimiento_clave)
         if filtros.categoria:
@@ -150,7 +154,10 @@ class Cuaderno:
     # --- Todo ------------------------------------------------------------------
 
     def borrar_todo(self) -> None:
-        """Elimina todo lo que se guardó de esta persona (derecho de supresión)."""
-        for modelo in (Evento, MensajeChat, UsoDiario, BorradoPendiente):
+        """Elimina todo lo que se guardó de esta persona y de su cuenta (derecho de supresión).
+
+        Hoy cada persona tiene su propia cuenta, así que se borra todo lo de la cuenta."""
+        self.db.execute(delete(Evento).where(Evento.cuenta_id == self.cuenta_id))
+        for modelo in (MensajeChat, UsoDiario, BorradoPendiente):
             self.db.execute(delete(modelo).where(modelo.usuario_id == self.usuario_id))
         self.db.flush()

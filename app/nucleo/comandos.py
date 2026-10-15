@@ -7,7 +7,7 @@ import re
 from sqlalchemy.orm import Session
 
 from app.infra.config import config
-from app.infra.modelos import Usuario
+from app.infra.modelos import Cuenta, Usuario
 from app.infra.texto import sin_tildes
 from app.nucleo import usuarios
 from app.nucleo.cuaderno import Cuaderno
@@ -108,9 +108,13 @@ def pedir_borrar_datos(cuaderno: Cuaderno) -> str:
 
 
 def borrar_datos(db: Session, usuario: Usuario) -> str:
-    Cuaderno(db, usuario.id).borrar_todo()
+    Cuaderno(db, usuario).borrar_todo()
+    cuenta = db.get(Cuenta, usuario.cuenta_id)
     db.delete(usuario)
     db.flush()
+    if cuenta is not None:  # hoy cada persona tiene su propia cuenta
+        db.delete(cuenta)
+        db.flush()
     log.info("Usuario %s borró todos sus datos", usuario.id)
     return (
         "🗑️ *DATOS BORRADOS*\n\n"

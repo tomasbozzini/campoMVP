@@ -219,7 +219,8 @@ de 2b, 7 y 8b):
 
 - [x] 0 · Preparación: nombre CampoBot en los textos, `docs/privado/` fuera del repo, tests de
       migraciones con bases viejas armadas con el esquema congelado de la `0001`.
-- [ ] 1a · Cuentas: todo pertenece a una cuenta; el cuaderno filtra por cuenta.
+- [x] 1a · Cuentas: todo pertenece a una cuenta; el cuaderno filtra por cuenta. En SQLite
+      las migraciones son transaccionales (BEGIN explícito): si una falla, no queda a medias.
 - [ ] 1b · Perfil: nombre y apellido, rubro y localidad con preguntas fijas; `mis datos`,
       `cambiar rubro`, `cambiar matrícula`.
 - [ ] 2a · Auditoría de acciones sensibles.

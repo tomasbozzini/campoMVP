@@ -11,8 +11,9 @@ from app.infra import migrar
 from app.infra.db import Base
 
 NOMBRES = {
-    "usuarios": {"pk": "usuarios_pkey", "fk": set(), "uq": set()},
-    "eventos": {"pk": "eventos_pkey", "fk": {"eventos_usuario_id_fkey"}, "uq": set()},
+    "cuentas": {"pk": "cuentas_pkey", "fk": set(), "uq": set()},
+    "usuarios": {"pk": "usuarios_pkey", "fk": {"usuarios_cuenta_id_fkey"}, "uq": set()},
+    "eventos": {"pk": "eventos_pkey", "fk": {"eventos_cuenta_id_fkey", "eventos_usuario_id_fkey"}, "uq": set()},
     "mensajes_procesados": {"pk": "mensajes_procesados_pkey", "fk": set(), "uq": set()},
     "cotizaciones": {"pk": "cotizaciones_pkey", "fk": set(), "uq": {"cotizaciones_fuente_producto_plaza_fecha_key"}},
     "uso_diario": {

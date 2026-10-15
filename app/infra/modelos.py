@@ -11,12 +11,26 @@ def _ahora() -> datetime:
     return datetime.now(UTC)
 
 
+class Cuenta(Base):
+    """La dueña de los datos: los registros (y todo lo que se anota) son de una cuenta.
+
+    Hoy cada persona tiene la suya; más adelante, un estudio con varios profesionales
+    compartirá una cuenta sin que cambie cómo se guardan los datos.
+    """
+
+    __tablename__ = "cuentas"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_ahora)
+
+
 class Usuario(Base):
     """Un número de WhatsApp. Cada persona tiene su propio cuaderno privado de registros."""
 
     __tablename__ = "usuarios"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    cuenta_id: Mapped[int] = mapped_column(ForeignKey("cuentas.id"), index=True)
     telefono: Mapped[str] = mapped_column(String(20), unique=True, index=True)
     nombre: Mapped[str | None] = mapped_column(String(120))
     # Solo los números autorizados por un administrador pueden usar el bot.
@@ -29,13 +43,15 @@ class Usuario(Base):
 class Evento(Base):
     """Cualquier cosa que anotó una persona: sanidad, movimientos, pesadas, clima, etc.
 
-    Pertenece SOLO a quien lo anotó. Nadie más lo ve, aunque sea del mismo establecimiento.
+    Pertenece SOLO a la cuenta de quien lo anotó. Nadie más lo ve, aunque sea del mismo
+    establecimiento.
     """
 
     __tablename__ = "eventos"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)
+    cuenta_id: Mapped[int] = mapped_column(ForeignKey("cuentas.id"), index=True)
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)  # quién lo anotó
     # Dónde pasó, como lo escribió la persona ("La Esperanza") y normalizado para buscar.
     establecimiento: Mapped[str | None] = mapped_column(String(120))
     establecimiento_clave: Mapped[str | None] = mapped_column(String(120), index=True)

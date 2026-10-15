@@ -1,6 +1,8 @@
 """Conexión a la base de datos."""
 
-from sqlalchemy import Engine, MetaData, create_engine
+from typing import Any
+
+from sqlalchemy import Connection, Engine, MetaData, create_engine, event
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from app.infra.config import config
@@ -10,7 +12,24 @@ def crear_motor(url: str) -> Engine:
     # hide_parameters: si una consulta falla, el error (y el log) no muestra los valores,
     # que pueden traer el texto de un mensaje o un teléfono.
     connect_args = {"check_same_thread": False} if url.startswith("sqlite") else {}
-    return create_engine(url, pool_pre_ping=True, hide_parameters=True, connect_args=connect_args)
+    motor = create_engine(url, pool_pre_ping=True, hide_parameters=True, connect_args=connect_args)
+    if motor.dialect.name == "sqlite":
+        _transacciones_completas(motor)
+    return motor
+
+
+def _transacciones_completas(motor: Engine) -> None:
+    """El driver sqlite3 confirma solo los CREATE y ALTER: una migración que falla a la mitad
+    dejaba la base a medias. Con el BEGIN explícito (la receta de SQLAlchemy), todo lo de una
+    transacción se confirma o se deshace junto, como en Postgres."""
+
+    @event.listens_for(motor, "connect")
+    def _sin_transacciones_del_driver(conexion_dbapi: Any, _registro: Any) -> None:
+        conexion_dbapi.isolation_level = None
+
+    @event.listens_for(motor, "begin")
+    def _empezar(conexion: Connection) -> None:
+        conexion.exec_driver_sql("BEGIN")
 
 
 engine = crear_motor(config.database_url)
