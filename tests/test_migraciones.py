@@ -32,25 +32,41 @@ def migrar_hasta(engine, revision: str) -> None:
         command.upgrade(migrar._config(conexion), revision)
 
 
-def _usuario_y_lluvia(engine) -> None:
-    """Un usuario con un registro, cargados con SQL: sirve para cualquier versión del esquema."""
+def _insertar_usuario(c, telefono: str, autorizado: bool = True) -> int:
+    """Un usuario cargado con SQL, sin id: la base lo numera con su secuencia, como en
+    producción (en Postgres, un id puesto a mano no avanza la secuencia)."""
+    return int(
+        c.execute(
+            text(
+                "insert into usuarios (telefono, autorizado, creado) values (:telefono, :autorizado, :creado) returning id"
+            ).bindparams(bindparam("autorizado", type_=Boolean), bindparam("creado", type_=DateTime(timezone=True))),
+            {"telefono": telefono, "autorizado": autorizado, "creado": datetime(2026, 10, 1, tzinfo=UTC)},
+        ).scalar_one()
+    )
+
+
+def _insertar_lluvia(c, usuario_id: int, valor: float) -> None:
     # Con tipo, SQLAlchemy convierte los valores igual que en la base real (en SQLite, a texto).
-    tipos = (bindparam("si", type_=Boolean), bindparam("ahora", type_=DateTime(timezone=True)))
-    valores = {"si": True, "ahora": datetime(2026, 10, 1, tzinfo=UTC), "fecha": date(2026, 10, 1)}
+    c.execute(
+        text(
+            "insert into eventos (usuario_id, categoria, tipo, valor, fecha_evento, creado) "
+            "values (:usuario_id, 'campo', 'lluvia', :valor, :fecha, :creado)"
+        ).bindparams(bindparam("fecha", type_=Date), bindparam("creado", type_=DateTime(timezone=True))),
+        {
+            "usuario_id": usuario_id,
+            "valor": valor,
+            "fecha": date(2026, 10, 1),
+            "creado": datetime(2026, 10, 1, tzinfo=UTC),
+        },
+    )
+
+
+def _usuario_y_lluvia(engine) -> int:
+    """Un usuario con un registro, cargados con SQL: sirve para cualquier versión del esquema."""
     with engine.begin() as c:
-        c.execute(
-            text(
-                "insert into usuarios (id, telefono, autorizado, creado) values (1, '5491100000001', :si, :ahora)"
-            ).bindparams(*tipos),
-            valores,
-        )
-        c.execute(
-            text(
-                "insert into eventos (id, usuario_id, categoria, tipo, valor, fecha_evento, creado) "
-                "values (1, 1, 'campo', 'lluvia', 20, :fecha, :ahora)"
-            ).bindparams(*tipos[1:], bindparam("fecha", type_=Date)),
-            valores,
-        )
+        usuario_id = _insertar_usuario(c, "5491100000001")
+        _insertar_lluvia(c, usuario_id, 20)
+    return usuario_id
 
 
 def _version_y_diferencias(engine):
@@ -194,27 +210,12 @@ def test_una_base_con_datos_en_cada_version_llega_a_la_ultima(engine):
 
 def test_0003_cada_usuario_existente_recibe_su_cuenta_con_sus_registros(engine):
     migrar_hasta(engine, "0002")
-    _usuario_y_lluvia(engine)  # usuario 1 con un registro
+    uno = _usuario_y_lluvia(engine)
     with engine.begin() as c:
-        c.execute(
-            text(
-                "insert into usuarios (id, telefono, autorizado, creado) values (2, '5491100000002', :si, :ahora)"
-            ).bindparams(bindparam("si", type_=Boolean), bindparam("ahora", type_=DateTime(timezone=True))),
-            {"si": True, "ahora": datetime(2026, 10, 2, tzinfo=UTC)},
-        )
-        c.execute(
-            text(
-                "insert into eventos (id, usuario_id, categoria, tipo, valor, fecha_evento, creado) "
-                "values (2, 2, 'campo', 'lluvia', 7, :fecha, :ahora), (3, 2, 'campo', 'lluvia', 8, :fecha, :ahora)"
-            ).bindparams(bindparam("fecha", type_=Date), bindparam("ahora", type_=DateTime(timezone=True))),
-            {"fecha": date(2026, 10, 2), "ahora": datetime(2026, 10, 2, tzinfo=UTC)},
-        )
-        c.execute(
-            text(
-                "insert into usuarios (id, telefono, autorizado, creado) values (3, '5491100000003', :no, :ahora)"
-            ).bindparams(bindparam("no", type_=Boolean), bindparam("ahora", type_=DateTime(timezone=True))),
-            {"no": False, "ahora": datetime(2026, 10, 3, tzinfo=UTC)},
-        )
+        dos = _insertar_usuario(c, "5491100000002")
+        _insertar_lluvia(c, dos, 7)
+        _insertar_lluvia(c, dos, 8)
+        _insertar_usuario(c, "5491100000003", autorizado=False)  # sin registros
 
     migrar.preparar_base(engine)
 
@@ -224,7 +225,7 @@ def test_0003_cada_usuario_existente_recibe_su_cuenta_con_sus_registros(engine):
         eventos = c.execute(text("select usuario_id, cuenta_id, valor from eventos order by id")).all()
         assert c.execute(text("select count(*) from cuentas")).scalar_one() == 3
     assert len(set(cuentas.values())) == 3  # una cuenta distinta por usuario
-    assert eventos == [(1, cuentas[1], 20), (2, cuentas[2], 7), (2, cuentas[2], 8)]
+    assert eventos == [(uno, cuentas[uno], 20), (dos, cuentas[dos], 7), (dos, cuentas[dos], 8)]
 
     # Las altas que siguen no chocan con las cuentas que creó la migración.
     with sessionmaker(bind=engine)() as db:

@@ -10,10 +10,10 @@ from sqlalchemy import Engine, create_engine, inspect, text
 from app.infra import migrar
 from app.infra.db import Base
 
-NOMBRES = {
-    "cuentas": {"pk": "cuentas_pkey", "fk": set(), "uq": set()},
-    "usuarios": {"pk": "usuarios_pkey", "fk": {"usuarios_cuenta_id_fkey"}, "uq": set()},
-    "eventos": {"pk": "eventos_pkey", "fk": {"eventos_cuenta_id_fkey", "eventos_usuario_id_fkey"}, "uq": set()},
+# Los de la 0001, que Postgres ya tenía antes de la convención.
+NOMBRES_0001 = {
+    "usuarios": {"pk": "usuarios_pkey", "fk": set(), "uq": set()},
+    "eventos": {"pk": "eventos_pkey", "fk": {"eventos_usuario_id_fkey"}, "uq": set()},
     "mensajes_procesados": {"pk": "mensajes_procesados_pkey", "fk": set(), "uq": set()},
     "cotizaciones": {"pk": "cotizaciones_pkey", "fk": set(), "uq": {"cotizaciones_fuente_producto_plaza_fecha_key"}},
     "uso_diario": {
@@ -28,6 +28,14 @@ NOMBRES = {
         "fk": {"borrados_pendientes_usuario_id_fkey"},
         "uq": set(),
     },
+}
+
+# Los de los modelos actuales.
+NOMBRES = {
+    **NOMBRES_0001,
+    "cuentas": {"pk": "cuentas_pkey", "fk": set(), "uq": set()},
+    "usuarios": {"pk": "usuarios_pkey", "fk": {"usuarios_cuenta_id_fkey"}, "uq": set()},
+    "eventos": {"pk": "eventos_pkey", "fk": {"eventos_cuenta_id_fkey", "eventos_usuario_id_fkey"}, "uq": set()},
 }
 
 
@@ -56,7 +64,7 @@ def test_una_base_creada_sin_nombres_queda_con_los_de_la_convencion(motor):
     with motor.begin() as conexion:
         migrar.esquema_base().create_all(conexion)  # como antes de la convención
     if motor.dialect.name == "postgresql":
-        assert _nombres(motor) == NOMBRES  # Postgres ya los tenía antes de migrar
+        assert _nombres(motor) == NOMBRES_0001  # Postgres ya los tenía antes de migrar
 
     migrar.preparar_base(motor)
     assert _nombres(motor) == NOMBRES
