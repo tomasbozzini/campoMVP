@@ -137,6 +137,23 @@ def linea(e: Evento) -> str:
     return " · ".join(partes)
 
 
+def totales(eventos: list[Evento]) -> str | None:
+    """📊 Totales: animales por tipo de registro y suma de valores por tipo y unidad. Las
+    cuentas las hace el código. None si no hay nada que sumar."""
+    animales: dict[str, int] = defaultdict(int)
+    valores: dict[tuple[str, str], float] = defaultdict(float)
+    for e in eventos:
+        if e.cantidad_animales:
+            animales[e.tipo] += e.cantidad_animales
+        if e.valor is not None and e.unidad:
+            valores[(e.tipo, e.unidad)] += e.valor
+    if not animales and not valores:
+        return None
+    filas = [f"{SANGRIA}{icono(t)} {nombre_tipo(t)}: *{c}* animales" for t, c in animales.items()]
+    filas += [f"{SANGRIA}{icono(t)} {nombre_tipo(t)}: *{numero(v)} {u}*" for (t, u), v in valores.items()]
+    return "📊 *Totales*\n" + "\n".join(filas)
+
+
 def por_dia(eventos: list[Evento], lugar: bool = True) -> str:
     """Lista agrupada por fecha, de la más reciente a la más vieja."""
     grupos: dict[date, list[Evento]] = defaultdict(list)

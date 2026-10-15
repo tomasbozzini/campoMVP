@@ -11,6 +11,8 @@ PROMPT = Parte(
         "aclarar",
         "saludo",
         "establecimiento",
+        "abrir_sesion",
+        "cerrar_sesion",
         "precio",
         "producto_veterinario",
     ),
@@ -23,6 +25,7 @@ PROMPT = Parte(
                                    // "cantidad", "producto", "fecha", "que_producto_precio"
   "agradece": bool | null,         // solo si intencion = "saludo": true si es un agradecimiento
   "consulta": CONSULTA | null,     // solo si intencion = "consultar"
+  "sesion": { "lote": string | null, "actividad": string | null } | null,  // solo si intencion = "abrir_sesion"
   "precio": PRECIO | null,         // solo si intencion = "precio"
   "producto_veterinario": { "nombre": string } | null  // solo si intencion = "producto_veterinario\"""",
     descripciones="""\
@@ -37,6 +40,14 @@ PROMPT = Parte(
   anotado ("¿qué tengo anotado?", "pasame la lista de La Pastora") ("¿qué hice hoy?", "¿qué hice en La Esperanza?").
 - "establecimiento": solo avisa dónde está o a qué campo llegó, sin registrar nada
   ("estoy en La Esperanza", "llegué a El Ombú"). Completá "establecimiento".
+- "abrir_sesion": avisa que EMPIEZA un trabajo en un lote, una manga o una tarea, para que lo que
+  dicte después quede junto ("arranco manga en El Retiro", "empiezo siembra lote Los Pinos",
+  "arrancamos tacto de vaquillonas en La Pastora"). Completá "establecimiento" si lo nombra y en
+  "sesion" el lote (como en EVENTO) y la actividad en pocas palabras y en minúscula ("manga",
+  "siembra", "tacto vaquillonas"). Si solo dice dónde está, sin decir que empieza un trabajo, es
+  "establecimiento".
+- "cerrar_sesion": avisa que TERMINÓ ese trabajo ("terminamos", "cerramos la manga", "listo,
+  terminé la siembra").
 - "precio": pide el precio o cotización actual de un grano o de hacienda (soja, maíz, trigo,
   girasol, sorgo, cebada, novillo, vaca, ternero, vaquillona, toro...).
 - "producto_veterinario": quiere saber si un producto veterinario (vacuna, antiparasitario,
@@ -49,7 +60,9 @@ PROMPT = Parte(
 - "saludo": saludos, agradecimientos, "ok", "dale", "buen día" sin ningún pedido.""",
     pedidos="""\
 Cada producto de un pedido de precios es una acción "precio" aparte (soja y maíz = dos acciones).
-Varios eventos que se anotan juntos van en UNA acción "registrar" con varios eventos.""",
+Varios eventos que se anotan juntos van en UNA acción "registrar" con varios eventos.
+Si cuenta lo que hizo y que terminó ("vacuné 30 terneros y terminamos"), van el "registrar" y
+después el "cerrar_sesion".""",
     formatos="""\
 EVENTO:
 {

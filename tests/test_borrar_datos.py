@@ -11,7 +11,17 @@ from datetime import UTC, date, datetime
 from sqlalchemy import Table, func, select
 
 from app.infra.db import Base
-from app.infra.modelos import BorradoPendiente, Cuenta, Establecimiento, Evento, Lote, MensajeChat, UsoDiario, Usuario
+from app.infra.modelos import (
+    BorradoPendiente,
+    Cuenta,
+    Establecimiento,
+    Evento,
+    Lote,
+    MensajeChat,
+    Sesion,
+    UsoDiario,
+    Usuario,
+)
 from app.nucleo import pipeline, usuarios
 
 HOY = date(2026, 10, 15)
@@ -24,9 +34,14 @@ def _todo_lo_de(db, u: Usuario) -> None:
     db.flush()
     lote = Lote(cuenta_id=u.cuenta_id, establecimiento_id=campo.id, nombre="3")
     u.establecimiento_actual = campo
+    ahora = datetime.now(UTC)
+    sesion = Sesion(
+        cuenta_id=u.cuenta_id, usuario_id=u.id, establecimiento=campo, abierta=ahora, ultima_actividad=ahora
+    )
+    db.add_all([lote, sesion])
+    db.flush()
     db.add_all(
         [
-            lote,
             Evento(
                 cuenta_id=u.cuenta_id,
                 usuario_id=u.id,
@@ -35,6 +50,7 @@ def _todo_lo_de(db, u: Usuario) -> None:
                 fecha_evento=HOY,
                 establecimiento=campo,
                 lote=lote,
+                sesion_id=sesion.id,
             ),
             MensajeChat(usuario_id=u.id, rol="usuario", texto="hola"),
             UsoDiario(usuario_id=u.id, fecha=HOY, cantidad=1),

@@ -3,6 +3,7 @@
 from typing import Annotated
 
 from app.ia.esquemas import EsquemaAccion, texto
+from app.nucleo import sesiones
 from app.nucleo.acciones import Accion
 from app.nucleo.contexto import Contexto
 
@@ -16,6 +17,8 @@ def manejar(ctx: Contexto, datos: Establecimiento) -> str:
     if campo is None:
         return "🤔 No entendí en qué establecimiento estás."
     ctx.usuario.establecimiento_actual = campo
+    if aviso := sesiones.aviso_otro_campo(ctx, campo):
+        return f"📍 *{campo.nombre}*\n\n{aviso}"
     return f"📍 *{campo.nombre}*\n\nListo, lo próximo que anotes queda guardado acá."
 
 

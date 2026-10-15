@@ -25,6 +25,11 @@ _Tu cuaderno de trabajo en el campo, por WhatsApp._
       › En El Ombú hice tacto a 50 vaquillonas
       › Llovieron 35 mm
 
+▶️ *Sesiones de trabajo*
+      › Arranco manga en El Retiro
+      › Empiezo siembra en el lote Los Pinos
+      › Terminamos
+
 ✏️ *Corregir o borrar*
       › A esas vaquillonas les di ivermectina
       › No eran 20, eran 25
@@ -48,6 +53,7 @@ _Tu cuaderno de trabajo en el campo, por WhatsApp._
 
 *borrar* → deshace lo último que anotaste
 *mis campos* → tus establecimientos y lotes
+*cerrar sesión* → cierra la sesión y muestra el resumen
 *mis datos* → tu nombre, rubro y localidad
 *privacidad* → cómo se usan tus datos
 *borrar mis datos* → elimina todo lo tuyo

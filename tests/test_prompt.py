@@ -95,8 +95,8 @@ def test_cada_modulo_suma_su_parte_en_su_lugar(ganaderia):
 
 def test_sin_el_modulo_su_parte_no_esta_en_el_prompt(ganaderia):
     sistema = prompt.sistema(HOY, modulos.partes(["comun"]))
-    assert "tacto" not in sistema.replace("hizo tacto", "").replace("servicio, tacto,", "")
-    assert "TACTO" not in sistema and "Cada rodeo" not in sistema
+    for texto in ('"tacto"', "TACTO", "Cada rodeo", "porcentajes de preñez"):
+        assert texto not in sistema, texto
 
 
 def test_cada_persona_recibe_el_prompt_de_su_rubro(db, ganaderia, ia):

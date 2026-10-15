@@ -3,11 +3,9 @@
 Las cuentas las hace el código: la IA solo arma los filtros y nunca ve los datos.
 """
 
-from collections import defaultdict
 from typing import Annotated
 
 from app.ia.esquemas import Esquema, EsquemaAccion, Fecha, texto
-from app.infra.modelos import Evento
 from app.modulos.comun.registros import Lote
 from app.nucleo.acciones import Accion
 from app.nucleo.contexto import Contexto
@@ -38,18 +36,6 @@ class Consultar(EsquemaAccion):
     consulta: FiltrosConsulta
 
 
-def totales(eventos: list[Evento]) -> tuple[dict[str, int], dict[tuple[str, str], float]]:
-    """Animales por tipo de evento y suma de valores por (tipo, unidad)."""
-    animales: dict[str, int] = defaultdict(int)
-    valores: dict[tuple[str, str], float] = defaultdict(float)
-    for e in eventos:
-        if e.cantidad_animales:
-            animales[e.tipo] += e.cantidad_animales
-        if e.valor is not None and e.unidad:
-            valores[(e.tipo, e.unidad)] += e.valor
-    return dict(animales), dict(valores)
-
-
 def manejar(ctx: Contexto, datos: Consultar) -> str:
     f = datos.consulta
     eventos = ctx.cuaderno.buscar(
@@ -74,14 +60,8 @@ def manejar(ctx: Contexto, datos: Consultar) -> str:
     subtitulo.append(f"{len(eventos)} registro{'s' if len(eventos) != 1 else ''}")
     partes = ["📋 *TUS REGISTROS*\n" + " · ".join(subtitulo)]
 
-    animales, valores = totales(eventos)
-    if animales or valores:
-        filas = [f"      {formato.icono(t)} {formato.nombre_tipo(t)}: *{c}* animales" for t, c in animales.items()]
-        filas += [
-            f"      {formato.icono(t)} {formato.nombre_tipo(t)}: *{formato.numero(v)} {u}*"
-            for (t, u), v in valores.items()
-        ]
-        partes.append("📊 *Totales*\n" + "\n".join(filas))
+    if bloque := formato.totales(eventos):
+        partes.append(bloque)
 
     partes.append(LINEA)
     mostrados = eventos[:MAX_LINEAS_CONSULTA]

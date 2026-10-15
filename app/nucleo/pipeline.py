@@ -12,7 +12,7 @@ recomendar, inventar ni usarse como chat de uso general.
 """
 
 import logging
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -22,7 +22,7 @@ from app.ia import interprete
 from app.ia.esquemas import EsquemaAccion
 from app.infra.config import config
 from app.modulos.comun import borrar, campos
-from app.nucleo import acciones, alta, charla, comandos, invitaciones, perfil
+from app.nucleo import acciones, alta, charla, comandos, invitaciones, perfil, sesiones
 from app.nucleo.acceso import es_admin, usuario_con_acceso
 from app.nucleo.acciones import Accion
 from app.nucleo.contexto import Contexto
@@ -55,13 +55,17 @@ def _hoy() -> date:
     return datetime.now(config.zona_horaria).date()
 
 
+def _ahora() -> datetime:
+    return datetime.now(UTC)
+
+
 def manejar_mensaje(db: Session, telefono: str, texto: str, nombre: str | None = None, hoy: date | None = None) -> str:
     texto = texto.strip()
     alta.limpiar(db)
     usuario = usuario_con_acceso(db, telefono, nombre) or alta.en_curso(db, telefono)
     if usuario is None:
         return alta.sin_acceso(db, telefono, texto, nombre)
-    ctx = Contexto(db, usuario, texto, hoy or _hoy())
+    ctx = Contexto(db, usuario, texto, hoy or _hoy(), _ahora())
     comando = comandos.normalizar(texto)
     if comando in comandos.PEDIR_BORRAR_DATOS:
         return comandos.pedir_borrar_datos(ctx.cuaderno)
@@ -71,7 +75,11 @@ def manejar_mensaje(db: Session, telefono: str, texto: str, nombre: str | None =
     if perfil.falta(usuario) or not usuario.autorizado:
         # Primero las preguntas fijas del alta. Nada de esto va a la charla ni a la IA.
         return alta.preguntar(ctx, _respuesta_fija(texto, telefono))
+    # Si la sesión llevaba 12 horas sin mensajes, se cierra antes de atender este mensaje.
+    cerrada = sesiones.al_escribir(ctx.cuaderno, ctx.ahora)
     respuesta = _responder(ctx, telefono)
+    if cerrada:
+        respuesta = cerrada + SEPARADOR + respuesta
     if ctx.guardar_charla:
         charla.guardar(ctx.cuaderno, texto, respuesta)
     return respuesta
@@ -105,6 +113,8 @@ def _responder(ctx: Contexto, telefono: str) -> str:
         return borrar.borrar_ultimo(ctx.cuaderno)
     if comandos.normalizar(texto) in campos.PEDIR:
         return campos.mis_campos(ctx.cuaderno, ctx.usuario)
+    if comandos.normalizar(texto) in sesiones.CERRAR:
+        return sesiones.cerrar_pedido(ctx)
     if comando in comandos.VER_PRIVACIDAD:
         return comandos.privacidad()
 

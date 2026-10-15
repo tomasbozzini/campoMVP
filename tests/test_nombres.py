@@ -55,6 +55,17 @@ NOMBRES = {
             "eventos_establecimiento_id_fkey",
             "eventos_lote_id_fkey",
             "eventos_lote_destino_id_fkey",
+            "eventos_sesion_id_fkey",
+        },
+        "uq": set(),
+    },
+    "sesiones": {
+        "pk": "sesiones_pkey",
+        "fk": {
+            "sesiones_cuenta_id_fkey",
+            "sesiones_usuario_id_fkey",
+            "sesiones_establecimiento_id_fkey",
+            "sesiones_lote_id_fkey",
         },
         "uq": set(),
     },

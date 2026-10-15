@@ -240,7 +240,9 @@ de 2b, 7 y 8b):
       nombre) y borra las columnas de texto (no estaba aprobado; se aceptó después, porque
       la migración tiene vuelta atrás y está probada). Hacer una copia de la base antes de
       migrar.
-- [ ] 6 · Sesiones con apertura, cierre y resumen.
+- [x] 6 · Sesiones con apertura, cierre y resumen (`nucleo/sesiones.py`; las acciones
+      `abrir_sesion` y `cerrar_sesion` del módulo común; comando fijo `cerrar sesión`). La
+      `0009` solo agrega la tabla `sesiones` y `eventos.sesion_id`.
 - [ ] 7 · Pendientes.
 - [ ] 8a · Envío de documentos por WhatsApp y PDF.
 - [ ] 8b · Excel y CSV.

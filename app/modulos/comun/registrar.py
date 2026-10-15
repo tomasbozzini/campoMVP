@@ -6,6 +6,7 @@ from typing import Annotated
 from app.ia.esquemas import EsquemaAccion, SoloObjetos
 from app.infra.modelos import Evento
 from app.modulos.comun.registros import CATEGORIAS, DatosEvento, fecha_valida
+from app.nucleo import sesiones
 from app.nucleo.acciones import Accion
 from app.nucleo.contexto import Contexto
 from app.salidas import whatsapp as formato
@@ -48,17 +49,21 @@ def manejar(ctx: Contexto, datos: Registrar) -> str:
     usuario, cuaderno = ctx.usuario, ctx.cuaderno
     # Si el mensaje nombra un establecimiento, pasa a ser el actual (aunque no traiga nada
     # que se pueda anotar); si no, se usa el último que nombró.
-    if datos.establecimiento and (nombrado := cuaderno.establecimiento(datos.establecimiento)):
+    nombrado = cuaderno.establecimiento(datos.establecimiento) if datos.establecimiento else None
+    if nombrado:
         usuario.establecimiento_actual = nombrado
     validos = [e for e in datos.eventos if e.categoria in CATEGORIAS]
     if not validos:
         return NADA_CLARO
-    establecimiento = usuario.establecimiento_actual
+    # Con una sesión abierta, lo que no nombra otro campo va a la sesión y hereda su lote.
+    destino = sesiones.destino(ctx, nombrado)
+    establecimiento = destino.establecimiento
     mensaje_id = str(uuid.uuid4())  # une los eventos del mensaje para poder "borrar" todo junto
     guardados = [
         Evento(
             establecimiento=establecimiento,
-            lote=cuaderno.lote(e.lote, establecimiento),
+            sesion_id=destino.sesion.id if destino.sesion else None,
+            lote=cuaderno.lote(e.lote, establecimiento) or destino.lote_para(e.tipo),
             lote_destino=cuaderno.lote(e.lote_destino, establecimiento),
             categoria=e.categoria,
             tipo=e.tipo or "otro",
@@ -80,7 +85,10 @@ def manejar(ctx: Contexto, datos: Registrar) -> str:
     cuaderno.agregar(guardados)
     donde = f"📍 {establecimiento.nombre}" if establecimiento else "📍 _sin establecimiento_"
     cantidad = f"{len(guardados)} registros" if len(guardados) > 1 else "1 registro"
-    partes = [f"✅ *ANOTADO*\n{donde} · {cantidad}", formato.tarjetas(guardados, lugar=False)]
+    en_sesion = " · ▶️ en la sesión" if destino.sesion else ""
+    partes = [f"✅ *ANOTADO*\n{donde} · {cantidad}{en_sesion}", formato.tarjetas(guardados, lugar=False)]
+    if destino.aviso:
+        partes.append(destino.aviso)
     if any(e.confianza == "baja" for e in guardados):
         partes.append(
             f"{LINEA}\n⚠️ No estoy seguro de haber entendido bien.\n_Si algo está mal, corregilo o mandá *borrar*._"

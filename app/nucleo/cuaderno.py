@@ -1,5 +1,5 @@
-"""Acceso a los datos de UNA persona: el cuaderno de su cuenta (registros, establecimientos
-y lotes), su charla con el bot, su cupo diario y los borrados que esperan confirmación.
+"""Acceso a los datos de UNA persona: el cuaderno de su cuenta (registros, establecimientos,
+lotes y sesiones), su charla con el bot, su cupo diario y los borrados que esperan confirmación.
 
 Es la única puerta a esas tablas. Lo que se anota es de la cuenta y se filtra por la cuenta
 de quien abrió el cuaderno (hoy, 1 persona = 1 cuenta); la charla, el cupo y los borrados
@@ -20,6 +20,7 @@ from app.infra.modelos import (
     Evento,
     Lote,
     MensajeChat,
+    Sesion,
     Solicitud,
     UsoDiario,
     Usuario,
@@ -197,6 +198,46 @@ class Cuaderno:
             campos.append(Campo(None, _ordenar_lotes(lotes.get(None, [])), registros.get(None, 0)))
         return campos
 
+    # --- Sesiones -------------------------------------------------------------
+
+    def sesion_abierta(self) -> Sesion | None:
+        """La sesión abierta de esta persona (hay una sola, como mucho)."""
+        return self.db.scalar(
+            select(Sesion)
+            .where(Sesion.usuario_id == self.usuario_id, Sesion.cerrada.is_(None))
+            .order_by(Sesion.id.desc())
+            .limit(1)
+        )
+
+    def abrir_sesion(
+        self, establecimiento: Establecimiento | None, lote: Lote | None, actividad: str | None, ahora: datetime
+    ) -> Sesion:
+        for parte in (establecimiento, lote):
+            if parte is not None and parte.cuenta_id != self.cuenta_id:
+                raise ValueError("El establecimiento o el lote es de otra cuenta")
+        sesion = Sesion(
+            cuenta_id=self.cuenta_id,
+            usuario_id=self.usuario_id,
+            establecimiento=establecimiento,
+            lote=lote,
+            actividad=actividad,
+            abierta=ahora,
+            ultima_actividad=ahora,
+        )
+        self.db.add(sesion)
+        self.db.flush()
+        return sesion
+
+    def registros_de_sesion(self, sesion: Sesion) -> list[Evento]:
+        """Los registros de esa sesión, del más viejo al más nuevo."""
+        q = (
+            select(Evento)
+            .where(Evento.cuenta_id == self.cuenta_id, Evento.sesion_id == sesion.id)
+            .order_by(Evento.id)
+            .limit(MAX_EVENTOS)
+        )
+        return list(self.db.scalars(q).all())
+
     # --- Borrado grande esperando confirmación ---------------------------------
 
     def guardar_borrado_pendiente(self, ids: list[int], creado: datetime) -> None:
@@ -257,6 +298,7 @@ class Cuaderno:
 
         Hoy cada persona tiene su propia cuenta, así que se borra todo lo de la cuenta."""
         self.db.execute(delete(Evento).where(Evento.cuenta_id == self.cuenta_id))
+        self.db.execute(delete(Sesion).where(Sesion.cuenta_id == self.cuenta_id))
         self.db.execute(
             update(Usuario).where(Usuario.cuenta_id == self.cuenta_id).values(establecimiento_actual_id=None)
         )

@@ -116,7 +116,7 @@ def test_solo_el_cuaderno_filtra_por_usuario():
     """Ningún otro módulo arma consultas por cuenta o por usuario a mano: el aislamiento vive
     en un solo lugar."""
     raiz = Path(__file__).parent.parent / "app"
-    tablas = r"(Evento|Establecimiento|Lote|MensajeChat|UsoDiario|BorradoPendiente)\.(usuario_id|cuenta_id)"
+    tablas = r"(Evento|Establecimiento|Lote|Sesion|MensajeChat|UsoDiario|BorradoPendiente)\.(usuario_id|cuenta_id)"
     fuera = [
         str(archivo.relative_to(raiz))
         for archivo in raiz.rglob("*.py")

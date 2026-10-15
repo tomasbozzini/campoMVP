@@ -78,6 +78,28 @@ class Lote(Base):
     creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_ahora)
 
 
+class Sesion(Base):
+    """Un trabajo en un lote, una manga o una tarea ("manga en El Retiro", "siembra lote Los
+    Pinos"): lo que se anota sin decir el campo mientras está abierta queda en ella. Una
+    abierta por persona."""
+
+    __tablename__ = "sesiones"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    cuenta_id: Mapped[int] = mapped_column(ForeignKey("cuentas.id"), index=True)
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)  # quién la abrió
+    establecimiento_id: Mapped[int | None] = mapped_column(ForeignKey("establecimientos.id"))
+    lote_id: Mapped[int | None] = mapped_column(ForeignKey("lotes.id"))
+    actividad: Mapped[str | None] = mapped_column(String(60))  # "manga", "siembra", "tacto vaquillonas"
+    abierta: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    ultima_actividad: Mapped[datetime] = mapped_column(DateTime(timezone=True))  # último mensaje de la persona
+    cerrada: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)  # None: abierta
+    motivo_cierre: Mapped[str | None] = mapped_column(String(10))  # pedido | otra | tiempo
+
+    establecimiento: Mapped[Establecimiento | None] = relationship(lazy="joined")
+    lote: Mapped[Lote | None] = relationship(lazy="joined")
+
+
 class Evento(Base):
     """Cualquier cosa que anotó una persona: sanidad, movimientos, pesadas, clima, etc.
 
@@ -94,6 +116,8 @@ class Evento(Base):
     establecimiento_id: Mapped[int | None] = mapped_column(ForeignKey("establecimientos.id"), index=True)
     lote_id: Mapped[int | None] = mapped_column(ForeignKey("lotes.id"), index=True)  # lote o potrero / de origen
     lote_destino_id: Mapped[int | None] = mapped_column(ForeignKey("lotes.id"), index=True)  # traslados: a dónde
+    # La sesión en la que se anotó; None si no había una abierta o si fue en otro campo.
+    sesion_id: Mapped[int | None] = mapped_column(ForeignKey("sesiones.id"), index=True)
     # Un mensaje puede traer varios eventos; comparten este id para que "borrar"
     # los deshaga juntos y no toque los del mensaje anterior.
     mensaje_id: Mapped[str | None] = mapped_column(String(36), index=True)
