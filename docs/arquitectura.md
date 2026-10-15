@@ -5,8 +5,8 @@ decisiones tomamos y en qué orden avanzamos. Cualquier cambio de rumbo se regis
 
 ## 1. Visión
 
-Un **asistente por WhatsApp para profesionales del campo**, con dos módulos sobre una misma
-plataforma (especificación funcional "Bots AyT Tandil"):
+**CampoBot** (nombre provisorio): un **asistente por WhatsApp para profesionales del campo**,
+con dos módulos sobre una misma plataforma (especificación funcional "Bots AyT Tandil"):
 
 - **Módulo ganadero (veterinario de manga):** tacto y ecografía, raspaje de toros, sanidad
   (planes oficiales, dosis, carencias), liquidación de visita y honorarios.
@@ -14,7 +14,7 @@ plataforma (especificación funcional "Bots AyT Tandil"):
   recorrida, pulverización (caldo, Delta T), cosecha (pérdidas de trilla INTA, silobolsas,
   carta de porte).
 
-Entrada principal por **voz** en el campo, salida por WhatsApp, PDF con la marca del producto
+Entrada principal por **voz** en el campo, salida por WhatsApp, PDF con la marca CampoBot
 y Excel/CSV. **Un solo bot**: el perfil de cada usuario define qué módulos usa.
 
 ## 2. Principios
@@ -74,8 +74,9 @@ del perfil del usuario (menos tokens, menos latencia, más precisión).
 | Base de datos | SQLAlchemy + **Alembic** | Los datos de producción sobreviven a cada cambio |
 | Configuración | `pydantic-settings`, validada al arrancar | Falla temprano y con mensaje claro |
 | Alertas | Se guardan como **pendientes** consultables ("¿qué tengo pendiente?") | Los avisos automáticos cuestan; se agregan después sobre los mismos datos |
-| PDF | Con logo y marca del producto | Decisión de producto |
-| Alta de usuarios | Alta guiada + aprobación del administrador, o código de invitación | Sin carga manual; control de quién entra |
+| Nombre | **CampoBot** (provisorio) | Decisión de producto |
+| PDF | Con logo y marca CampoBot | Decisión de producto |
+| Alta de usuarios | **Código de invitación** + alta guiada. La aprobación del administrador se suma después sobre el mismo flujo | Entran al instante, sin carga manual ni mensajes pagos; control de quién entra |
 
 ## 5. Seguridad
 
@@ -181,8 +182,9 @@ en cada punto, primero un test que reproduce el problema.
 
 ### Etapa 1 · Núcleo profesional
 
-- Alta guiada (nombre, apellido, rubro, localidad), aprobación y códigos de invitación.
-- Perfiles por rubro que habilitan módulos.
+- **Alta por código de invitación** (ver "Alta de usuarios" abajo).
+- Perfiles por rubro que habilitan módulos: veterinario → ganadería; agrónomo / asesor →
+  agricultura; productor → ambos; otro → solo el módulo común.
 - Establecimientos y lotes como entidades; sesiones con apertura, cierre y resumen.
 - Salidas: PDF con marca del producto y Excel/CSV enviados por WhatsApp.
 - Glosario para Whisper por perfil.
@@ -190,6 +192,27 @@ en cada punto, primero un test que reproduce el problema.
   las pruebas del administrador simulando clientes (un **modo prueba** guarda transcripción e
   interpretación, sin guardar audios) y frases escritas por profesionales de contacto.
 - "¿Qué tengo pendiente?".
+
+**Alta de usuarios:**
+
+- **Invitar:** el administrador manda `invitar` y recibe un código (por ejemplo
+  `CAMPO-7K3P`) y un link `wa.me/<número del bot>?text=<código>` para reenviar. El link abre
+  el chat con el código ya escrito.
+- **Reglas del código:**
+  - Sirve para una sola persona y vence a los 7 días.
+  - Se puede anular. `invitaciones` lista los códigos vigentes.
+  - Tiene que ser difícil de adivinar, y hay un límite de intentos fallidos por número.
+- **Alta guiada:** quien manda un código válido completa nombre y apellido, rubro y localidad
+  con preguntas fijas, sin IA. Al terminar queda habilitado y el rubro define su perfil.
+- **Sin código:** un mensaje fijo ("CampoBot está en prueba privada…"). No llega a la IA.
+- Los usuarios ya autorizados y el comando `autorizar <número>` siguen funcionando.
+- **Preparado para sumar la aprobación del administrador** sin rehacer nada:
+  - El alta es una **solicitud** con estado (pendiente, aprobada, rechazada) y origen
+    (código o pedido). Con código se aprueba sola.
+  - Sumar la aprobación es agregar el origen "pedido" (alta guiada sin código, queda
+    pendiente) y los comandos `pendientes`, `aprobar <n>` y `rechazar <n>`.
+  - Los avisos al administrador y al usuario tienen que respetar la ventana de 24 h de
+    WhatsApp: fuera de ella son mensajes pagos.
 
 ### Etapa 2 · Módulo ganadero
 
@@ -223,9 +246,8 @@ cobros, fotos en recorridas (modelo de visión), Matba-Rofex y dólar exportador
 
 ## 7. Pendientes de definición
 
-- Nombre del producto y logo (para PDF y mensajes).
+- Logo de CampoBot (para el PDF). El nombre es provisorio.
 - Cómo cobran los veterinarios (por hora, animal, km) para el cálculo de honorarios.
 - Fuente oficial de carencias por producto (el registro de SENASA descargado no las incluye).
 - Publicaciones oficiales de cada umbral: tolerancias de trilla INTA, humedades base,
   densidades para silobolsas, índice salino.
-- Alta de usuarios: aprobación manual, código de invitación o ambos.
