@@ -89,6 +89,18 @@
     {"funcion": "exportar_pdf", "frase": "bueno ehh armame un documento con todo lo anotado", "intenciones": ["exportar"]},
     {"funcion": "exportar_pdf", "frase": "necesito el reporte de lo del lote 3 en un archivo para imprimir", "intenciones": ["exportar"]},
 
+    {"funcion": "exportar_excel", "frase": "pasame la planilla de las vacunaciones", "intenciones": ["exportar"]},
+    {"funcion": "exportar_excel", "frase": "che, mandame todo en un Excel", "intenciones": ["exportar"]},
+    {"funcion": "exportar_excel", "frase": "quiero lo de este mes en excel para pasárselo al contador", "intenciones": ["exportar"]},
+    {"funcion": "exportar_excel", "frase": "bueno ehh armame una planilla con las lluvias del año", "intenciones": ["exportar"]},
+    {"funcion": "exportar_excel", "frase": "necesito los registros de El Ombú en una planilla de cálculo", "intenciones": ["exportar"]},
+
+    {"funcion": "exportar_csv", "frase": "mandame un csv con todo lo anotado", "intenciones": ["exportar"]},
+    {"funcion": "exportar_csv", "frase": "che, pasame los datos en CSV", "intenciones": ["exportar"]},
+    {"funcion": "exportar_csv", "frase": "quiero exportar las vacunaciones a csv", "intenciones": ["exportar"]},
+    {"funcion": "exportar_csv", "frase": "bueno, necesito un archivo csv de lo de La Pastora para cargarlo en otro sistema", "intenciones": ["exportar"]},
+    {"funcion": "exportar_csv", "frase": "ehh sacame un ce ese ve de este mes", "intenciones": ["exportar"]},
+
     {"funcion": "varios", "frase": "mostrame mis campos y qué tengo pendiente", "intenciones": ["mis_campos", "ver_pendientes"]},
     {"funcion": "varios", "frase": "che pasame mis datos y decime quién ve lo que anoto", "intenciones": ["mis_datos", "privacidad"]},
     {"funcion": "varios", "frase": "bueno terminamos y anotame que mañana hay que revisar los toros", "intenciones": ["cerrar_sesion", "anotar_pendiente"]},

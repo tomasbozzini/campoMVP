@@ -1,9 +1,10 @@
 """Exportar: los registros que pide la persona en un archivo, que le llega por WhatsApp.
 
 "mandame un PDF de lo que hice en La Pastora este mes": la IA arma los mismos filtros que
-en una consulta y el formato; el código busca, suma y arma el archivo. El PDF lleva el
-membrete del profesional (nombre, rubro, localidad y matrícula) y el pie legal (decisión
-de producto "Salidas"). En esta etapa le llega solo al profesional, que lo reenvía.
+en una consulta y el formato; el código busca, suma y arma el archivo. Decisión de producto
+"Salidas": PDF si no dice otra cosa; "Excel" o "planilla" -> .xlsx; CSV solo si lo pide. El
+PDF y el Excel llevan el membrete del profesional (nombre, rubro, localidad y matrícula) y
+el pie legal. En esta etapa le llega solo al profesional, que lo reenvía.
 """
 
 from datetime import date
@@ -18,11 +19,14 @@ from app.modulos.comun.consultar import FiltrosConsulta, filtros
 from app.nucleo.acciones import Accion
 from app.nucleo.contexto import Adjunto, Contexto
 from app.nucleo.perfil import RUBROS
-from app.salidas import pdf
+from app.salidas import pdf, planilla
 from app.salidas import whatsapp as formato
 from app.salidas.whatsapp import SEPARADOR as LINEA
 
 PDF = "application/pdf"
+XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+# WhatsApp no acepta text/csv como documento: va como texto plano, con su nombre .csv.
+CSV = "text/plain"
 SIN_RESULTADOS = "🔍 No encontré registros para armar el archivo.\nProbá con otro período, lote o campo."
 
 Formato = Literal["pdf", "excel", "csv"]
@@ -116,16 +120,78 @@ def armar_pdf(ctx: Contexto, f: FiltrosConsulta, eventos: list[Evento]) -> bytes
     )
 
 
+COLUMNAS_PLANILLA = (
+    "Fecha",
+    "Campo",
+    "Lote",
+    "Lote destino",
+    "Categoría",
+    "Tipo",
+    "Producto",
+    "Dosis",
+    "Cantidad",
+    "Animales",
+    "Caravana",
+    "Valor",
+    "Unidad",
+    "Descripción",
+)
+
+
+def filas_planilla(eventos: list[Evento]) -> list[list[planilla.Valor]]:
+    """Una columna por dato, con números y fechas como tales, para filtrar y sumar."""
+    ordenados = sorted(eventos, key=lambda e: (e.fecha_evento, e.id))
+    return [
+        [
+            e.fecha_evento,
+            e.nombre_establecimiento,
+            e.nombre_lote,
+            e.nombre_lote_destino,
+            e.categoria,
+            formato.nombre_tipo(e.tipo),
+            e.producto,
+            e.dosis,
+            e.cantidad_animales,
+            e.categoria_animal,
+            e.caravana,
+            e.valor,
+            e.unidad,
+            e.descripcion,
+        ]
+        for e in ordenados
+    ]
+
+
+def armar_excel(ctx: Contexto, f: FiltrosConsulta, eventos: list[Evento]) -> bytes:
+    return planilla.excel_bytes(
+        membrete(ctx.usuario),
+        "Registro de trabajo",
+        descripcion(f, eventos),
+        resumen(eventos),
+        COLUMNAS_PLANILLA,
+        filas_planilla(eventos),
+        ctx.ahora.astimezone(config.zona_horaria),
+    )
+
+
 def manejar(ctx: Contexto, datos: Exportar) -> str:
     eventos = ctx.cuaderno.buscar(filtros(datos.consulta))
     if not eventos:
         return SIN_RESULTADOS
-    if datos.exportar.formato != "pdf":
-        return "📄 Por ahora te puedo mandar tus registros en *PDF*: pedímelo así, por ejemplo _mandame un PDF de este mes_."
-    nombre = f"CampoBot-registros-{ctx.hoy.isoformat()}.pdf"
-    ctx.adjuntos.append(Adjunto(nombre, armar_pdf(ctx, datos.consulta, eventos), PDF))
+    nombre = f"CampoBot-registros-{ctx.hoy.isoformat()}"
+    que = datos.exportar.formato
+    if que == "excel":
+        ctx.adjuntos.append(Adjunto(f"{nombre}.xlsx", armar_excel(ctx, datos.consulta, eventos), XLSX))
+        titulo = "📊 *PLANILLA LISTA*"
+    elif que == "csv":
+        contenido = planilla.csv_bytes(COLUMNAS_PLANILLA, filas_planilla(eventos))
+        ctx.adjuntos.append(Adjunto(f"{nombre}.csv", contenido, CSV))
+        titulo = "📊 *CSV LISTO*"
+    else:
+        ctx.adjuntos.append(Adjunto(f"{nombre}.pdf", armar_pdf(ctx, datos.consulta, eventos), PDF))
+        titulo = "📄 *PDF LISTO*"
     return (
-        f"📄 *PDF LISTO*\n{' · '.join(descripcion(datos.consulta, eventos))}\n\n{LINEA}\n"
+        f"{titulo}\n{' · '.join(descripcion(datos.consulta, eventos))}\n\n{LINEA}\n"
         "_Te lo mando acá abajo. Reenvialo a quien quieras._"
     )
 

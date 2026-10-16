@@ -13,4 +13,6 @@ python-dotenv==1.2.3
 xlrd==2.0.2
 # PDF con la marca CampoBot (app/salidas/pdf.py)
 fpdf2==2.8.3
+# Planillas Excel (app/salidas/planilla.py)
+openpyxl==3.1.5
 tzdata==2026.5

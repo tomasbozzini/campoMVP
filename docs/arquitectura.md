@@ -286,7 +286,13 @@ de 2b, 7 y 8b):
       viejo al más nuevo y el pie legal con el número de página. El texto de la persona va
       tal cual (sin markdown ni HTML) y lo que la fuente no tiene, como los emojis, se saca.
       Sin logo todavía (pendiente de definición): la marca es el nombre.
-- [ ] 8b · Excel y CSV.
+- [x] 8b · Excel y CSV, con la misma acción `exportar` (`salidas/planilla.py`, openpyxl).
+      El Excel tiene la hoja "Registros" (una columna por dato, con números y fechas como
+      tales, filtro y encabezado fijo) y la hoja "Resumen" (membrete, de qué es, totales y
+      pie legal). El CSV, solo esa tabla, con `;`, coma decimal y BOM. El texto de la persona
+      nunca se toma como fórmula (en Excel va como texto; en el CSV, con un apóstrofo
+      adelante si empieza con =, +, - o @). WhatsApp no acepta `text/csv` como documento: el
+      CSV se sube como texto plano, con su nombre `.csv`.
 - [ ] 9a · Modo prueba.
 - [ ] 9b · Set de evaluación y `python -m app eval`.
 

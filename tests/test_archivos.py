@@ -1,4 +1,4 @@
-"""Archivos: los registros en PDF, enviados por WhatsApp como documento."""
+"""Archivos: los registros en PDF, Excel o CSV, enviados por WhatsApp como documento."""
 
 import io
 import json
@@ -7,6 +7,7 @@ from datetime import UTC, date, datetime
 import httpx
 import pytest
 from fastapi.testclient import TestClient
+from openpyxl import load_workbook
 from pypdf import PdfReader
 
 from app import main
@@ -114,6 +115,69 @@ def test_muchas_filas_ocupan_varias_paginas():
     paginas = PdfReader(io.BytesIO(contenido)).pages
     assert len(paginas) > 2
     assert all(" ".join(pdf.PIE.split())[:40] in " ".join(p.extract_text().split()) for p in paginas)
+
+
+# --- Excel y CSV ----------------------------------------------------------------------
+
+
+def _con_formula(db, ia) -> None:
+    """Un producto que parece una fórmula: no se tiene que ejecutar al abrir la planilla."""
+    _cargar(db)
+    ia["traté 2 toros con =1+1"] = _evento("tratamiento", producto="=1+1", cantidad_animales=2, valor=2.5, unidad="ml")
+    pipeline.manejar_mensaje(db, TEL, "traté 2 toros con =1+1", hoy=HOY)
+
+
+def test_una_planilla_excel(db, ia):
+    _con_formula(db, ia)
+    ia["pasame la planilla"] = {"intencion": "exportar", "exportar": {"formato": "excel"}, "consulta": {}}
+    r = pipeline.atender(db, TEL, "pasame la planilla", hoy=HOY)
+
+    assert r.texto.startswith("📊 *PLANILLA LISTA*\nTodo lo anotado · 4 registros\n")
+    [adjunto] = r.adjuntos
+    assert adjunto.nombre == "CampoBot-registros-2026-10-15.xlsx" and adjunto.tipo == exportar.XLSX
+    libro = load_workbook(io.BytesIO(adjunto.contenido))
+    assert libro.sheetnames == ["Registros", "Resumen"]
+    filas = list(libro["Registros"].iter_rows(values_only=True))
+    assert filas[0] == exportar.COLUMNAS_PLANILLA
+    lluvia = filas[1]  # la más vieja primero
+    assert (lluvia[0], lluvia[1], lluvia[5], lluvia[11], lluvia[12]) == (
+        datetime(2026, 10, 14),
+        "La Pastora",
+        "Lluvia",
+        20,
+        "mm",
+    )
+    vacunacion = next(f for f in filas if f[5] == "Vacunación")
+    assert (vacunacion[2], vacunacion[6], vacunacion[8], vacunacion[9]) == ("3", "aftosa", 30, "vaquillonas")
+    formula = next(f for f in filas if f[5] == "Tratamiento")
+    assert formula[6] == "=1+1" and formula[11] == 2.5
+    celda = next(c for c in libro["Registros"]["G"] if c.value == "=1+1")
+    assert celda.data_type == "s"  # texto, no fórmula
+
+    resumen = [f[0] for f in libro["Resumen"].iter_rows(values_only=True)]
+    assert resumen[:3] == ["CampoBot", "Registro de trabajo", "Juana Gómez · Veterinario · Tandil · Matrícula MP 1234"]
+    assert "Vacunación: 30 animales" in resumen and resumen[-1] == pdf.PIE
+
+
+def test_un_csv_con_punto_y_coma_y_bom(db, ia):
+    _con_formula(db, ia)
+    ia["mandame un csv"] = {"intencion": "exportar", "exportar": {"formato": "csv"}, "consulta": {}}
+    r = pipeline.atender(db, TEL, "mandame un csv", hoy=HOY)
+
+    assert r.texto.startswith("📊 *CSV LISTO*\n")
+    [adjunto] = r.adjuntos
+    assert adjunto.nombre == "CampoBot-registros-2026-10-15.csv" and adjunto.tipo == "text/plain"
+    assert adjunto.contenido.startswith(b"\xef\xbb\xbf")  # BOM
+    lineas = adjunto.contenido.decode("utf-8-sig").splitlines()
+    assert lineas[0] == ";".join(exportar.COLUMNAS_PLANILLA)
+    assert lineas[1] == "14/10/2026;La Pastora;;;campo;Lluvia;;;;;;20;mm;"
+    assert "'=1+1" in lineas[-1] and ";2,5;ml;" in lineas[-1]
+
+
+def test_sin_formato_es_pdf(db, ia):
+    _cargar(db)
+    ia["mandame lo anotado"] = {"intencion": "exportar", "exportar": {"formato": "word"}}
+    assert pipeline.atender(db, TEL, "mandame lo anotado", hoy=HOY).adjuntos[0].nombre.endswith(".pdf")
 
 
 # --- Envío por WhatsApp ---------------------------------------------------------------

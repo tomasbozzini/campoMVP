@@ -39,6 +39,8 @@ FUNCIONES = {
     "borrar_pendiente": "borrar_pendiente",
     "borrar_mis_datos": "borrar_mis_datos",
     "exportar_pdf": "exportar",
+    "exportar_excel": "exportar",
+    "exportar_csv": "exportar",
 }
 ADMINISTRADOR = {"invitar", "invitaciones", "anular", "autorizar", "quitar", "autorizados"}
 
