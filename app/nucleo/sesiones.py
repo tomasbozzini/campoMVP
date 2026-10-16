@@ -165,11 +165,13 @@ def destino(ctx: Contexto, nombrado: Establecimiento | None) -> Destino:
 
 
 def aviso_otro_campo(ctx: Contexto, campo: Establecimiento) -> str | None:
-    """Para "estoy en El Ombú" con una sesión abierta en otro campo: lo próximo va a la sesión."""
+    """Para "estoy en El Ombú" con una sesión abierta en otro campo: lo próximo va a la sesión,
+    y cómo cerrarla."""
     sesion = ctx.cuaderno.sesion_abierta()
     if sesion is None or sesion.establecimiento_id == campo.id:
         return None
+    donde = f" en {sesion.establecimiento.nombre}" if sesion.establecimiento else ""
     return (
         f"⚠️ Tenés abierta una sesión ({nombre(sesion)}): lo que anotes sin decir el campo va ahí.\n"
-        "Para cerrarla, mandá *cerrar sesión*."
+        f"Si ya terminaste{donde}, decí _terminamos_ y te paso el resumen."
     )

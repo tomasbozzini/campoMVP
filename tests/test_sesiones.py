@@ -133,9 +133,20 @@ def test_estoy_en_otro_campo_avisa_que_la_sesion_sigue_abierta(db, ia, reloj):
     con_perfil(db, TEL)
     _mandar(db, "arranco manga en el retiro lote 3")
     r = _mandar(db, "estoy en el ombú")
-    assert "Tenés abierta una sesión (📍 El Retiro · Lote 3 · Manga)" in r and "cerrar sesión" in r
+    assert "Tenés abierta una sesión (📍 El Retiro · Lote 3 · Manga)" in r
+    assert "Si ya terminaste en El Retiro, decí _terminamos_ y te paso el resumen." in r
     _mandar(db, "vacuné 30 vaquillonas")
     assert _ultimo(db).nombre_establecimiento == "El Retiro"
+    assert "SESIÓN CERRADA\n📍 El Retiro" in _mandar(db, "terminamos").replace("*", "")
+
+
+def test_estoy_en_un_campo_con_una_sesion_sin_establecimiento(db, ia, reloj):
+    respuestas, _ = ia
+    con_perfil(db, TEL)
+    respuestas["empiezo siembra"] = {"intencion": "abrir_sesion", "sesion": {"actividad": "siembra"}}
+    _mandar(db, "empiezo siembra")
+    r = _mandar(db, "estoy en el ombú")
+    assert "Si ya terminaste, decí _terminamos_ y te paso el resumen." in r
 
 
 def test_terminamos_cierra_con_el_resumen(db, ia, reloj):

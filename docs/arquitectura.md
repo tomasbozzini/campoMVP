@@ -242,7 +242,17 @@ de 2b, 7 y 8b):
       migrar.
 - [x] 6 · Sesiones con apertura, cierre y resumen (`nucleo/sesiones.py`; las acciones
       `abrir_sesion` y `cerrar_sesion` del módulo común; comando fijo `cerrar sesión`). La
-      `0009` solo agrega la tabla `sesiones` y `eventos.sesion_id`.
+      `0009` solo agrega la tabla `sesiones` y `eventos.sesion_id`. Se aceptaron después
+      cuatro cosas que el plan no decía:
+      1. "estoy en El Ombú" con una sesión abierta en otro campo avisa que lo que se anote
+         sin campo sigue yendo a la sesión, y cómo cerrarla: "Si ya terminaste en El
+         Retiro, decí _terminamos_ y te paso el resumen."
+      2. Un registro que nombra otro campo durante una sesión queda fuera de ella y además
+         deja ese campo como actual: mientras la sesión sigue abierta no cambia nada; al
+         cerrarse, lo que no nombra campo va a ese campo.
+      3. La confirmación de un registro que entró en la sesión agrega "▶️ en la sesión".
+      4. El bloque de totales pasó de la consulta a `salidas/whatsapp.py`, para usarlo
+         también en el resumen; la consulta muestra lo mismo que antes.
 - [ ] 7 · Pendientes.
 - [ ] 8a · Envío de documentos por WhatsApp y PDF.
 - [ ] 8b · Excel y CSV.
@@ -280,7 +290,8 @@ de 2b, 7 y 8b):
   Se abren con una frase que reconoce la IA, con el campo, el lote y la actividad ("arranco
   manga en El Retiro", "empiezo siembra lote Los Pinos"), y se cierran con "terminamos",
   "cerramos" o el comando fijo `cerrar sesión`, que muestra el resumen. "estoy en X" no abre
-  sesión. Un registro que no nombra campo va a la sesión y hereda su campo y lote (la lluvia
+  sesión: si hay una abierta en otro campo, avisa que sigue abierta y cómo cerrarla. Un
+  registro que no nombra campo va a la sesión y hereda su campo y lote (la lluvia
   no hereda el lote: es del campo); uno de otro establecimiento queda fuera, con aviso, y los
   siguientes sin campo siguen yendo a la sesión. Se cierra sola a las 12 h sin actividad
   (cualquier mensaje de la persona cuenta): cuando la persona vuelve a escribir se le avisa y
