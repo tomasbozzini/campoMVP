@@ -253,7 +253,12 @@ de 2b, 7 y 8b):
       3. La confirmación de un registro que entró en la sesión agrega "▶️ en la sesión".
       4. El bloque de totales pasó de la consulta a `salidas/whatsapp.py`, para usarlo
          también en el resumen; la consulta muestra lo mismo que antes.
-- [ ] 7 · Pendientes.
+- [x] 7 · Pendientes (`modulos/comun/pendientes.py`: las acciones `anotar_pendiente`,
+      `ver_pendientes`, `pendiente_hecho` y `borrar_pendiente`). Para marcar hecho o borrar,
+      todas las palabras con las que la persona nombra el pendiente tienen que estar en él
+      (en su texto, su lote o su campo; "llamé" y "llamar" coinciden); si coincide con varios
+      no se toca ninguno y se muestran las opciones, salvo que pida todos. Los hechos se
+      guardan con su fecha y salen de la lista. La `0010` solo agrega la tabla `pendientes`.
 - [ ] 8a · Envío de documentos por WhatsApp y PDF.
 - [ ] 8b · Excel y CSV.
 - [ ] 9a · Modo prueba.
@@ -297,7 +302,13 @@ de 2b, 7 y 8b):
   (cualquier mensaje de la persona cuenta): cuando la persona vuelve a escribir se le avisa y
   se le muestra el resumen (sin mensajes automáticos).
 - **Pendientes:** se anotan, se consultan, se marcan hechos ("ya está lo del lote 3") y se
-  borran. Los vencidos van primero y destacados (⚠️).
+  borran. Los vencidos van primero y destacados (⚠️). Respuestas del paso 7:
+  - Un pendiente que no nombra campo toma el de la sesión abierta o el campo actual, como
+    los registros, sin heredar el lote. Uno que nombra un campo va a ese y no cambia el
+    campo actual (como las consultas).
+  - `borrar` deshace lo último que se anotó, sea un registro o un pendiente.
+  - Sin comando fijo: se consultan por la IA ("¿qué tengo pendiente?", "pendientes").
+    `pendientes` como comando queda para el administrador (aprobar altas).
 - **Salidas:** "Excel" o "planilla" → .xlsx; CSV solo si lo pide, con `;` y BOM. El PDF lleva
   nombre, rubro y localidad (y matrícula, si está) y al pie: "Registro de lo informado por el
   profesional. CampoBot es un auxiliar de cálculo y registro: no realiza recomendaciones ni

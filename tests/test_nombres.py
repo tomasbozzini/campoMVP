@@ -69,6 +69,16 @@ NOMBRES = {
         },
         "uq": set(),
     },
+    "pendientes": {
+        "pk": "pendientes_pkey",
+        "fk": {
+            "pendientes_cuenta_id_fkey",
+            "pendientes_usuario_id_fkey",
+            "pendientes_establecimiento_id_fkey",
+            "pendientes_lote_id_fkey",
+        },
+        "uq": set(),
+    },
     "establecimientos": {
         "pk": "establecimientos_pkey",
         "fk": {"establecimientos_cuenta_id_fkey"},

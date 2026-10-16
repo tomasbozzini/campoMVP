@@ -1,4 +1,4 @@
-"""Módulo común, para todos los perfiles: cuaderno, consultas, precios y SENASA."""
+"""Módulo común, para todos los perfiles: cuaderno, consultas, sesiones, pendientes, precios y SENASA."""
 
 from app.modulos.comun import (
     borrar,
@@ -6,6 +6,7 @@ from app.modulos.comun import (
     conversacion,
     corregir,
     establecimiento,
+    pendientes,
     precios,
     registrar,
     senasa,
@@ -23,6 +24,7 @@ ACCIONES = [
     precios.ACCION,
     senasa.ACCION,
     *sesion.ACCIONES,
+    *pendientes.ACCIONES,
     *conversacion.ACCIONES,
 ]
 

@@ -10,7 +10,7 @@ from html import escape
 
 from app.infra.config import config
 
-ULTIMA_ACTUALIZACION = "15 de octubre de 2026"
+ULTIMA_ACTUALIZACION = "16 de octubre de 2026"
 
 _PLANTILLA = """<!doctype html>
 <html lang="es">
@@ -53,6 +53,7 @@ tus datos podés escribir a <strong>{contacto}</strong>.</p>
   <li>Los datos que respondés al empezar: tu nombre y apellido, tu rubro (veterinario, agrónomo o asesor,
   o productor) y tu localidad. Y tu matrícula profesional, solo si la cargás.</li>
   <li>Lo que anotás en CampoBot: tareas, animales, lotes, establecimientos, productos, fechas y cantidades.</li>
+  <li>Tus pendientes: lo que anotás que tenés que hacer, para cuándo y cuándo lo marcaste como hecho.</li>
   <li>Las sesiones de trabajo que abrís ("arranco manga en El Retiro"): dónde, qué actividad, cuándo empezaron, cuándo terminaron y la hora de tu último mensaje mientras estaban abiertas.</li>
   <li>Tus últimos mensajes con CampoBot (los más recientes, para entender tus respuestas cortas). Se reemplazan solos a medida que escribís.</li>
   <li>La cantidad de mensajes que mandás por día, para aplicar el límite de uso.</li>

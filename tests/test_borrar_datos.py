@@ -18,6 +18,7 @@ from app.infra.modelos import (
     Evento,
     Lote,
     MensajeChat,
+    Pendiente,
     Sesion,
     UsoDiario,
     Usuario,
@@ -51,6 +52,9 @@ def _todo_lo_de(db, u: Usuario) -> None:
                 establecimiento=campo,
                 lote=lote,
                 sesion_id=sesion.id,
+            ),
+            Pendiente(
+                cuenta_id=u.cuenta_id, usuario_id=u.id, texto="revisar aguadas", establecimiento=campo, lote=lote
             ),
             MensajeChat(usuario_id=u.id, rol="usuario", texto="hola"),
             UsoDiario(usuario_id=u.id, fecha=HOY, cantidad=1),

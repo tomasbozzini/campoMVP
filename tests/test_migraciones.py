@@ -377,6 +377,19 @@ def test_0008_los_nombres_de_los_campos_quedan_prolijos(engine):
     ]
 
 
+def test_0010_agrega_los_pendientes_y_vuelve_atras(engine):
+    """Solo agrega la tabla: los datos de antes no se tocan (lo cubre la prueba de cada versión)."""
+    migrar_hasta(engine, "0009")
+    migrar.preparar_base(engine)
+    with engine.begin() as c:
+        assert "pendientes" in inspect(c).get_table_names()
+        command.downgrade(migrar._config(c), "0009")
+
+    with engine.connect() as c:
+        assert migrar.version(c) == "0009"
+        assert "pendientes" not in inspect(c).get_table_names()
+
+
 def test_0003_no_adivina_de_quien_son_registros_sin_usuario(engine):
     """SQLite no controla las claves foráneas: una base vieja puede tener registros huérfanos."""
     migrar_hasta(engine, "0002")

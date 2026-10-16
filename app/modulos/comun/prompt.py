@@ -1,4 +1,5 @@
-"""Lo que el módulo común le suma al prompt: el cuaderno, las consultas, los precios y SENASA."""
+"""Lo que el módulo común le suma al prompt: el cuaderno, las consultas, las sesiones, los
+pendientes, los precios y SENASA."""
 
 from app.ia.prompt import Parte
 
@@ -13,6 +14,10 @@ PROMPT = Parte(
         "establecimiento",
         "abrir_sesion",
         "cerrar_sesion",
+        "anotar_pendiente",
+        "ver_pendientes",
+        "pendiente_hecho",
+        "borrar_pendiente",
         "precio",
         "producto_veterinario",
     ),
@@ -26,6 +31,8 @@ PROMPT = Parte(
   "agradece": bool | null,         // solo si intencion = "saludo": true si es un agradecimiento
   "consulta": CONSULTA | null,     // solo si intencion = "consultar"
   "sesion": { "lote": string | null, "actividad": string | null } | null,  // solo si intencion = "abrir_sesion"
+  "pendiente": PENDIENTE | null,   // solo si intencion = "anotar_pendiente"
+  "pendientes": [ REF_PENDIENTE, ... ] | null,  // solo si intencion = "pendiente_hecho" o "borrar_pendiente"
   "precio": PRECIO | null,         // solo si intencion = "precio"
   "producto_veterinario": { "nombre": string } | null  // solo si intencion = "producto_veterinario\"""",
     descripciones="""\
@@ -38,6 +45,7 @@ PROMPT = Parte(
   "eliminá las 5 vaquillonas y la cosecha del lote 5", "sacá lo último").
 - "consultar": pregunta por cosas que ÉL MISMO anotó antes, o pide la lista de lo que tiene
   anotado ("¿qué tengo anotado?", "pasame la lista de La Pastora") ("¿qué hice hoy?", "¿qué hice en La Esperanza?").
+  Lo que tiene pendiente o por hacer es "ver_pendientes".
 - "establecimiento": solo avisa dónde está o a qué campo llegó, sin registrar nada
   ("estoy en La Esperanza", "llegué a El Ombú"). Completá "establecimiento".
 - "abrir_sesion": avisa que EMPIEZA un trabajo en un lote, una manga o una tarea, para que lo que
@@ -48,6 +56,16 @@ PROMPT = Parte(
   "establecimiento".
 - "cerrar_sesion": avisa que TERMINÓ ese trabajo ("terminamos", "cerramos la manga", "listo,
   terminé la siembra").
+- "anotar_pendiente": algo que TIENE QUE HACER más adelante y quiere tener presente ("tengo que
+  volver a revisar las vaquillonas el martes", "acordate de pedir vacunas", "pendiente: llamar al
+  veterinario", "en 21 días toca la segunda dosis en El Ombú"). No es "registrar": todavía no pasó.
+- "ver_pendientes": pregunta qué tiene pendiente o por hacer ("¿qué tengo pendiente?",
+  "pendientes", "¿qué me falta hacer en El Ombú?"). Completá "establecimiento" si pregunta por un campo.
+- "pendiente_hecho": avisa que ya hizo algo que tenía pendiente ("ya está lo del lote 3", "ya
+  llamé al veterinario", "listo lo de las vacunas"). Si además cuenta un trabajo con datos para
+  anotar ("ya vacuné las 30 vaquillonas que tenía pendientes"), van "registrar" y "pendiente_hecho".
+- "borrar_pendiente": pide borrar o sacar un pendiente ("borrá el pendiente de llamar a Juan",
+  "sacá lo de las vacunas de los pendientes"). Si habla de algo que anotó como hecho, es "borrar".
 - "precio": pide el precio o cotización actual de un grano o de hacienda (soja, maíz, trigo,
   girasol, sorgo, cebada, novillo, vaca, ternero, vaquillona, toro...).
 - "producto_veterinario": quiere saber si un producto veterinario (vacuna, antiparasitario,
@@ -129,6 +147,22 @@ anotado", dejá todos los filtros en null):
   "hasta": "YYYY-MM-DD" | null
 }
 
+PENDIENTE:
+{
+  "texto": string,              // qué tiene que hacer, corto y con sus palabras (ej: "revisar las vaquillonas"), sin la fecha ni el campo
+  "lote": string | null,        // como en EVENTO
+  "vence": "YYYY-MM-DD" | null  // para cuándo, si lo dice ("el martes", "en 21 días")
+}
+
+REF_PENDIENTE (uno por cada pendiente que nombra):
+{
+  "texto": string | null,       // las palabras con las que lo nombra ("llamar al veterinario", "vacunas")
+  "lote": string | null,        // como en EVENTO
+  "establecimiento": string | null,
+  "todos": bool                 // true SOLO si dice explícitamente todos ("ya hice todo lo de El Ombú")
+}
+  Si se refiere a uno que el sistema le mostró recién ("el segundo", "ese"), copiá su texto.
+
 PRECIO:
 {
   "rubro": "granos" | "hacienda" | null,
@@ -136,7 +170,8 @@ PRECIO:
 }""",
     reglas="""\
 - Fechas relativas ("ayer", "el lunes", "la semana pasada") convertilas a YYYY-MM-DD usando la fecha de hoy.
-  Si no se menciona fecha en un registro, usá la de hoy.
+  Si no se menciona fecha en un registro, usá la de hoy. En un pendiente la fecha es futura ("el
+  martes" es el próximo martes) y, si no la dice, "vence" es null.
 - En consultas como "este mes" o "este año", completá "desde" y "hasta".
 - NUNCA inventes datos. Si falta algo, null. Si el mensaje es ambiguo, confianza "baja".
 - Las preguntas ("¿cuántas...?", "¿cuándo...?", "¿qué se le dio...?") son "consultar", no "registrar".

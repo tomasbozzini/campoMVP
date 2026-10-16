@@ -1,5 +1,5 @@
 """Acceso a los datos de UNA persona: el cuaderno de su cuenta (registros, establecimientos,
-lotes y sesiones), su charla con el bot, su cupo diario y los borrados que esperan confirmación.
+lotes, sesiones y pendientes), su charla con el bot, su cupo diario y los borrados que esperan confirmación.
 
 Es la única puerta a esas tablas. Lo que se anota es de la cuenta y se filtra por la cuenta
 de quien abrió el cuaderno (hoy, 1 persona = 1 cuenta); la charla, el cupo y los borrados
@@ -20,6 +20,7 @@ from app.infra.modelos import (
     Evento,
     Lote,
     MensajeChat,
+    Pendiente,
     Sesion,
     Solicitud,
     UsoDiario,
@@ -238,6 +239,55 @@ class Cuaderno:
         )
         return list(self.db.scalars(q).all())
 
+    # --- Pendientes -----------------------------------------------------------
+
+    def agregar_pendiente(self, pendiente: Pendiente) -> None:
+        for parte in (pendiente.establecimiento, pendiente.lote):
+            if parte is not None and parte.cuenta_id != self.cuenta_id:
+                raise ValueError("El establecimiento o el lote es de otra cuenta")
+        pendiente.cuenta_id = self.cuenta_id
+        pendiente.usuario_id = self.usuario_id
+        self.db.add(pendiente)
+        self.db.flush()
+
+    def pendientes(self, establecimiento_clave: str | None = None) -> list[Pendiente]:
+        """Los que no están hechos, del más viejo al más nuevo. Con clave, solo los de ese campo."""
+        q = select(Pendiente).where(Pendiente.cuenta_id == self.cuenta_id, Pendiente.hecho.is_(None))
+        if establecimiento_clave:
+            campo = select(Establecimiento.id).where(
+                Establecimiento.cuenta_id == self.cuenta_id, Establecimiento.clave == establecimiento_clave
+            )
+            q = q.where(Pendiente.establecimiento_id.in_(campo))
+        return list(self.db.scalars(q.order_by(Pendiente.id).limit(MAX_EVENTOS)).all())
+
+    def ultimo_pendiente(self) -> Pendiente | None:
+        """El último pendiente anotado (hecho o no)."""
+        q = select(Pendiente).where(Pendiente.cuenta_id == self.cuenta_id).order_by(Pendiente.id.desc()).limit(1)
+        return self.db.scalar(q)
+
+    def marcar_hechos(self, ids: list[int], cuando: datetime) -> None:
+        self.db.execute(
+            update(Pendiente)
+            .where(Pendiente.id.in_(ids), Pendiente.cuenta_id == self.cuenta_id)
+            .values(hecho=cuando)
+            .execution_options(synchronize_session="fetch")
+        )
+        self.db.flush()
+
+    def borrar_pendientes(self, ids: list[int]) -> int:
+        """Borra esos pendientes, solo si son de esta cuenta. Devuelve cuántos borró."""
+        resultado = self.db.execute(
+            delete(Pendiente)
+            .where(Pendiente.id.in_(ids), Pendiente.cuenta_id == self.cuenta_id)
+            .execution_options(synchronize_session="fetch")
+        )
+        borrados = int(getattr(resultado, "rowcount", 0) or 0)
+        if borrados:
+            auditoria.registrar(
+                self.db, auditoria.BORRAR_PENDIENTES, actor=self.usuario_id, cuenta=self.cuenta_id, cantidad=borrados
+            )
+        return borrados
+
     # --- Borrado grande esperando confirmación ---------------------------------
 
     def guardar_borrado_pendiente(self, ids: list[int], creado: datetime) -> None:
@@ -299,6 +349,7 @@ class Cuaderno:
         Hoy cada persona tiene su propia cuenta, así que se borra todo lo de la cuenta."""
         self.db.execute(delete(Evento).where(Evento.cuenta_id == self.cuenta_id))
         self.db.execute(delete(Sesion).where(Sesion.cuenta_id == self.cuenta_id))
+        self.db.execute(delete(Pendiente).where(Pendiente.cuenta_id == self.cuenta_id))
         self.db.execute(
             update(Usuario).where(Usuario.cuenta_id == self.cuenta_id).values(establecimiento_actual_id=None)
         )

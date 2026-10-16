@@ -110,7 +110,7 @@ def _responder(ctx: Contexto, telefono: str) -> str:
     if invitaciones.es_solo_un_codigo(texto):
         return alta.YA_TENES_ACCESO
     if comando in comandos.DESHACER:
-        return borrar.borrar_ultimo(ctx.cuaderno)
+        return borrar.borrar_ultimo(ctx.cuaderno, ctx.hoy)
     if comandos.normalizar(texto) in campos.PEDIR:
         return campos.mis_campos(ctx.cuaderno, ctx.usuario)
     if comandos.normalizar(texto) in sesiones.CERRAR:

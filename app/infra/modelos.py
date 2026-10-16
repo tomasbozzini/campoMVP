@@ -161,6 +161,26 @@ class Evento(Base):
         return self.lote_destino.nombre if self.lote_destino else None
 
 
+class Pendiente(Base):
+    """Algo que la persona tiene que hacer más adelante ("revisar las vaquillonas el martes").
+    Es de la cuenta, como los registros. Hecho se guarda con su fecha y sale de la lista."""
+
+    __tablename__ = "pendientes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    cuenta_id: Mapped[int] = mapped_column(ForeignKey("cuentas.id"), index=True)
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)  # quién lo anotó
+    establecimiento_id: Mapped[int | None] = mapped_column(ForeignKey("establecimientos.id"))
+    lote_id: Mapped[int | None] = mapped_column(ForeignKey("lotes.id"))
+    texto: Mapped[str] = mapped_column(String(200))  # qué hay que hacer, con las palabras de la persona
+    vence: Mapped[date | None] = mapped_column(Date)  # para cuándo, si lo dijo
+    hecho: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)  # None: pendiente
+    creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_ahora)
+
+    establecimiento: Mapped[Establecimiento | None] = relationship(lazy="joined")
+    lote: Mapped[Lote | None] = relationship(lazy="joined")
+
+
 class MensajeProcesado(Base):
     """Meta reintenta los webhooks: guardamos el id para no procesar dos veces."""
 

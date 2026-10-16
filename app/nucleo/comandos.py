@@ -30,6 +30,11 @@ _Tu cuaderno de trabajo en el campo, por WhatsApp._
       › Empiezo siembra en el lote Los Pinos
       › Terminamos
 
+📌 *Pendientes*
+      › Tengo que revisar las aguadas el martes
+      › ¿Qué tengo pendiente?
+      › Ya está lo de las aguadas
+
 ✏️ *Corregir o borrar*
       › A esas vaquillonas les di ivermectina
       › No eran 20, eran 25
@@ -109,7 +114,7 @@ def pedir_borrar_datos(cuaderno: Cuaderno) -> str:
     return (
         "⚠️ *BORRAR TODOS TUS DATOS*\n\n"
         "Se van a eliminar para siempre:\n"
-        f"      › tu cuaderno ({registros} registro{'s' if registros != 1 else ''})\n"
+        f"      › tu cuaderno ({registros} registro{'s' if registros != 1 else ''}) y tus pendientes\n"
         "      › tus últimos mensajes con el bot\n"
         "      › tu número, tu nombre, rubro, localidad y matrícula\n\n"
         "También perdés el acceso: para volver a usarlo, el administrador te tiene que habilitar de nuevo.\n\n"

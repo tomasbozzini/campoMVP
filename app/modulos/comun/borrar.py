@@ -6,13 +6,14 @@ pedido explícitamente borrar todos ("todas las lluvias de La Pastora"). Si en t
 van a borrar muchos registros, se pide confirmación antes.
 """
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Annotated
 
 from pydantic import BeforeValidator
 
 from app.ia.esquemas import Bandera, Esquema, EsquemaAccion
 from app.infra.modelos import Evento
+from app.modulos.comun import pendientes
 from app.modulos.comun.registros import Referencia, coincide, describir
 from app.nucleo.acciones import Accion
 from app.nucleo.contexto import Contexto
@@ -55,9 +56,19 @@ class Borrar(EsquemaAccion):
     borrado: DatosBorrado
 
 
-def borrar_ultimo(cuaderno: Cuaderno) -> str:
-    """Deshace lo último que se anotó: todos los registros de ese mensaje."""
+def _con_zona(momento: datetime) -> datetime:
+    """SQLite devuelve las fechas sin zona: son UTC."""
+    return momento if momento.tzinfo else momento.replace(tzinfo=UTC)
+
+
+def borrar_ultimo(cuaderno: Cuaderno, hoy: date) -> str:
+    """Deshace lo último que se anotó: todos los registros de ese mensaje, o un pendiente."""
     ultimo = cuaderno.ultimo()
+    pendiente = cuaderno.ultimo_pendiente()
+    if pendiente is not None and (ultimo is None or _con_zona(pendiente.creado) > _con_zona(ultimo.creado)):
+        texto = pendientes.tarjeta(pendiente, hoy, icono="🗑️")
+        cuaderno.borrar_pendientes([pendiente.id])
+        return "🗑️ *PENDIENTE BORRADO*\n\n" + texto
     if ultimo is None:
         return NADA_ANOTADO
     # Por mensaje_id y no por fecha: dos mensajes seguidos pueden caer en el mismo
@@ -74,7 +85,7 @@ def manejar(ctx: Contexto, datos: Borrar) -> str:
     cuaderno = ctx.cuaderno
     referencias = datos.borrado.registros
     if referencias is None:
-        return borrar_ultimo(cuaderno)
+        return borrar_ultimo(cuaderno, ctx.hoy)
     recientes = cuaderno.recientes(BORRADO_ULTIMOS)
 
     a_borrar: dict[int, Evento] = {}
