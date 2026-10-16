@@ -20,6 +20,7 @@ import csv
 import io
 import sys
 from datetime import date, datetime
+from pathlib import Path
 
 from sqlalchemy.orm import Session
 
@@ -34,6 +35,7 @@ from app.modulos.comun import precios, senasa
 from app.nucleo import auditoria, pipeline, usuarios
 
 TELEFONO_CHAT = "5490000000000"
+CARPETA_CHAT = Path("archivos_chat")  # los PDF y planillas que manda el bot en el chat de prueba
 
 
 def _hoy() -> date:
@@ -56,9 +58,15 @@ def _chat(_db: Session, args: argparse.Namespace) -> None:
         if not texto:
             continue
         with SessionLocal() as db:
-            respuesta = pipeline.manejar_mensaje(db, telefono, texto)
+            respuesta = pipeline.atender(db, telefono, texto)
             db.commit()
-        print(f"\nbot> {respuesta}\n")
+        print(f"\nbot> {respuesta.texto}\n")
+        for adjunto in respuesta.adjuntos:
+            # En WhatsApp llega como documento; acá queda en una carpeta (fuera del repo, ver .gitignore).
+            CARPETA_CHAT.mkdir(exist_ok=True)
+            destino = CARPETA_CHAT / adjunto.nombre
+            destino.write_bytes(adjunto.contenido)
+            print(f"bot> 📎 {destino}\n")
 
 
 def _usuarios(db: Session, args: argparse.Namespace) -> None:

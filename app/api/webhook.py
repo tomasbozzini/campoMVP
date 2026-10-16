@@ -29,6 +29,7 @@ AUDIO_LARGO = "✋ El audio es muy largo.\nMandá audios más cortos, de a un te
 AUDIO_VACIO = "🤔 No escuché nada en el audio.\nProbá de nuevo, hablando cerca del teléfono, o escribime."
 TIPO_NO_SOPORTADO = "Por ahora solo entiendo mensajes de texto y audios 🙏"
 ERROR = "😕 Uy, algo falló procesando tu mensaje.\nProbá de nuevo en un rato."
+ERROR_ARCHIVO = "😕 No pude mandarte el archivo.\nProbá pedirlo de nuevo en un rato."
 
 # Los ids de los mensajes ya procesados se guardan para descartar los reintentos de Meta,
 # que reintenta un webhook hasta 7 días. Después se borran: en base64 llevan el teléfono.
@@ -106,10 +107,13 @@ def procesar_mensaje(mensaje: MensajeEntrante) -> None:
             return
 
         with SessionLocal() as db:
-            respuesta = pipeline.manejar_mensaje(db, telefono, texto, nombre=mensaje.nombre)
+            respuesta = pipeline.atender(db, telefono, texto, nombre=mensaje.nombre)
             db.commit()
     except Exception:
         log.exception("Error procesando un mensaje")
-        respuesta = ERROR
+        respuesta = pipeline.Respuesta(ERROR)
 
-    whatsapp.enviar_texto(telefono, prefijo + respuesta)
+    whatsapp.enviar_texto(telefono, prefijo + respuesta.texto)
+    for adjunto in respuesta.adjuntos:
+        if not whatsapp.enviar_documento(telefono, adjunto.nombre, adjunto.contenido, adjunto.tipo):
+            whatsapp.enviar_texto(telefono, ERROR_ARCHIVO)

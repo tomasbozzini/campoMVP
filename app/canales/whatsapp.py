@@ -61,11 +61,12 @@ def _otra_forma_argentina(numero: str) -> str | None:
 NO_PERMITIDO = 131030
 
 
-def _post_mensaje(numero: str, texto: str) -> httpx.Response:
+def _post_mensaje(numero: str, contenido: dict[str, Any]) -> httpx.Response:
+    """`contenido`: {"type": "text", "text": {...}} o {"type": "document", "document": {...}}."""
     return httpx.post(
         _url(f"{config.wa_phone_number_id}/messages"),
         headers=_headers(),
-        json={"messaging_product": "whatsapp", "to": numero, "type": "text", "text": {"body": texto}},
+        json={"messaging_product": "whatsapp", "to": numero, **contenido},
         timeout=20,
     )
 
@@ -78,26 +79,58 @@ def _codigo_error(r: httpx.Response) -> int | None:
         return None
 
 
+def _enviar(numero: str, contenido: dict[str, Any]) -> tuple[str, bool]:
+    """Manda un mensaje. Devuelve el número que aceptó Meta (con o sin el 9) y si salió."""
+    r = _post_mensaje(numero, contenido)
+    if _codigo_error(r) == NO_PERMITIDO and (otro := _otra_forma_argentina(numero)):
+        r2 = _post_mensaje(otro, contenido)
+        if r2.status_code < 400:
+            log.info("Meta aceptó %s en vez de %s; se usa ese formato", otro, numero)
+            return otro, True
+    if r.status_code >= 400:
+        log.error(
+            "Error enviando mensaje a WhatsApp al número %s: %s %s. Si el código es 131030, "
+            "agregá ese número en Meta > Casos de uso > Conectar en WhatsApp > Personalizar > "
+            "Configuración de la API > Para.",
+            numero,
+            r.status_code,
+            r.text,
+        )
+        return numero, False
+    return numero, True
+
+
 def enviar_texto(telefono: str, texto: str) -> None:
     numero = numero_para_envio(telefono)
     for i in range(0, len(texto), LIMITE_TEXTO):
-        parte = texto[i : i + LIMITE_TEXTO]
-        r = _post_mensaje(numero, parte)
-        if _codigo_error(r) == NO_PERMITIDO and (otro := _otra_forma_argentina(numero)):
-            r2 = _post_mensaje(otro, parte)
-            if r2.status_code < 400:
-                log.info("Meta aceptó %s en vez de %s; se usa ese formato", otro, numero)
-                numero = otro
-                continue
-        if r.status_code >= 400:
-            log.error(
-                "Error enviando mensaje a WhatsApp al número %s: %s %s. Si el código es 131030, "
-                "agregá ese número en Meta > Casos de uso > Conectar en WhatsApp > Personalizar > "
-                "Configuración de la API > Para.",
-                numero,
-                r.status_code,
-                r.text,
-            )
+        numero, _ = _enviar(numero, {"type": "text", "text": {"body": texto[i : i + LIMITE_TEXTO]}})
+
+
+def subir_media(nombre: str, contenido: bytes, tipo: str) -> str | None:
+    """Sube un archivo a Meta y devuelve su id (para mandarlo como documento); None si falla."""
+    r = httpx.post(
+        _url(f"{config.wa_phone_number_id}/media"),
+        headers=_headers(),
+        data={"messaging_product": "whatsapp", "type": tipo},
+        files={"file": (nombre, contenido, tipo)},
+        timeout=60,
+    )
+    if r.status_code >= 400:
+        log.error("Error subiendo un archivo a WhatsApp: %s %s", r.status_code, r.text)
+        return None
+    media_id = r.json().get("id")
+    return media_id if isinstance(media_id, str) else None
+
+
+def enviar_documento(telefono: str, nombre: str, contenido: bytes, tipo: str) -> bool:
+    """Manda un archivo (PDF, planilla) como documento, con su nombre. False si no salió."""
+    media_id = subir_media(nombre, contenido, tipo)
+    if media_id is None:
+        return False
+    _, salio = _enviar(
+        numero_para_envio(telefono), {"type": "document", "document": {"id": media_id, "filename": nombre}}
+    )
+    return salio
 
 
 def descargar_media(media_id: str) -> bytes:

@@ -52,6 +52,10 @@ _Hablame como siempre, por audio o por escrito: no hace falta ninguna palabra ex
       › ¿Qué hice en La Esperanza este mes?
       › ¿Cuántas vacas vacuné esta semana?
 
+📄 *Archivos para reenviar*
+      › Mandame un PDF de lo que hice este mes
+      › Pasame el informe de La Pastora
+
 💲 *Precios oficiales*
       › ¿A cuánto está la soja y el maíz?
       › Precio del novillo

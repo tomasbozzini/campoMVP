@@ -173,19 +173,19 @@ class PipelineFalso:
         self.frenados[texto] = threading.Event()
         return self.frenados[texto]
 
-    def __call__(self, _db, _telefono, texto: str, nombre=None, hoy=None) -> str:
+    def __call__(self, _db, _telefono, texto: str, nombre=None, hoy=None) -> pipeline.Respuesta:
         self.orden.append(texto)
         self.empezo[texto].set()
         if texto in self.frenados:
             self.frenados[texto].wait(ESPERA)
         self.listo[texto].set()
-        return texto
+        return pipeline.Respuesta(texto)
 
 
 @pytest.fixture
 def procesar(servidor, monkeypatch):
     falso = PipelineFalso()
-    monkeypatch.setattr(pipeline, "manejar_mensaje", falso)
+    monkeypatch.setattr(pipeline, "atender", falso)
     return falso
 
 

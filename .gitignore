@@ -4,6 +4,8 @@ __pycache__/
 *.db
 *.bak
 .pytest_cache/
+# PDF y planillas del chat de prueba (python -m app chat): traen datos del cuaderno
+archivos_chat/
 
 # Documentos privados (especificación funcional): no se suben
 docs/privado/

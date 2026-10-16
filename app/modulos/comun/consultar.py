@@ -36,21 +36,23 @@ class Consultar(EsquemaAccion):
     consulta: FiltrosConsulta
 
 
-def manejar(ctx: Contexto, datos: Consultar) -> str:
-    f = datos.consulta
-    eventos = ctx.cuaderno.buscar(
-        Filtros(
-            establecimiento_clave=clave_establecimiento(f.establecimiento),
-            categoria=f.categoria,
-            tipo=f.tipo,
-            lote=f.lote,
-            caravana=f.caravana,
-            categoria_animal=f.categoria_animal,
-            producto=f.producto,
-            desde=f.desde,
-            hasta=f.hasta,
-        )
+def filtros(f: FiltrosConsulta) -> Filtros:
+    """Los filtros del cuaderno a partir de lo que pidió la IA (también para los archivos)."""
+    return Filtros(
+        establecimiento_clave=clave_establecimiento(f.establecimiento),
+        categoria=f.categoria,
+        tipo=f.tipo,
+        lote=f.lote,
+        caravana=f.caravana,
+        categoria_animal=f.categoria_animal,
+        producto=f.producto,
+        desde=f.desde,
+        hasta=f.hasta,
     )
+
+
+def manejar(ctx: Contexto, datos: Consultar) -> str:
+    eventos = ctx.cuaderno.buscar(filtros(datos.consulta))
     if not eventos:
         return SIN_RESULTADOS
 

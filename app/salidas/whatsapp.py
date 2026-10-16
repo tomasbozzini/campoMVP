@@ -137,9 +137,9 @@ def linea(e: Evento) -> str:
     return " · ".join(partes)
 
 
-def totales(eventos: list[Evento]) -> str | None:
-    """📊 Totales: animales por tipo de registro y suma de valores por tipo y unidad. Las
-    cuentas las hace el código. None si no hay nada que sumar."""
+def sumas(eventos: list[Evento]) -> list[tuple[str, int | float, str]]:
+    """Animales por tipo de registro y suma de valores por tipo y unidad: (tipo, total,
+    "animales" o la unidad). Las cuentas las hace el código; las usan WhatsApp y el PDF."""
     animales: dict[str, int] = defaultdict(int)
     valores: dict[tuple[str, str], float] = defaultdict(float)
     for e in eventos:
@@ -147,11 +147,19 @@ def totales(eventos: list[Evento]) -> str | None:
             animales[e.tipo] += e.cantidad_animales
         if e.valor is not None and e.unidad:
             valores[(e.tipo, e.unidad)] += e.valor
-    if not animales and not valores:
-        return None
-    filas = [f"{SANGRIA}{icono(t)} {nombre_tipo(t)}: *{c}* animales" for t, c in animales.items()]
-    filas += [f"{SANGRIA}{icono(t)} {nombre_tipo(t)}: *{numero(v)} {u}*" for (t, u), v in valores.items()]
-    return "📊 *Totales*\n" + "\n".join(filas)
+    return [(t, c, "animales") for t, c in animales.items()] + [(t, v, u) for (t, u), v in valores.items()]
+
+
+def totales(eventos: list[Evento]) -> str | None:
+    """📊 Totales: animales por tipo de registro y suma de valores por tipo y unidad. None si
+    no hay nada que sumar."""
+    filas = [
+        f"{SANGRIA}{icono(t)} {nombre_tipo(t)}: *{c}* animales"
+        if u == "animales"
+        else f"{SANGRIA}{icono(t)} {nombre_tipo(t)}: *{numero(c)} {u}*"
+        for t, c, u in sumas(eventos)
+    ]
+    return "📊 *Totales*\n" + "\n".join(filas) if filas else None
 
 
 def por_dia(eventos: list[Evento], lugar: bool = True) -> str:

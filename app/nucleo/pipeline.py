@@ -12,6 +12,7 @@ recomendar, inventar ni usarse como chat de uso general.
 """
 
 import logging
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from typing import Any
 
@@ -25,7 +26,7 @@ from app.modulos.comun import borrar, campos, confirmar
 from app.nucleo import acciones, alta, charla, comandos, invitaciones, perfil, sesiones
 from app.nucleo.acceso import es_admin, usuario_con_acceso
 from app.nucleo.acciones import Accion
-from app.nucleo.contexto import Contexto
+from app.nucleo.contexto import Adjunto, Contexto
 
 log = logging.getLogger(__name__)
 
@@ -59,22 +60,35 @@ def _ahora() -> datetime:
     return datetime.now(UTC)
 
 
+@dataclass(frozen=True)
+class Respuesta:
+    """El texto que se le contesta a la persona y los archivos que van después."""
+
+    texto: str
+    adjuntos: list[Adjunto] = field(default_factory=list)
+
+
 def manejar_mensaje(db: Session, telefono: str, texto: str, nombre: str | None = None, hoy: date | None = None) -> str:
+    """Solo el texto de la respuesta (los tests y lo que no manda archivos)."""
+    return atender(db, telefono, texto, nombre, hoy).texto
+
+
+def atender(db: Session, telefono: str, texto: str, nombre: str | None = None, hoy: date | None = None) -> Respuesta:
     texto = texto.strip()
     alta.limpiar(db)
     usuario = usuario_con_acceso(db, telefono, nombre) or alta.en_curso(db, telefono)
     if usuario is None:
-        return alta.sin_acceso(db, telefono, texto, nombre)
+        return Respuesta(alta.sin_acceso(db, telefono, texto, nombre))
     ctx = Contexto(db, usuario, texto, hoy or _hoy(), _ahora())
     comando = comandos.normalizar(texto)
     if comando in comandos.PEDIR_BORRAR_DATOS:
-        return comandos.pedir_borrar_datos(ctx.cuaderno)
+        return Respuesta(comandos.pedir_borrar_datos(ctx.cuaderno))
     if comando == comandos.CONFIRMAR_BORRAR_DATOS:
         # Después de esto no se guarda nada más de esta persona, ni siquiera este mensaje.
-        return comandos.borrar_datos(db, usuario)
+        return Respuesta(comandos.borrar_datos(db, usuario))
     if perfil.falta(usuario) or not usuario.autorizado:
         # Primero las preguntas fijas del alta. Nada de esto va a la charla ni a la IA.
-        return alta.preguntar(ctx, _respuesta_fija(texto, telefono))
+        return Respuesta(alta.preguntar(ctx, _respuesta_fija(texto, telefono)))
     # Si la sesión llevaba 12 horas sin mensajes, se cierra antes de atender este mensaje.
     cerrada = sesiones.al_escribir(ctx.cuaderno, ctx.ahora)
     respuesta = _responder(ctx, telefono)
@@ -82,7 +96,7 @@ def manejar_mensaje(db: Session, telefono: str, texto: str, nombre: str | None =
         respuesta = cerrada + SEPARADOR + respuesta
     if ctx.guardar_charla:
         charla.guardar(ctx.cuaderno, texto, respuesta)
-    return respuesta
+    return Respuesta(respuesta, ctx.adjuntos)
 
 
 def _respuesta_fija(texto: str, telefono: str) -> str | None:

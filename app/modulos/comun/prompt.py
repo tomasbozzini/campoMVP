@@ -9,6 +9,7 @@ PROMPT = Parte(
         "corregir",
         "borrar",
         "consultar",
+        "exportar",
         "aclarar",
         "saludo",
         "establecimiento",
@@ -36,7 +37,8 @@ PROMPT = Parte(
                                    // "que_paso", "establecimiento", "cual_registro", "que_cambiar",
                                    // "cantidad", "producto", "fecha", "que_producto_precio", "que_pedido"
   "agradece": bool | null,         // solo si intencion = "saludo": true si es un agradecimiento
-  "consulta": CONSULTA | null,     // solo si intencion = "consultar"
+  "consulta": CONSULTA | null,     // solo si intencion = "consultar" o "exportar"
+  "exportar": { "formato": "pdf" | "excel" | "csv" } | null,  // solo si intencion = "exportar"
   "sesion": { "lote": string | null, "actividad": string | null } | null,  // solo si intencion = "abrir_sesion"
   "pendiente": PENDIENTE | null,   // solo si intencion = "anotar_pendiente"
   "pendientes": [ REF_PENDIENTE, ... ] | null,  // solo si intencion = "pendiente_hecho" o "borrar_pendiente"
@@ -55,6 +57,11 @@ PROMPT = Parte(
   anotado ("¿qué tengo anotado?", "pasame la lista de La Pastora") ("¿qué hice hoy?", "¿qué hice en La Esperanza?").
   Lo que tiene pendiente o por hacer es "ver_pendientes"; la lista de sus campos o lotes, sin
   preguntar por lo anotado, es "mis_campos".
+- "exportar": pide lo que anotó en un ARCHIVO para guardar o reenviar: PDF, Excel, planilla o CSV
+  ("mandame un PDF de lo que hice en La Pastora este mes", "pasame la planilla de las
+  vacunaciones", "quiero el informe de la semana para mandárselo al dueño"). Completá "consulta"
+  con los filtros, como en "consultar". "formato": "excel" si dice Excel o planilla, "csv" solo
+  si dice CSV; si no dice, "pdf".
 - "establecimiento": solo avisa dónde está o a qué campo llegó, sin registrar nada
   ("estoy en La Esperanza", "llegué a El Ombú"). Completá "establecimiento".
 - "abrir_sesion": avisa que EMPIEZA un trabajo en un lote, una manga o una tarea, para que lo que

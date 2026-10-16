@@ -278,7 +278,14 @@ de 2b, 7 y 8b):
       `evaluacion/set.json` con al menos 5 formas de pedir cada función (un test lo
       controla). Contra Groq se probó una muestra (7 de 7 bien): el set entero no entra en
       el plan gratuito (8000 tokens por minuto y cada mensaje usa unos 4700).
-- [ ] 8a · Envío de documentos por WhatsApp y PDF.
+- [x] 8a · Envío de documentos por WhatsApp y PDF. La acción `exportar` (pedida hablando:
+      "mandame un PDF de lo que hice este mes") usa los mismos filtros que `consultar`; el
+      manejador suma el archivo a la respuesta (`Contexto.adjuntos`) y el webhook lo sube a
+      Meta y lo manda como documento después del texto. El PDF (`salidas/pdf.py`, fpdf2 con
+      Helvetica) lleva el membrete, de qué es, los totales, una fila por registro del más
+      viejo al más nuevo y el pie legal con el número de página. El texto de la persona va
+      tal cual (sin markdown ni HTML) y lo que la fuente no tiene, como los emojis, se saca.
+      Sin logo todavía (pendiente de definición): la marca es el nombre.
 - [ ] 8b · Excel y CSV.
 - [ ] 9a · Modo prueba.
 - [ ] 9b · Set de evaluación y `python -m app eval`.

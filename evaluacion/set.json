@@ -83,6 +83,12 @@
     {"funcion": "borrar_mis_datos", "frase": "no quiero usar más esto, borrá todo lo mío y mi número", "intenciones": ["borrar_mis_datos"]},
     {"funcion": "borrar_mis_datos", "frase": "bueno quiero que no quede nada mío guardado", "intenciones": ["borrar_mis_datos"]},
 
+    {"funcion": "exportar_pdf", "frase": "mandame un PDF de lo que hice este mes", "intenciones": ["exportar"]},
+    {"funcion": "exportar_pdf", "frase": "che, pasame el informe de La Pastora para mandárselo al dueño", "intenciones": ["exportar"]},
+    {"funcion": "exportar_pdf", "frase": "quiero un pdf con las vacunaciones de la semana", "intenciones": ["exportar"]},
+    {"funcion": "exportar_pdf", "frase": "bueno ehh armame un documento con todo lo anotado", "intenciones": ["exportar"]},
+    {"funcion": "exportar_pdf", "frase": "necesito el reporte de lo del lote 3 en un archivo para imprimir", "intenciones": ["exportar"]},
+
     {"funcion": "varios", "frase": "mostrame mis campos y qué tengo pendiente", "intenciones": ["mis_campos", "ver_pendientes"]},
     {"funcion": "varios", "frase": "che pasame mis datos y decime quién ve lo que anoto", "intenciones": ["mis_datos", "privacidad"]},
     {"funcion": "varios", "frase": "bueno terminamos y anotame que mañana hay que revisar los toros", "intenciones": ["cerrar_sesion", "anotar_pendiente"]},
