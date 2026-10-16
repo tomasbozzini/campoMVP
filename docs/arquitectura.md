@@ -32,6 +32,13 @@ y Excel/CSV. **Un solo bot**: el perfil de cada usuario define qué módulos usa
    tocar el núcleo.
 6. **Nada se rompe en silencio.** Tests, lint y chequeo de tipos en cada cambio; migraciones
    para que los datos sobrevivan.
+7. **Todo se pide hablando normal.** Cada función del bot se puede pedir con frases completas
+   y de cualquier forma razonable, por texto o audio: voseo, muletillas ("che", "bueno",
+   "ehh"), errores de transcripción, frases largas y varios pedidos juntos. Los comandos
+   escritos son **atajos**: si el mensaje es exactamente el comando, se responde sin IA; si
+   no, la IA reconoce el pedido y lo deriva al **mismo manejador**, con la misma respuesta
+   armada por el código. Si el pedido es ambiguo, el bot pregunta con una pregunta fija en
+   vez de adivinar.
 
 ## 3. Estructura del código (objetivo)
 
@@ -77,6 +84,7 @@ del perfil del usuario (menos tokens, menos latencia, más precisión).
 | Nombre | **CampoBot** (provisorio) | Decisión de producto |
 | PDF | Con logo y marca CampoBot | Decisión de producto |
 | Alta de usuarios | **Código de invitación** + alta guiada. La aprobación del administrador se suma después sobre el mismo flujo | Entran al instante, sin carga manual ni mensajes pagos; control de quién entra |
+| Producción | **Railway** desde la etapa 1: el bot, Postgres y el cron `actualizar-precios` (`30 21 * * 1-5`). Cada push a la rama despliega y migra al arrancar, sin esperar al CI | Se adelantó (el plan lo dejaba para la etapa 4): las pruebas desde el celular son contra Railway |
 
 ## 5. Seguridad
 
@@ -259,6 +267,13 @@ de 2b, 7 y 8b):
       (en su texto, su lote o su campo; "llamé" y "llamar" coinciden); si coincide con varios
       no se toca ninguno y se muestran las opciones, salvo que pida todos. Los hechos se
       guardan con su fecha y salen de la lista. La `0010` solo agrega la tabla `pendientes`.
+- [ ] 7.1 · Ajustes de pendientes: el texto, hasta 120 caracteres y sin `*`, `_` ni `~`;
+      borrar 4 o más pide confirmación, como con los registros. La `0011` solo agrega a
+      `borrados_pendientes` qué se va a borrar (registros o pendientes).
+- [ ] 7.2 · Todo se pide hablando normal (principio 7): mis campos, mis datos, cambiar
+      rubro, cambiar matrícula, privacidad, ayuda y borrar mis datos pasan a ser también
+      intenciones de la IA, con el mismo manejador que su atajo. El set de evaluación
+      arranca en `evaluacion/set.json` con al menos 5 formas de pedir cada función.
 - [ ] 8a · Envío de documentos por WhatsApp y PDF.
 - [ ] 8b · Excel y CSV.
 - [ ] 9a · Modo prueba.
@@ -272,7 +287,8 @@ de 2b, 7 y 8b):
 - **Rubro:** Veterinario, Agrónomo o asesor, o Productor. La opción "Otro" se sacó: a quien
   la tenía se le vuelve a preguntar el rubro la próxima vez que escribe (el mensaje se
   descarta, como con cualquier dato que falta). Se ve con `mis datos` (nombre,
-  rubro, localidad y matrícula) y se cambia con `cambiar rubro`.
+  rubro, localidad y matrícula) y se cambia con `cambiar rubro`, o pidiéndolo con
+  cualquier frase ("Todo se pide hablando normal", abajo).
 - **Localidad:** texto libre, prolijo (mayúscula inicial, sin espacios de más).
 - **Matrícula:** opcional y fuera del alta (que sigue siendo de 3 preguntas); se carga con
   `cambiar matrícula`. Si está, va en el membrete del PDF.
@@ -283,7 +299,8 @@ de 2b, 7 y 8b):
   sin avisar del bloqueo.
 - **Auditoría:** solo ids numéricos; las filas se conservan después de `borrar mis datos`. Se
   consulta con `python -m app auditoria`.
-- **Establecimientos y lotes:** comando fijo `mis campos` (sin IA) que los lista. El nombre
+- **Establecimientos y lotes:** `mis campos` los lista (atajo sin IA, o pidiéndolo con
+  cualquier frase: "che, ¿qué campos tengo cargados?"). El nombre
   de un establecimiento es el de la primera vez que se nombró, guardado prolijo como la
   localidad ("Estancia de la Sierra", "El Ombú"); la `0008` ordena los que ya existían. Unir
   duplicados y un comando `renombrar campo` quedan para más adelante.
@@ -309,6 +326,33 @@ de 2b, 7 y 8b):
   - `borrar` deshace lo último que se anotó, sea un registro o un pendiente.
   - Sin comando fijo: se consultan por la IA ("¿qué tengo pendiente?", "pendientes").
     `pendientes` como comando queda para el administrador (aprobar altas).
+
+  Aceptado después del paso 7 (con los límites del 7.1):
+  - El texto del pendiente lo recorta la IA de las palabras de la persona y el bot lo
+    muestra: hasta 120 caracteres y sin los símbolos de formato de WhatsApp (`*`, `_`, `~`),
+    para que no desarme la respuesta.
+  - Para encontrar un pendiente, todas las palabras con las que se lo nombra tienen que
+    estar en su texto, su lote o su campo, comparadas por el principio.
+  - Borrar 4 o más pendientes de una vez pide confirmación (*sí* / *no*), igual que con los
+    registros. Marcar hechos con "todos" no la pide.
+  - Los hechos se guardan con su fecha y salen de la lista; todavía no se consultan.
+  - Borrar pendientes queda en la auditoría, como borrar registros.
+- **Todo se pide hablando normal** (principio 7). Vale para mis campos, mis datos, cambiar
+  rubro, cambiar matrícula, privacidad, ayuda / qué podés hacer, borrar (deshacer lo
+  último), cerrar sesión y pendientes, solos o junto con otros pedidos ("mostrame mis
+  campos y qué tengo pendiente"). Los comandos escritos siguen como atajos exactos, sin IA,
+  y la ayuda muestra frases naturales como ejemplos y los comandos como atajos.
+  - Si no se entiende qué función pide, una pregunta fija ("¿Qué necesitás?…").
+  - Excepciones por seguridad:
+    - `borrar mis datos`: la IA reconoce el pedido y muestra el aviso de siempre, pero
+      borrar exige escribir exacto `confirmo borrar mis datos`.
+    - Comandos del administrador (`invitar`, `invitaciones`, `anular`, `autorizar`,
+      `quitar`, `autorizados`): solo exactos y escritos; no pasan por la IA.
+  - Siguen fijas las respuestas a una pregunta del bot (el número del rubro, *sí* / *no*
+    de un borrado grande, *cancelar*) y, durante el alta, que es sin IA, solo valen los
+    atajos `ayuda` y `privacidad`.
+  - El set de evaluación tiene al menos 5 formas distintas de pedir cada función, con
+    frases largas, muletillas y como salen de un audio.
 - **Salidas:** "Excel" o "planilla" → .xlsx; CSV solo si lo pide, con `;` y BOM. El PDF lleva
   nombre, rubro y localidad (y matrícula, si está) y al pie: "Registro de lo informado por el
   profesional. CampoBot es un auxiliar de cálculo y registro: no realiza recomendaciones ni
@@ -351,7 +395,7 @@ fertilización, girasol y sorgo.
 
 ### Etapa 4 · Prueba con testers
 
-Servidor en la nube, número propio en Meta, monitoreo, medición de precisión con el set de
+Servidor en la nube (ya está: Railway, desde la etapa 1), número propio en Meta, monitoreo, medición de precisión con el set de
 evaluación, ajustes según el uso real. Opcional: que los usuarios acepten que sus
 transcripciones, anonimizadas, se sumen al set de evaluación.
 

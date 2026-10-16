@@ -18,12 +18,25 @@ de producto"). `README.md` explica el uso y el funcionamiento.
   se anota en el plan y después se programa.
 - Cada resumen de paso termina con **"Cambios respecto del plan"** (o "Ninguno").
 - **Un commit por paso**, push al terminar y CI en verde (incluido el job de Postgres).
-- Si un paso trae **migración**, avisar antes para hacer la copia de `campo.db`.
 - Comandos para **cmd de Windows** cuando se le pasan al usuario.
 - Nunca subir `.env`, `campo.db`, `*.bak`, `docs/privado/` ni datos personales.
 - Leer y buscar archivos con las herramientas (Read, Glob, Grep), no con find, xargs, sed o cat.
 - Pausas para probar desde el celular donde el plan lo indica.
 - Los textos del bot, los comentarios y los commits van en castellano rioplatense.
+- **Todo se pide hablando normal** (principio 7 del plan): cada función nueva es una
+  intención de la IA; si además tiene comando escrito, es un atajo exacto que llama al
+  mismo manejador. Sumar sus frases al set de evaluación (`evaluacion/set.json`).
+
+## Producción (Railway)
+
+- El bot corre en Railway: el servicio del bot, Postgres y el cron `actualizar-precios`.
+  El webhook de Meta apunta ahí.
+- **Cada push a la rama despliega solo y migra al arrancar, sin esperar al CI.** Antes de
+  cada push: ruff, mypy y pytest en verde (y los tests sobre Postgres si hay migración).
+- Si un paso trae una migración que **borra o cambia datos**, avisar **antes de subirla**
+  para hacer una copia de la base de Railway.
+- Las pruebas desde el celular son contra Railway: las instrucciones no piden ngrok,
+  uvicorn ni copiar `campo.db`.
 
 ## Chequeos
 
