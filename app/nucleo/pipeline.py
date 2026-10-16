@@ -21,7 +21,7 @@ from app import modulos
 from app.ia import interprete
 from app.ia.esquemas import EsquemaAccion
 from app.infra.config import config
-from app.modulos.comun import borrar, campos
+from app.modulos.comun import borrar, campos, confirmar
 from app.nucleo import acciones, alta, charla, comandos, invitaciones, perfil, sesiones
 from app.nucleo.acceso import es_admin, usuario_con_acceso
 from app.nucleo.acciones import Accion
@@ -98,7 +98,7 @@ def _respuesta_fija(texto: str, telefono: str) -> str | None:
 def _responder(ctx: Contexto, telefono: str) -> str:
     texto = ctx.texto
     comando = texto.lower().strip(" !.¡")
-    if (respuesta := borrar.resolver_pendiente(ctx.cuaderno, comando)) is not None:
+    if (respuesta := confirmar.resolver(ctx.cuaderno, comando, ctx.ahora)) is not None:
         return respuesta
     if (respuesta := perfil.comando(ctx)) is not None:
         ctx.guardar_charla = False  # trae nombre, localidad, matrícula

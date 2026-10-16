@@ -149,7 +149,7 @@ anotado", dejá todos los filtros en null):
 
 PENDIENTE:
 {
-  "texto": string,              // qué tiene que hacer, corto y con sus palabras (ej: "revisar las vaquillonas"), sin la fecha ni el campo
+  "texto": string,              // qué tiene que hacer, corto (hasta 120 letras) y con sus palabras (ej: "revisar las vaquillonas"), sin la fecha ni el campo
   "lote": string | null,        // como en EVENTO
   "vence": "YYYY-MM-DD" | null  // para cuándo, si lo dice ("el martes", "en 21 días")
 }

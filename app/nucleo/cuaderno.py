@@ -290,8 +290,9 @@ class Cuaderno:
 
     # --- Borrado grande esperando confirmación ---------------------------------
 
-    def guardar_borrado_pendiente(self, ids: list[int], creado: datetime) -> None:
-        self.db.merge(BorradoPendiente(usuario_id=self.usuario_id, ids=ids, creado=creado))
+    def guardar_borrado_pendiente(self, ids: list[int], creado: datetime, que: str = "registros") -> None:
+        """`que`: "registros" o "pendientes"."""
+        self.db.merge(BorradoPendiente(usuario_id=self.usuario_id, que=que, ids=ids, creado=creado))
 
     def tomar_borrado_pendiente(self) -> BorradoPendiente | None:
         """El borrado pendiente, si hay uno. Se descarta al tomarlo: se usa una sola vez."""

@@ -277,6 +277,7 @@ class BorradoPendiente(Base):
     __tablename__ = "borrados_pendientes"
 
     usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), primary_key=True)
+    que: Mapped[str] = mapped_column(String(10), default="registros", server_default="registros")  # | pendientes
     ids: Mapped[list[int]] = mapped_column(JSON)
     creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_ahora)
 

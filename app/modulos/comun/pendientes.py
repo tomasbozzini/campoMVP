@@ -4,11 +4,13 @@ Se anotan ("tengo que volver a revisar las vaquillonas el martes"), se consultan
 pendiente?"), se marcan hechos ("ya está lo del lote 3") y se borran. Los vencidos van
 primero y destacados. Las reglas están en docs/arquitectura.md, decisión "Pendientes".
 
-El texto de un pendiente son las palabras de la persona: la IA lo recorta del mensaje. Para
-encontrar el pendiente al que se refiere ("ya llamé al veterinario"), todas las palabras con
-las que lo nombra tienen que estar en el pendiente, en su lote o en su campo, comparadas por
-el principio ("llamé" y "llamar" coinciden). Si coincide con varios, no se toca ninguno y se
-muestran las opciones, salvo que pida explícitamente todos.
+El texto de un pendiente son las palabras de la persona: la IA lo recorta del mensaje y se
+guarda con hasta 120 caracteres y sin los símbolos de formato de WhatsApp (* _ ~), para que
+no desarme la respuesta. Para encontrar el pendiente al que se refiere ("ya llamé al
+veterinario"), todas las palabras con las que lo nombra tienen que estar en el pendiente, en
+su lote o en su campo, comparadas por el principio ("llamé" y "llamar" coinciden). Si
+coincide con varios, no se toca ninguno y se muestran las opciones, salvo que pida
+explícitamente todos. Borrar 4 o más de una vez pide confirmación, como con los registros.
 """
 
 import re
@@ -17,9 +19,10 @@ from typing import Annotated
 
 from pydantic import BeforeValidator, Field
 
-from app.ia.esquemas import Bandera, Esquema, EsquemaAccion, Fecha, SiNoVacio, texto
+from app.ia.esquemas import Bandera, Esquema, EsquemaAccion, Fecha, SiNoVacio, limpiar_texto, texto
 from app.infra.modelos import Establecimiento, Pendiente
 from app.infra.texto import sin_tildes
+from app.modulos.comun import confirmar
 from app.modulos.comun.registros import Lote
 from app.nucleo.acciones import Accion
 from app.nucleo.contexto import Contexto
@@ -32,6 +35,7 @@ from app.salidas.whatsapp import SEPARADOR as LINEA
 MAX_EN_LISTA = 20
 MAX_OPCIONES = 8
 MAX_REFERENCIAS = 10
+MAX_TEXTO = 120
 
 SIN_PENDIENTES = "📭 No tenés nada pendiente."
 NADA_CLARO = "🤔 No me quedó claro qué tenés pendiente.\nProbá con algo como: _tengo que revisar las aguadas el martes_"
@@ -43,12 +47,22 @@ _COMUNES = {
     "lote", "para", "pendiente", "pendientes", "tengo", "toda", "todas", "todo", "todos",
 }  # fmt: skip
 _PALABRA = re.compile(r"\w+")
+_FORMATO = re.compile(r"[*_~]")  # negrita, cursiva y tachado en WhatsApp
 
 
 # --- Esquemas ---------------------------------------------------------------------------
 
+
+def _texto_pendiente(valor: object) -> str | None:
+    """Sin los símbolos de formato de WhatsApp y hasta 120 caracteres; None si no queda nada."""
+    limpio = limpiar_texto(valor, 1000)
+    if limpio is None:
+        return None
+    return " ".join(_FORMATO.sub(" ", limpio).split())[:MAX_TEXTO].rstrip() or None
+
+
 # Afuera de las clases: adentro, el campo `texto` taparía a la función `texto`.
-Texto = Annotated[str | None, texto(200)]
+Texto = Annotated[str | None, BeforeValidator(_texto_pendiente)]
 Campo = Annotated[str | None, texto(120)]
 
 
@@ -285,7 +299,10 @@ def borrar(ctx: Contexto, datos: SobrePendientes) -> str:
         return _sin_elegir(ctx)
     elegidos, avisos = _elegir(ctx, datos.pendientes, "borré")
     partes = []
-    if elegidos:
+    if len(elegidos) >= confirmar.CONFIRMAR_DESDE:
+        ids, lineas = [p.id for p in elegidos], [linea(p) for p in _ordenar(elegidos, ctx.hoy)]
+        partes.append(confirmar.pedir(ctx.cuaderno, confirmar.PENDIENTES, ids, lineas, ctx.ahora))
+    elif elegidos:
         borrados = "\n\n".join(tarjeta(p, ctx.hoy, icono="🗑️") for p in elegidos)
         ctx.cuaderno.borrar_pendientes([p.id for p in elegidos])
         partes.append(f"🗑️ *PENDIENTE BORRADO*\n\n{borrados}")

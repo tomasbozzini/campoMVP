@@ -267,7 +267,7 @@ de 2b, 7 y 8b):
       (en su texto, su lote o su campo; "llamé" y "llamar" coinciden); si coincide con varios
       no se toca ninguno y se muestran las opciones, salvo que pida todos. Los hechos se
       guardan con su fecha y salen de la lista. La `0010` solo agrega la tabla `pendientes`.
-- [ ] 7.1 · Ajustes de pendientes: el texto, hasta 120 caracteres y sin `*`, `_` ni `~`;
+- [x] 7.1 · Ajustes de pendientes: el texto, hasta 120 caracteres y sin `*`, `_` ni `~`;
       borrar 4 o más pide confirmación, como con los registros. La `0011` solo agrega a
       `borrados_pendientes` qué se va a borrar (registros o pendientes).
 - [ ] 7.2 · Todo se pide hablando normal (principio 7): mis campos, mis datos, cambiar

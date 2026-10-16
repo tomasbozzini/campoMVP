@@ -11,7 +11,7 @@ from app.canales import whatsapp
 from app.ia import interprete
 from app.infra.config import config
 from app.infra.modelos import BorradoPendiente, Evento, MensajeChat, Usuario
-from app.modulos.comun import borrar, conversacion
+from app.modulos.comun import confirmar, conversacion
 from app.nucleo import acceso, charla, pipeline
 from app.nucleo.cuaderno import Cuaderno
 from tests.ayudas import con_perfil
@@ -731,7 +731,7 @@ def test_confirmacion_vencida_no_borra(db, fake_llm):
     respuestas["borrá todo"] = {"intencion": "borrar", "borrado": {"registros": [{"todos": True}]}}
     pipeline.manejar_mensaje(db, u.telefono, "borrá todo", hoy=HOY)
     pendiente = db.get(BorradoPendiente, u.id)
-    pendiente.creado = datetime.now(UTC) - timedelta(minutes=borrar.CONFIRMAR_MINUTOS + 1)
+    pendiente.creado = datetime.now(UTC) - timedelta(minutes=confirmar.CONFIRMAR_MINUTOS + 1)
     db.flush()
     assert "no borré nada" in pipeline.manejar_mensaje(db, u.telefono, "sí", hoy=HOY)
     assert len(db.scalars(select(Evento)).all()) == 6

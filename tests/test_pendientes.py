@@ -118,7 +118,18 @@ def test_sin_campo_actual_queda_sin_campo(db, ia):
 def test_sin_que_hacer_no_anota_nada(db, ia):
     con_perfil(db, TEL)
     assert _anotar(ia, db, "anotá un pendiente") == pendientes.NADA_CLARO
+    assert _anotar(ia, db, "anotá un pendiente: **", texto=" *_~ ") == pendientes.NADA_CLARO
     assert _abiertos(db) == []
+
+
+def test_el_texto_va_sin_simbolos_de_formato_y_hasta_120_caracteres(db, ia):
+    """Un * o un _ en el texto desarmaría la negrita y la cursiva de la respuesta."""
+    con_perfil(db, TEL)
+    r = _anotar(ia, db, "pedir *ivermectina* y ~vacunas~", texto="pedir *ivermectina* y_vacunas ~ya~")
+    assert r.startswith("📌 *PENDIENTE ANOTADO*\n\n📌 *Pedir ivermectina y vacunas ya*")
+    largo = "revisar " + "aguadas " * 30
+    _anotar(ia, db, "uno largo", texto=largo)
+    assert _ultimo(db).texto == largo[:120].rstrip() and len(_ultimo(db).texto) <= 120
 
 
 # --- Consultar ------------------------------------------------------------------------
@@ -233,6 +244,39 @@ def test_borrar_un_pendiente(db, ia):
     r = _sobre(ia, db, "borrar_pendiente", "borrá el pendiente de la ivermectina", {"texto": "ivermectina"})
     assert r == "🗑️ *PENDIENTE BORRADO*\n\n🗑️ *Comprar ivermectina*"
     assert db.scalars(select(Pendiente.texto)).all() == ["llamar al veterinario"]
+
+
+def _cuatro_molinos(ia, db) -> None:
+    con_perfil(db, TEL)
+    for lote in ("1", "2", "3", "4"):
+        _anotar(ia, db, f"revisar el molino del lote {lote}", texto="revisar el molino", lote=lote)
+    _anotar(ia, db, "llamar al veterinario", texto="llamar al veterinario")
+
+
+def test_borrar_4_o_mas_pendientes_pide_confirmacion(db, ia):
+    _cuatro_molinos(ia, db)
+    r = _sobre(ia, db, "borrar_pendiente", "borrá todos los molinos", {"texto": "molino", "todos": True})
+    assert r.startswith("⚠️ *VOY A BORRAR 4 PENDIENTES*\n\n      › 📌 Revisar el molino · Lote 1\n")
+    assert "¿Confirmás? Respondé *sí*" in r
+    assert len(_abiertos(db)) == 5  # todavía no borró nada
+
+    r = _mandar(db, "sí")
+    assert r == "🗑️ *PENDIENTES BORRADOS*\n\nListo, borré 4 pendientes."
+    assert _abiertos(db) == ["llamar al veterinario"]
+
+
+def test_borrar_4_pendientes_se_puede_cancelar(db, ia):
+    _cuatro_molinos(ia, db)
+    _sobre(ia, db, "borrar_pendiente", "borrá todos los molinos", {"texto": "molino", "todos": True})
+    assert _mandar(db, "no") == "👌 Listo, no borré nada."
+    assert len(_abiertos(db)) == 5
+
+
+def test_marcar_hechos_4_o_mas_no_pide_confirmacion(db, ia):
+    _cuatro_molinos(ia, db)
+    r = _sobre(ia, db, "pendiente_hecho", "ya revisé todos los molinos", {"texto": "molino", "todos": True})
+    assert r.startswith("✅ *HECHO*") and r.endswith("_Te queda 1 pendiente._")
+    assert _abiertos(db) == ["llamar al veterinario"]
 
 
 def test_borrar_deshace_lo_ultimo_que_se_anoto(db, ia):

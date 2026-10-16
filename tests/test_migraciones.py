@@ -10,7 +10,7 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
-from sqlalchemy import Boolean, Column, Date, DateTime, MetaData, String, bindparam, inspect, select, text
+from sqlalchemy import JSON, Boolean, Column, Date, DateTime, MetaData, String, bindparam, inspect, select, text
 from sqlalchemy.orm import sessionmaker
 
 from app.infra import migrar
@@ -388,6 +388,40 @@ def test_0010_agrega_los_pendientes_y_vuelve_atras(engine):
     with engine.connect() as c:
         assert migrar.version(c) == "0009"
         assert "pendientes" not in inspect(c).get_table_names()
+
+
+def test_0011_un_borrado_esperando_confirmacion_queda_como_de_registros(engine):
+    migrar_hasta(engine, "0010")
+    with engine.begin() as c:
+        creado = bindparam("creado", type_=DateTime(timezone=True))
+        cuenta_id = c.execute(
+            text("insert into cuentas (creado) values (:creado) returning id").bindparams(creado),
+            {"creado": datetime(2026, 10, 1, tzinfo=UTC)},
+        ).scalar_one()
+        usuario_id = c.execute(
+            text(
+                "insert into usuarios (cuenta_id, telefono, autorizado, creado) "
+                "values (:cuenta, '5491100000001', :si, :creado) returning id"
+            ).bindparams(bindparam("si", type_=Boolean), creado),
+            {"cuenta": cuenta_id, "si": True, "creado": datetime(2026, 10, 1, tzinfo=UTC)},
+        ).scalar_one()
+        c.execute(
+            text("insert into borrados_pendientes (usuario_id, ids, creado) values (:u, :ids, :creado)").bindparams(
+                bindparam("ids", type_=JSON), bindparam("creado", type_=DateTime(timezone=True))
+            ),
+            {"u": usuario_id, "ids": [1, 2, 3, 4], "creado": datetime(2026, 10, 16, tzinfo=UTC)},
+        )
+
+    migrar.preparar_base(engine)
+    with engine.connect() as c:
+        assert c.execute(text("select que from borrados_pendientes")).scalar_one() == "registros"
+
+    with engine.begin() as c:
+        command.downgrade(migrar._config(c), "0010")
+    with engine.connect() as c:
+        assert migrar.version(c) == "0010"
+        assert "que" not in [col["name"] for col in inspect(c).get_columns("borrados_pendientes")]
+        assert c.execute(text("select usuario_id from borrados_pendientes")).scalar_one() == usuario_id
 
 
 def test_0003_no_adivina_de_quien_son_registros_sin_usuario(engine):
