@@ -1,6 +1,7 @@
 """Mis campos: los establecimientos y lotes de la persona, con cuántos registros tiene cada uno.
 
-Es un comando fijo, sin IA. Unir dos establecimientos que son el mismo escrito distinto
+"mis campos" es un atajo sin IA; pedido con otras palabras ("¿qué campos tengo cargados?")
+llega por la IA a la misma función (cuenta.py). Unir dos establecimientos que son el mismo escrito distinto
 ("La Esperanza" y "Esperanza") queda para más adelante.
 """
 

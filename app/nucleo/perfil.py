@@ -209,20 +209,40 @@ def _resolver_cambio(usuario: Usuario, pregunta: str, texto: str) -> str | None:
     return f"✅ Listo, tu matrícula es *{matricula}*.\nVa a figurar en tus reportes en PDF."
 
 
+def ver_datos(ctx: Contexto) -> str:
+    """Mis datos: el atajo o el pedido con cualquier frase."""
+    ctx.guardar_charla = False  # trae nombre, localidad, matrícula
+    return mis_datos(ctx.usuario)
+
+
+def pedir_rubro(ctx: Contexto) -> str:
+    """Cambiar rubro: muestra el actual y pregunta el nuevo."""
+    ctx.guardar_charla = False
+    ctx.usuario.pregunta = CAMBIO_RUBRO
+    return f"Ahora figurás como *{_rubro(ctx.usuario)}*.\n\n{PREGUNTAS['rubro']}"
+
+
+def pedir_matricula(ctx: Contexto) -> str:
+    """Cambiar matrícula: pregunta la nueva."""
+    ctx.guardar_charla = False
+    ctx.usuario.pregunta = CAMBIO_MATRICULA
+    return PREGUNTA_MATRICULA
+
+
 def comando(ctx: Contexto) -> str | None:
-    """Los comandos del perfil (mis datos, cambiar rubro, cambiar matrícula) y las respuestas
-    a sus preguntas. None si el mensaje no es para el perfil."""
+    """Los atajos del perfil (mis datos, cambiar rubro, cambiar matrícula) y las respuestas
+    a sus preguntas. None si el mensaje no es para el perfil. Pedidos con otras palabras
+    llegan por la IA a las mismas funciones (`modulos/comun/cuenta.py`)."""
     usuario = ctx.usuario
     pendiente, usuario.pregunta = usuario.pregunta, None
     if pendiente in (CAMBIO_RUBRO, CAMBIO_MATRICULA) and (respuesta := _resolver_cambio(usuario, pendiente, ctx.texto)):
+        ctx.guardar_charla = False
         return respuesta
     pedido = _normalizar(ctx.texto)
     if pedido in VER_DATOS:
-        return mis_datos(usuario)
+        return ver_datos(ctx)
     if pedido in CAMBIAR_RUBRO:
-        usuario.pregunta = CAMBIO_RUBRO
-        return f"Ahora figurás como *{_rubro(usuario)}*.\n\n{PREGUNTAS['rubro']}"
+        return pedir_rubro(ctx)
     if pedido in CAMBIAR_MATRICULA:
-        usuario.pregunta = CAMBIO_MATRICULA
-        return PREGUNTA_MATRICULA
+        return pedir_matricula(ctx)
     return None

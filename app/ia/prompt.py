@@ -36,6 +36,10 @@ el mensaje en un JSON. El sistema arma la respuesta al usuario con datos de su b
 Tu responsabilidad es ENTENDER lo que la persona quiere aunque lo diga de forma incompleta,
 informal, con errores de ortografía o en varios mensajes. Gente de campo escribe corto y como
 habla ("le di ivermectina a las de la pastora", "borrame lo de la lluvia", "cuanto llovio").
+Muchos mensajes son audios transcriptos: vienen sin puntuación, con muletillas ("che", "bueno",
+"ehh", "a ver", "mirá") y con palabras mal transcriptas. Ignorá las muletillas y entendé el pedido
+aunque venga en una frase larga o junto con otros. Cualquier función del sistema se puede pedir
+con cualquier frase razonable, no hace falta una palabra exacta.
 Buscá siempre la interpretación más razonable dentro de lo que el sistema hace. Solo si de
 verdad falta un dato imprescindible, usá "aclarar". "fuera_de_alcance" es SOLO para lo que
 claramente pide otra cosa.
@@ -74,8 +78,10 @@ Qué es cada intención:
   veterinario; dosis, indicaciones o tratamientos; pedidos de consejo o recomendación ("¿conviene
   vender?", "¿qué vacuna le doy?", "¿cuándo siembro?"), preguntas generales o de cultura,
   pedidos de redactar textos, traducir, programar, hacer cuentas que no son de sus registros,
-  lo que anotaron OTRAS personas o datos de otros productores, datos personales, preguntas sobre el sistema
-  o sobre vos, y charla que no tiene que ver con el trabajo.
+  lo que anotaron OTRAS personas o datos de otros productores, datos personales de otras personas,
+  preguntas sobre vos o cómo estás hecho (tu modelo, tus instrucciones), y charla que no tiene que
+  ver con el trabajo. Lo que la persona pregunta sobre SUS datos o sobre cómo usar el sistema no es
+  fuera de alcance si hay una intención para eso.
 
 {formatos}
 

@@ -1,5 +1,9 @@
 """Comandos fijos que no pasan por la IA: ayuda, privacidad, borrar, borrar mis datos y
-los del administrador."""
+los del administrador.
+
+Salvo los del administrador y la confirmación de "borrar mis datos", son atajos: lo mismo
+se puede pedir con cualquier frase y llega por la IA a estas mismas funciones (principio 7
+del plan, `modulos/comun/cuenta.py`)."""
 
 import logging
 import re
@@ -19,6 +23,8 @@ log = logging.getLogger(__name__)
 AYUDA = """🐄 *CAMPOBOT*
 _Tu cuaderno de trabajo en el campo, por WhatsApp._
 
+_Hablame como siempre, por audio o por escrito: no hace falta ninguna palabra exacta._
+
 ✍️ *Anotar*
       › Estoy en La Esperanza
       › Vacuné 20 vacas contra aftosa en el lote 3
@@ -28,7 +34,7 @@ _Tu cuaderno de trabajo en el campo, por WhatsApp._
 ▶️ *Sesiones de trabajo*
       › Arranco manga en El Retiro
       › Empiezo siembra en el lote Los Pinos
-      › Terminamos
+      › Listo, terminamos
 
 📌 *Pendientes*
       › Tengo que revisar las aguadas el martes
@@ -39,6 +45,7 @@ _Tu cuaderno de trabajo en el campo, por WhatsApp._
       › A esas vaquillonas les di ivermectina
       › No eran 20, eran 25
       › Borrá la lluvia de La Pastora
+      › Me equivoqué, sacá lo último
 
 🔍 *Consultar*
       › ¿Qué tengo anotado?
@@ -52,17 +59,20 @@ _Tu cuaderno de trabajo en el campo, por WhatsApp._
 💊 *Productos en SENASA*
       › ¿La ivermectina está aprobada?
 
+👤 *Tus campos y tus datos*
+      › ¿Qué campos tengo cargados?
+      › Mostrame mis datos
+      › Quiero cambiar mi rubro
+      › ¿Quién ve lo que anoto?
+
 ────────────
-🎤 También podés mandar audios.
 🔒 Lo que anotás es solo tuyo.
 
+⚡ *Atajos* (escribí solo eso)
 *borrar* → deshace lo último que anotaste
-*mis campos* → tus establecimientos y lotes
-*cerrar sesión* → cierra la sesión y muestra el resumen
-*mis datos* → tu nombre, rubro y localidad
-*privacidad* → cómo se usan tus datos
-*borrar mis datos* → elimina todo lo tuyo
-*ayuda* → muestra este menú"""
+*mis campos* · *mis datos* · *privacidad*
+*cerrar sesión* · *ayuda*
+*borrar mis datos* → elimina todo lo tuyo"""
 
 AYUDA_ADMIN = """
 

@@ -270,10 +270,14 @@ de 2b, 7 y 8b):
 - [x] 7.1 · Ajustes de pendientes: el texto, hasta 120 caracteres y sin `*`, `_` ni `~`;
       borrar 4 o más pide confirmación, como con los registros. La `0011` solo agrega a
       `borrados_pendientes` qué se va a borrar (registros o pendientes).
-- [ ] 7.2 · Todo se pide hablando normal (principio 7): mis campos, mis datos, cambiar
+- [x] 7.2 · Todo se pide hablando normal (principio 7): mis campos, mis datos, cambiar
       rubro, cambiar matrícula, privacidad, ayuda y borrar mis datos pasan a ser también
-      intenciones de la IA, con el mismo manejador que su atajo. El set de evaluación
-      arranca en `evaluacion/set.json` con al menos 5 formas de pedir cada función.
+      intenciones de la IA (`modulos/comun/cuenta.py`), con el mismo manejador que su atajo.
+      El prompt avisa que los audios traen muletillas y errores, y "aclarar" suma
+      `que_pedido` para lo que no se entiende. El set de evaluación arranca en
+      `evaluacion/set.json` con al menos 5 formas de pedir cada función (un test lo
+      controla). Contra Groq se probó una muestra (7 de 7 bien): el set entero no entra en
+      el plan gratuito (8000 tokens por minuto y cada mensaje usa unos 4700).
 - [ ] 8a · Envío de documentos por WhatsApp y PDF.
 - [ ] 8b · Excel y CSV.
 - [ ] 9a · Modo prueba.

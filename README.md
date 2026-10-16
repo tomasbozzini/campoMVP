@@ -39,10 +39,11 @@ bot> Eso no lo puedo responder. Solo puedo: ...
 ## Qué hace
 
 - **Registra eventos** de sanidad (vacunación, desparasitación, tratamientos), movimientos de hacienda (nacimientos, muertes, compras, ventas, traslados), pesadas, reproducción (tacto, servicio, destete) y del campo (lluvias, siembra, fumigación). Un mensaje puede traer varios eventos.
+- **Todo se pide hablando normal**, por texto o audio: "che, ¿qué campos tengo cargados?", "¿quién ve lo que anoto?", "bueno, ¿qué podés hacer?". Los comandos escritos (`mis campos`, `mis datos`, `cambiar rubro`, `cambiar matrícula`, `privacidad`, `ayuda`, `borrar`, `cerrar sesión`, `borrar mis datos`) son atajos: si el mensaje es exactamente el comando responde sin IA; si no, la IA reconoce el pedido y responde lo mismo. Excepciones: borrar los datos exige escribir `confirmo borrar mis datos`, y los comandos del administrador solo funcionan escritos exactos. Las frases que tiene que reconocer, al menos 5 por función, están en `evaluacion/set.json`.
 - **Varios pedidos en un mensaje**: "¿cuánto está la soja y el maíz?", o "anotá que llovieron 20 mm, borrá la cosecha del lote 5 y ¿la ivermectina está en SENASA?". La IA separa el mensaje en acciones (hasta 6) y el bot responde cada una en orden; los precios salen juntos, agrupados por fuente.
 - **Corrige registros**: "a esas 5 vaquillonas las vacuné con ivermectina" o "no eran 20, eran 25" modifican el registro que corresponde (busca entre los últimos 20 el que coincide con lo que mencionás) en vez de crear uno nuevo, y muestra cómo quedó antes y ahora.
 - **Borra registros puntuales**: "borrá la lluvia de La Pastora" o "borrá las 5 vaquillonas y la cosecha del lote 5, ambos de La Pastora". Cada descripción tiene que señalar un solo registro: si coincide con varios, no borra nada y muestra las opciones para que precises (o pedís borrar *todos*). Con "¿qué tengo anotado?" ves la lista.
-- **Guarda en qué establecimiento y lote** fue cada cosa. Si no lo decís, usa el último establecimiento que nombraste y lo muestra en la confirmación. Los establecimientos y lotes son de tu cuenta: "Estancia La Esperanza" y "la esperanza" son el mismo, y el lote 3 de La Esperanza es distinto del lote 3 de El Ombú. `mis campos` los lista, con sus lotes y cuántos registros tiene cada uno (sin IA).
+- **Guarda en qué establecimiento y lote** fue cada cosa. Si no lo decís, usa el último establecimiento que nombraste y lo muestra en la confirmación. Los establecimientos y lotes son de tu cuenta: "Estancia La Esperanza" y "la esperanza" son el mismo, y el lote 3 de La Esperanza es distinto del lote 3 de El Ombú. `mis campos` los lista, con sus lotes y cuántos registros tiene cada uno.
 - **Sesiones de trabajo**: "arranco manga en El Retiro lote 3" abre una sesión; lo que anotás sin decir el campo queda en ella, con su campo y su lote (la lluvia no hereda el lote). "terminamos" o `cerrar sesión` la cierra y muestra el resumen con los totales. Una abierta por persona: abrir otra cierra la anterior. Se cierra sola a las 12 horas sin mensajes, y el aviso con el resumen llega cuando volvés a escribir (el bot no manda nada por su cuenta).
 - **Pendientes**: "tengo que revisar las aguadas el martes" lo anota como pendiente, con su fecha, en el campo que nombrás o, si no nombrás ninguno, en el de la sesión o el campo actual (sin cambiarlo). "¿qué tengo pendiente?" los lista con los vencidos primero (⚠️), también por campo; "ya está lo de las aguadas" lo marca hecho y "borrá el pendiente de las aguadas" lo saca. Si la descripción coincide con varios, no toca ninguno y muestra las opciones. Borrar 4 o más de una vez pide confirmación, como con los registros. El texto se guarda con hasta 120 caracteres y sin `*`, `_` ni `~`. `borrar` deshace lo último que anotaste, sea un registro o un pendiente.
 - **Responde preguntas** sobre lo que anotaste vos (también por establecimiento). Los totales los calcula el código, no la IA, para que las sumas den bien.
@@ -85,7 +86,7 @@ WhatsApp ──► Meta Cloud API ──► POST /webhook (api/webhook.py)
                                    ▼
            ¿número autorizado? ── no ──► "no tenés acceso" (sin IA)
                                    ▼
-            comandos fijos (borrar / ayuda / privacidad / autorizar...)
+     atajos exactos, sin IA (borrar / ayuda / mis campos / autorizar...)
                                    ▼
        la IA SOLO clasifica ──► JSON con acciones ──► se valida con el esquema de cada acción
                                    │                     (lo que no valida: fuera de alcance)
@@ -103,7 +104,7 @@ WhatsApp ──► Meta Cloud API ──► POST /webhook (api/webhook.py)
 | `app/canales/` | WhatsApp: lectura del webhook, envío de mensajes, descarga de audios, firma |
 | `app/nucleo/` | El camino del mensaje (`pipeline.py`), acceso, comandos fijos, charla reciente, registro de acciones y el `Cuaderno`: la única puerta a los datos de cada persona |
 | `app/ia/` | El proveedor de IA detrás de una interfaz (hoy Groq), el armado del prompt y los tipos que validan su salida |
-| `app/modulos/comun/` | Las acciones: registrar, corregir, borrar, consultar, establecimiento, sesiones, pendientes, saludo/aclarar, precios y SENASA. Cada una con su esquema y su manejador; lo que el módulo le suma al prompt está en `prompt.py` y su glosario para Whisper en `glosario.py` |
+| `app/modulos/comun/` | Las acciones: registrar, corregir, borrar, consultar, establecimiento, sesiones, pendientes, lo de la cuenta (ayuda, privacidad, mis campos, mis datos, cambiar rubro y matrícula, borrar mis datos), saludo/aclarar, precios y SENASA. Cada una con su esquema y su manejador; lo que el módulo le suma al prompt está en `prompt.py` y su glosario para Whisper en `glosario.py` |
 | `app/fuentes/` | Descarga y carga de precios oficiales y del registro de SENASA |
 | `app/salidas/` | Formato de los mensajes de WhatsApp y la página de privacidad |
 | `app/infra/` | Configuración, base de datos, modelos, migraciones (Alembic), logs y la fila por número |
@@ -134,7 +135,7 @@ El bot no es un chat de IA. Está armado para que no se pueda usar para otra cos
 
 - **Política de privacidad**: el bot la publica en `/privacidad` (por ejemplo `https://tu-bot.up.railway.app/privacidad`). Esa es la URL que pide Meta para publicar la app. Completá `PRIVACIDAD_RESPONSABLE` (nombre o razón social) y `PRIVACIDAD_CONTACTO` (email) en el `.env`. El texto está en `app/salidas/privacidad.py` y es un **borrador**: revisalo con alguien que sepa de protección de datos (Ley 25.326) antes de tener clientes.
 - **`privacidad`**: el usuario recibe un resumen de cómo se usan sus datos y, si está configurada `PRIVACIDAD_URL`, el link a la política completa.
-- **`borrar mis datos`**: el bot muestra qué se va a borrar y pide confirmar con `confirmo borrar mis datos`. Al confirmar se eliminan el cuaderno, los mensajes recientes, el uso diario y el número de la persona, que pierde el acceso hasta que el administrador la habilite de nuevo. Nada de esto pasa por la IA.
+- **`borrar mis datos`**: el bot muestra qué se va a borrar y pide confirmar con `confirmo borrar mis datos`. Al confirmar se eliminan el cuaderno, los mensajes recientes, el uso diario y el número de la persona, que pierde el acceso hasta que el administrador la habilite de nuevo. El aviso también sale pidiéndolo con otras palabras ("dame de baja"), pero la confirmación es solo escrita y exacta: nunca pasa por la IA.
 
 ## Precios de fuentes oficiales
 

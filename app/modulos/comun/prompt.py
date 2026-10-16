@@ -1,5 +1,5 @@
 """Lo que el módulo común le suma al prompt: el cuaderno, las consultas, las sesiones, los
-pendientes, los precios y SENASA."""
+pendientes, lo de la cuenta (ayuda, privacidad, mis campos, mis datos), los precios y SENASA."""
 
 from app.ia.prompt import Parte
 
@@ -18,6 +18,13 @@ PROMPT = Parte(
         "ver_pendientes",
         "pendiente_hecho",
         "borrar_pendiente",
+        "mis_campos",
+        "mis_datos",
+        "cambiar_rubro",
+        "cambiar_matricula",
+        "privacidad",
+        "ayuda",
+        "borrar_mis_datos",
         "precio",
         "producto_veterinario",
     ),
@@ -27,7 +34,7 @@ PROMPT = Parte(
   "borrado": BORRADO | null,       // solo si intencion = "borrar"
   "falta": [ ... ] | null,         // solo si intencion = "aclarar": qué datos faltan, de esta lista:
                                    // "que_paso", "establecimiento", "cual_registro", "que_cambiar",
-                                   // "cantidad", "producto", "fecha", "que_producto_precio"
+                                   // "cantidad", "producto", "fecha", "que_producto_precio", "que_pedido"
   "agradece": bool | null,         // solo si intencion = "saludo": true si es un agradecimiento
   "consulta": CONSULTA | null,     // solo si intencion = "consultar"
   "sesion": { "lote": string | null, "actividad": string | null } | null,  // solo si intencion = "abrir_sesion"
@@ -42,10 +49,12 @@ PROMPT = Parte(
   "eran 30, no 20", "me equivoqué, fue en el lote 4", "lo de recién fue ayer", "corregí: ...".
   Si cuenta algo que hizo además de lo anterior ("también desparasité 10 terneros"), es "registrar".
 - "borrar": pide borrar o eliminar uno o varios registros que anotó ("borrá la lluvia de La Pastora",
-  "eliminá las 5 vaquillonas y la cosecha del lote 5", "sacá lo último").
+  "eliminá las 5 vaquillonas y la cosecha del lote 5"), o deshacer lo último que anotó ("sacá lo
+  último", "deshacé eso", "me equivoqué, borralo", "eso no va, sacalo").
 - "consultar": pregunta por cosas que ÉL MISMO anotó antes, o pide la lista de lo que tiene
   anotado ("¿qué tengo anotado?", "pasame la lista de La Pastora") ("¿qué hice hoy?", "¿qué hice en La Esperanza?").
-  Lo que tiene pendiente o por hacer es "ver_pendientes".
+  Lo que tiene pendiente o por hacer es "ver_pendientes"; la lista de sus campos o lotes, sin
+  preguntar por lo anotado, es "mis_campos".
 - "establecimiento": solo avisa dónde está o a qué campo llegó, sin registrar nada
   ("estoy en La Esperanza", "llegué a El Ombú"). Completá "establecimiento".
 - "abrir_sesion": avisa que EMPIEZA un trabajo en un lote, una manga o una tarea, para que lo que
@@ -54,8 +63,8 @@ PROMPT = Parte(
   "sesion" el lote (como en EVENTO) y la actividad en pocas palabras y en minúscula ("manga",
   "siembra", "tacto vaquillonas"). Si solo dice dónde está, sin decir que empieza un trabajo, es
   "establecimiento".
-- "cerrar_sesion": avisa que TERMINÓ ese trabajo ("terminamos", "cerramos la manga", "listo,
-  terminé la siembra").
+- "cerrar_sesion": avisa que TERMINÓ ese trabajo o pide cerrar la sesión ("terminamos", "cerramos
+  la manga", "listo, terminé la siembra", "cerrá la sesión", "bueno, ya está, cortamos acá").
 - "anotar_pendiente": algo que TIENE QUE HACER más adelante y quiere tener presente ("tengo que
   volver a revisar las vaquillonas el martes", "acordate de pedir vacunas", "pendiente: llamar al
   veterinario", "en 21 días toca la segunda dosis en El Ombú"). No es "registrar": todavía no pasó.
@@ -66,6 +75,21 @@ PROMPT = Parte(
   anotar ("ya vacuné las 30 vaquillonas que tenía pendientes"), van "registrar" y "pendiente_hecho".
 - "borrar_pendiente": pide borrar o sacar un pendiente ("borrá el pendiente de llamar a Juan",
   "sacá lo de las vacunas de los pendientes"). Si habla de algo que anotó como hecho, es "borrar".
+- "mis_campos": quiere ver la lista de sus campos, establecimientos o lotes ("quiero ver mis
+  campos", "¿qué campos tengo cargados?", "mostrame los establecimientos", "pasame los lotes que tengo").
+- "mis_datos": quiere ver los datos de su perfil: nombre, rubro, localidad o matrícula ("mostrame
+  mis datos", "¿qué datos míos tenés?", "¿cómo figuro?", "mi perfil").
+- "cambiar_rubro": quiere cambiar su rubro o a qué se dedica ("quiero cambiar mi rubro", "me
+  anotaste mal, soy agrónomo", "cambiame la profesión").
+- "cambiar_matricula": quiere cargar, cambiar o borrar su matrícula ("quiero cargar mi matrícula",
+  "cambiame la matrícula", "sacá mi matrícula").
+- "privacidad": pregunta cómo se usan o se guardan sus datos, quién ve lo que anota, o pide la
+  política de privacidad ("¿quién ve lo que anoto?", "¿cómo usan mis datos?", "quiero ver lo de privacidad").
+- "ayuda": pregunta qué puede hacer el sistema o cómo se usa, o pide ayuda o el menú ("¿qué podés
+  hacer?", "¿cómo funciona esto?", "mandame el menú", "no sé cómo usarte").
+- "borrar_mis_datos": pide borrar TODOS sus datos o su cuenta, darse de baja o que no quede nada
+  suyo ("quiero borrar mi cuenta", "eliminá todos mis datos", "dame de baja"). Borrar lo anotado
+  en el cuaderno ("borrá todo lo anotado") es "borrar".
 - "precio": pide el precio o cotización actual de un grano o de hacienda (soja, maíz, trigo,
   girasol, sorgo, cebada, novillo, vaca, ternero, vaquillona, toro...).
 - "producto_veterinario": quiere saber si un producto veterinario (vacuna, antiparasitario,
@@ -74,7 +98,9 @@ PROMPT = Parte(
 - "aclarar": el pedido SÍ es de lo que hace el sistema pero falta un dato sin el cual no se puede
   hacer (ej: "anotá" sin decir qué; "corregí eso" sin decir qué cambiar). No lo uses si el dato
   se puede deducir del mensaje o de la conversación reciente. Que falte el establecimiento NO
-  impide registrar: registrá igual.
+  impide registrar: registrá igual. Si pide algo del sistema pero no se entiende qué ("quiero
+  ver", "mostrame eso", "pasame lo mío" sin nada antes en la conversación), "falta":
+  ["que_pedido"]: no adivines.
 - "saludo": saludos, agradecimientos, "ok", "dale", "buen día" sin ningún pedido.""",
     pedidos="""\
 Cada producto de un pedido de precios es una acción "precio" aparte (soja y maíz = dos acciones).

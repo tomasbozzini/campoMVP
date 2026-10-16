@@ -87,9 +87,26 @@ def manejar_mensaje(db: Session, telefono: str, texto: str, nombre: str | None =
 
 def _respuesta_fija(texto: str, telefono: str) -> str | None:
     """Los comandos que se responden igual durante el alta: ayuda y privacidad."""
-    comando = texto.lower().strip(" !.¡")
+    comando = comandos.normalizar(texto)
     if comando in comandos.PEDIR_AYUDA:
         return comandos.ayuda(es_admin(telefono))
+    if comando in comandos.VER_PRIVACIDAD:
+        return comandos.privacidad()
+    return None
+
+
+def _atajo(ctx: Contexto, telefono: str) -> str | None:
+    """Los atajos: si el mensaje es exactamente el comando, se responde sin IA. Pedidos con
+    otras palabras llegan por la IA a los mismos manejadores (principio 7 del plan)."""
+    comando = comandos.normalizar(ctx.texto)
+    if comando in comandos.PEDIR_AYUDA:
+        return comandos.ayuda(es_admin(telefono))
+    if comando in comandos.DESHACER:
+        return borrar.borrar_ultimo(ctx.cuaderno, ctx.hoy)
+    if comando in campos.PEDIR:
+        return campos.mis_campos(ctx.cuaderno, ctx.usuario)
+    if comando in sesiones.CERRAR:
+        return sesiones.cerrar_pedido(ctx)
     if comando in comandos.VER_PRIVACIDAD:
         return comandos.privacidad()
     return None
@@ -101,22 +118,13 @@ def _responder(ctx: Contexto, telefono: str) -> str:
     if (respuesta := confirmar.resolver(ctx.cuaderno, comando, ctx.ahora)) is not None:
         return respuesta
     if (respuesta := perfil.comando(ctx)) is not None:
-        ctx.guardar_charla = False  # trae nombre, localidad, matrícula
         return respuesta
     if es_admin(telefono) and (respuesta := comandos.admin(ctx.db, texto, ctx.usuario.id)):
         return respuesta
-    if comando in comandos.PEDIR_AYUDA:
-        return comandos.ayuda(es_admin(telefono))
     if invitaciones.es_solo_un_codigo(texto):
         return alta.YA_TENES_ACCESO
-    if comando in comandos.DESHACER:
-        return borrar.borrar_ultimo(ctx.cuaderno, ctx.hoy)
-    if comandos.normalizar(texto) in campos.PEDIR:
-        return campos.mis_campos(ctx.cuaderno, ctx.usuario)
-    if comandos.normalizar(texto) in sesiones.CERRAR:
-        return sesiones.cerrar_pedido(ctx)
-    if comando in comandos.VER_PRIVACIDAD:
-        return comandos.privacidad()
+    if (respuesta := _atajo(ctx, telefono)) is not None:
+        return respuesta
 
     if len(texto) > config.max_largo_mensaje:
         return MUY_LARGO

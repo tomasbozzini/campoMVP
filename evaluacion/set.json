@@ -1,0 +1,93 @@
+{
+  "version": 1,
+  "descripcion": "Frases y las intenciones que tiene que devolver la IA, en orden. Principio 7: cada función se pide con cualquier frase razonable, como sale de un audio. Al menos 5 frases por función (lo controla tests/test_hablando_normal.py).",
+  "frases": [
+    {"funcion": "mis_campos", "frase": "quiero ver mis campos", "intenciones": ["mis_campos"]},
+    {"funcion": "mis_campos", "frase": "che, ¿qué campos tengo cargados?", "intenciones": ["mis_campos"]},
+    {"funcion": "mis_campos", "frase": "mostrame los establecimientos", "intenciones": ["mis_campos"]},
+    {"funcion": "mis_campos", "frase": "pasame la lista de lotes que tengo", "intenciones": ["mis_campos"]},
+    {"funcion": "mis_campos", "frase": "bueno, a ver mis campos", "intenciones": ["mis_campos"]},
+    {"funcion": "mis_campos", "frase": "eh che decime cuales son los campos que tengo guardados", "intenciones": ["mis_campos"]},
+
+    {"funcion": "mis_datos", "frase": "mostrame mis datos", "intenciones": ["mis_datos"]},
+    {"funcion": "mis_datos", "frase": "che, ¿qué datos míos tenés?", "intenciones": ["mis_datos"]},
+    {"funcion": "mis_datos", "frase": "quiero ver mi perfil", "intenciones": ["mis_datos"]},
+    {"funcion": "mis_datos", "frase": "¿cómo figuro yo? ¿con qué nombre me tenés?", "intenciones": ["mis_datos"]},
+    {"funcion": "mis_datos", "frase": "bueno a ver pasame los datos míos que tenés cargados", "intenciones": ["mis_datos"]},
+
+    {"funcion": "cambiar_rubro", "frase": "quiero cambiar mi rubro", "intenciones": ["cambiar_rubro"]},
+    {"funcion": "cambiar_rubro", "frase": "che, me pusiste mal el rubro, cambialo", "intenciones": ["cambiar_rubro"]},
+    {"funcion": "cambiar_rubro", "frase": "cambiame la profesión", "intenciones": ["cambiar_rubro"]},
+    {"funcion": "cambiar_rubro", "frase": "ehh necesito cambiar a qué me dedico", "intenciones": ["cambiar_rubro"]},
+    {"funcion": "cambiar_rubro", "frase": "bueno quiero modificar el rubro que elegí cuando me anoté", "intenciones": ["cambiar_rubro"]},
+
+    {"funcion": "cambiar_matricula", "frase": "quiero cargar mi matrícula", "intenciones": ["cambiar_matricula"]},
+    {"funcion": "cambiar_matricula", "frase": "che, cambiame la matrícula", "intenciones": ["cambiar_matricula"]},
+    {"funcion": "cambiar_matricula", "frase": "necesito agregar el número de matrícula para los informes", "intenciones": ["cambiar_matricula"]},
+    {"funcion": "cambiar_matricula", "frase": "bueno ehh la matrícula está mal quiero corregirla", "intenciones": ["cambiar_matricula"]},
+    {"funcion": "cambiar_matricula", "frase": "sacá mi matrícula", "intenciones": ["cambiar_matricula"]},
+
+    {"funcion": "privacidad", "frase": "¿cómo usan mis datos?", "intenciones": ["privacidad"]},
+    {"funcion": "privacidad", "frase": "quiero ver lo de privacidad", "intenciones": ["privacidad"]},
+    {"funcion": "privacidad", "frase": "¿quién ve lo que anoto?", "intenciones": ["privacidad"]},
+    {"funcion": "privacidad", "frase": "che, ¿esto que anoto lo puede ver alguien más?", "intenciones": ["privacidad"]},
+    {"funcion": "privacidad", "frase": "bueno, una pregunta, ¿qué hacen con la información que les mando?", "intenciones": ["privacidad"]},
+    {"funcion": "privacidad", "frase": "pasame la política de privacidad", "intenciones": ["privacidad"]},
+
+    {"funcion": "ayuda", "frase": "¿qué podés hacer?", "intenciones": ["ayuda"]},
+    {"funcion": "ayuda", "frase": "che, ¿cómo funciona esto?", "intenciones": ["ayuda"]},
+    {"funcion": "ayuda", "frase": "mandame el menú", "intenciones": ["ayuda"]},
+    {"funcion": "ayuda", "frase": "no sé cómo usarte, ayudame", "intenciones": ["ayuda"]},
+    {"funcion": "ayuda", "frase": "bueno a ver qué cosas te puedo pedir", "intenciones": ["ayuda"]},
+    {"funcion": "ayuda", "frase": "eh qué se puede hacer con este bot", "intenciones": ["ayuda"]},
+
+    {"funcion": "borrar_ultimo", "frase": "deshacé lo último", "intenciones": ["borrar"]},
+    {"funcion": "borrar_ultimo", "frase": "me equivoqué, borrá lo que acabo de anotar", "intenciones": ["borrar"]},
+    {"funcion": "borrar_ultimo", "frase": "che, eso no va, sacalo", "intenciones": ["borrar"]},
+    {"funcion": "borrar_ultimo", "frase": "borrá lo último que te mandé", "intenciones": ["borrar"]},
+    {"funcion": "borrar_ultimo", "frase": "ehh no no cancelá eso que anoté recién", "intenciones": ["borrar"]},
+
+    {"funcion": "cerrar_sesion", "frase": "terminamos", "intenciones": ["cerrar_sesion"]},
+    {"funcion": "cerrar_sesion", "frase": "listo, cerrá la sesión", "intenciones": ["cerrar_sesion"]},
+    {"funcion": "cerrar_sesion", "frase": "bueno ya está, terminamos con la manga", "intenciones": ["cerrar_sesion"]},
+    {"funcion": "cerrar_sesion", "frase": "che cortamos acá por hoy", "intenciones": ["cerrar_sesion"]},
+    {"funcion": "cerrar_sesion", "frase": "ehh dale cerrá la sesión que ya terminé en el campo", "intenciones": ["cerrar_sesion"]},
+
+    {"funcion": "ver_pendientes", "frase": "¿qué tengo pendiente?", "intenciones": ["ver_pendientes"]},
+    {"funcion": "ver_pendientes", "frase": "che, ¿qué me falta hacer?", "intenciones": ["ver_pendientes"]},
+    {"funcion": "ver_pendientes", "frase": "mostrame los pendientes", "intenciones": ["ver_pendientes"]},
+    {"funcion": "ver_pendientes", "frase": "bueno a ver qué cosas tengo para hacer esta semana", "intenciones": ["ver_pendientes"]},
+    {"funcion": "ver_pendientes", "frase": "ehh ¿tengo algo pendiente en El Ombú?", "intenciones": ["ver_pendientes"]},
+
+    {"funcion": "anotar_pendiente", "frase": "tengo que revisar las aguadas el martes", "intenciones": ["anotar_pendiente"]},
+    {"funcion": "anotar_pendiente", "frase": "che, acordate que el jueves hay que vacunar en La Pastora", "intenciones": ["anotar_pendiente"]},
+    {"funcion": "anotar_pendiente", "frase": "anotame para mañana llamar al veterinario", "intenciones": ["anotar_pendiente"]},
+    {"funcion": "anotar_pendiente", "frase": "bueno ehh pendiente comprar ivermectina", "intenciones": ["anotar_pendiente"]},
+    {"funcion": "anotar_pendiente", "frase": "en 21 días toca la segunda dosis de las vaquillonas", "intenciones": ["anotar_pendiente"]},
+
+    {"funcion": "pendiente_hecho", "frase": "ya está lo de las aguadas", "intenciones": ["pendiente_hecho"]},
+    {"funcion": "pendiente_hecho", "frase": "che, ya llamé al veterinario", "intenciones": ["pendiente_hecho"]},
+    {"funcion": "pendiente_hecho", "frase": "listo lo de la ivermectina, ya la compré", "intenciones": ["pendiente_hecho"]},
+    {"funcion": "pendiente_hecho", "frase": "bueno lo del lote 3 que tenía pendiente ya lo hice", "intenciones": ["pendiente_hecho"]},
+    {"funcion": "pendiente_hecho", "frase": "ehh tachá lo de las aguadas que ya lo revisé", "intenciones": ["pendiente_hecho"]},
+
+    {"funcion": "borrar_pendiente", "frase": "borrá el pendiente de las aguadas", "intenciones": ["borrar_pendiente"]},
+    {"funcion": "borrar_pendiente", "frase": "sacá lo de llamar al veterinario de los pendientes", "intenciones": ["borrar_pendiente"]},
+    {"funcion": "borrar_pendiente", "frase": "che, eliminá el pendiente del molino que ya no va", "intenciones": ["borrar_pendiente"]},
+    {"funcion": "borrar_pendiente", "frase": "ese pendiente de la ivermectina borralo", "intenciones": ["borrar_pendiente"]},
+    {"funcion": "borrar_pendiente", "frase": "bueno ehh quitá de la lista de pendientes lo de las vacunas", "intenciones": ["borrar_pendiente"]},
+
+    {"funcion": "borrar_mis_datos", "frase": "quiero borrar mi cuenta", "intenciones": ["borrar_mis_datos"]},
+    {"funcion": "borrar_mis_datos", "frase": "eliminá todos mis datos", "intenciones": ["borrar_mis_datos"]},
+    {"funcion": "borrar_mis_datos", "frase": "che, dame de baja", "intenciones": ["borrar_mis_datos"]},
+    {"funcion": "borrar_mis_datos", "frase": "no quiero usar más esto, borrá todo lo mío y mi número", "intenciones": ["borrar_mis_datos"]},
+    {"funcion": "borrar_mis_datos", "frase": "bueno quiero que no quede nada mío guardado", "intenciones": ["borrar_mis_datos"]},
+
+    {"funcion": "varios", "frase": "mostrame mis campos y qué tengo pendiente", "intenciones": ["mis_campos", "ver_pendientes"]},
+    {"funcion": "varios", "frase": "che pasame mis datos y decime quién ve lo que anoto", "intenciones": ["mis_datos", "privacidad"]},
+    {"funcion": "varios", "frase": "bueno terminamos y anotame que mañana hay que revisar los toros", "intenciones": ["cerrar_sesion", "anotar_pendiente"]},
+
+    {"funcion": "ambiguo", "frase": "quiero ver", "intenciones": ["aclarar"]},
+    {"funcion": "ambiguo", "frase": "ehh mostrame eso", "intenciones": ["aclarar"]}
+  ]
+}

@@ -26,6 +26,11 @@ PREGUNTAS = {
     "producto": "¿Qué producto usaste?",
     "fecha": "¿Qué día fue?",
     "que_producto_precio": "¿De qué grano o categoría de hacienda querés el precio? Por ejemplo: _soja_, _novillo_.",
+    # El pedido es del sistema pero no se entiende cuál (principio 7: preguntar, no adivinar).
+    "que_pedido": (
+        "¿Qué necesitás? Por ejemplo: _anotar lo que hiciste_, _ver lo que anotaste_, _ver tus pendientes_ "
+        "o _ver tus campos_.\nMandá *ayuda* para ver todo lo que puedo hacer."
+    ),
 }
 
 
