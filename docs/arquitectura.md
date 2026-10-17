@@ -85,7 +85,7 @@ del perfil del usuario (menos tokens, menos latencia, más precisión).
 | PDF | Con logo y marca CampoBot | Decisión de producto |
 | Alta de usuarios | **Código de invitación** + alta guiada. La aprobación del administrador se suma después sobre el mismo flujo | Entran al instante, sin carga manual ni mensajes pagos; control de quién entra |
 | Producción | **Railway** desde la etapa 1: el bot, Postgres y el cron `actualizar-precios` (`30 21 * * 1-5`). Cada push a la rama despliega y migra al arrancar, sin esperar al CI | Se adelantó (el plan lo dejaba para la etapa 4): las pruebas desde el celular son contra Railway |
-| IA | Interpretar: `openai/gpt-oss-120b` por **OpenRouter** (con `OPENROUTER_API_KEY`), solo con proveedores que no guardan ni entrenan con los datos (`data_collection: deny`) y que aceptan todos los parámetros del pedido (`require_parameters`); **Groq** de respaldo si OpenRouter falla, o como único si no hay clave. Audios: Whisper en Groq | Groq no habilita el plan pago y con el gratuito el bot atiende un mensaje por minuto |
+| IA | Interpretar: `openai/gpt-oss-120b` por **OpenRouter** (con `OPENROUTER_API_KEY`), solo con proveedores de retención cero (`zdr`), que no guardan ni entrenan con los datos (`data_collection: deny`) y que aceptan todos los parámetros del pedido (`require_parameters`); **Groq** de respaldo si OpenRouter falla, o como único si no hay clave. Audios: Whisper en Groq | Groq no habilita el plan pago y con el gratuito el bot atiende un mensaje por minuto |
 
 ## 5. Seguridad
 
@@ -319,14 +319,22 @@ de 2b, 7 y 8b):
       - Un test controla el tamaño del prompt de cada rubro, con un tope.
 
       Cómo quedó: `ia/proveedor_openrouter.py` (con httpx, sin dependencias nuevas; espera
-      20 s y pasa al respaldo), `ConRespaldo` en `ia/proveedor.py` y `IASaturada` para 402,
+      20 s, 12 desde el 8.3, y pasa al respaldo), `ConRespaldo` en `ia/proveedor.py` y `IASaturada` para 402,
       408, 429, 5xx y sin respuesta (en Groq: límite, sin conexión o caído), también al
       transcribir un audio. Cada pedido deja en el log quién respondió, tokens, costo y
       demora, y al arrancar se loguea qué IA se usa. `python -m app eval` tiene `--funcion`,
       `--desde`, `--limite`, `--proveedor`, `--esfuerzo`, `--rubro`, `--tope-usd` (0,50 por
       defecto) y `--pausa`; Groq no informa el costo. Tope del prompt: 24.000 caracteres
-      por rubro (`LARGO_MAXIMO_PROMPT`; hoy 16.600). Pendiente: la comparación de esfuerzo,
-      cuando esté cargada la clave.
+      por rubro (`LARGO_MAXIMO_PROMPT`; hoy 16.600). La comparación de esfuerzo pasó al 8.3.
+- [ ] 8.3 · Ajustes de la IA (los cambios extra del 8.1 y el 8.2 quedan aceptados):
+      - OpenRouter espera 12 s antes de pasar al respaldo (20 s más el respaldo es demasiado;
+        la meta es responder en menos de 3 s). Después se ajusta con la p95 del eval.
+      - Si la IA está saturada o falla, ese mensaje no cuenta para el límite diario.
+      - Retención cero (`zdr`) además de `data_collection: deny`: para
+        `openai/gpt-oss-120b` hay varios proveedores con retención cero que aceptan todos los
+        parámetros del pedido. La política de privacidad lo dice.
+      - Comparación de esfuerzo `low` contra `medium` con el set completo; se muestra la
+        tabla antes de cambiarlo.
 - [ ] 9a · Modo prueba.
 - [ ] 9b · Set de evaluación armado con el modo prueba (`eval revisar`); el comando
       `python -m app eval` ya existe desde el 8.2.
