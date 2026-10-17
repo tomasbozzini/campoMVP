@@ -371,6 +371,49 @@ de 2b, 7 y 8b):
       "pendiente_hecho" y 4 de CSV dictado (96 en total). Corrida final de pendientes y
       exportar (43 frases): 42/43, mediana 1,3 s, p95 1,9 s, USD 0,087. Los logs salen por
       stdout.
+- [ ] 8.5 · Fallas de las pruebas desde el celular (con tests y frases nuevas en el set):
+      1. **Cancelar dicho natural.** Toda pregunta del bot que espera respuesta (cambiar
+         rubro, cambiar matrícula, las confirmaciones) se cancela con cualquier forma natural:
+         - Primero, sin IA, más variantes fijas del *no* ("no, no, dejá, no quiero cambiar
+           nada", "no quiero", "olvidate", "dejalo como está").
+         - Si no coinciden, el mensaje va a la IA con la pregunta pendiente como contexto (un
+           texto fijo del código que dice qué se preguntó, como la charla reciente) y una
+           intención nueva, "cancelar", que solo vale si hay una pregunta pendiente. Cada
+           pregunta tiene su respuesta fija al cancelar ("no cambié nada", "no borré nada").
+         - Si no es una respuesta ni un cancelar, la pregunta se descarta y el mensaje sigue
+           como pedido normal (como hoy).
+         - Con una pregunta pendiente, un "saludo" de la IA se toma como cancelar: nunca se
+           contesta con el saludo.
+      2. **Corregir pendientes.** Intención nueva, "corregir_pendiente": cambia la fecha, el
+         texto, el campo o el lote de pendientes que no están hechos.
+         - Sin decir cuál ("perdón, el martes no, el jueves 22"), el último anotado.
+         - Nombrándolo ("el de las aguadas") o en grupo ("los molinos"), con la misma búsqueda
+           que marcar hecho o borrar: si nombra uno y coinciden varios, muestra las opciones.
+         - Desde 4 pendientes pide confirmación con *sí*, como los borrados grandes (corregir
+           registros hoy cambia uno solo, así que la confirmación es la de los borrados). La
+           confirmación guarda los cambios: la tabla de borrados pendientes suma una columna
+           `datos` (JSON, opcional). Es una migración que no cambia ni borra datos.
+         - "corregir" queda para los registros. Si lo último anotado fue un pendiente, la IA
+           lo ve en la charla reciente.
+      3. **Fechas pasadas en pendientes.** El prompt decía que la fecha de un pendiente es
+         siempre futura. Pasa a decir: si habla en pasado ("tenía que… el lunes", "ayer"), es
+         esa fecha pasada, y el pendiente aparece como vencido.
+      4. **Nombres de campos en audios.**
+         - El glosario de Whisper suma los nombres de los campos y lotes de la persona (sus
+           datos, primero los campos con más registros, sin los lotes que son números), dentro
+           del tope de 500 caracteres: primero las palabras de los módulos y después los nombres
+           que entren.
+         - Un audio que trae solo un nombre propio ("El Ombú", respondiendo "¿en qué campo
+           fue?") es un mensaje; uno que trae solo nombres o palabras del glosario es el
+           glosario repetido por Whisper y no se procesa (como hoy).
+         - Antes de crear un campo, si el nombre se parece mucho a uno que ya tiene (iguales
+           sin "el", "la", "los", "las", o con letras parecidas: "Omu" y "El Ombú"), pregunta
+           "¿*Omu* es *El Ombú*?". *Sí* lo anota en El Ombú, *no* crea el campo nuevo, y
+           "cancelá" o "dejá" no anota nada. Lo del mensaje no se guarda hasta la respuesta
+           (queda esperando 10 minutos, como las confirmaciones).
+      - Set: frases de "cancelar" con la pregunta pendiente, de "corregir_pendiente" (con la
+        charla reciente cuando corrige el último) y de pendientes con fecha pasada. El set
+        acepta, por frase, la pregunta pendiente y la charla reciente.
 - [ ] 9a · Modo prueba.
 - [ ] 9b · Set de evaluación armado con el modo prueba (`eval revisar`); el comando
       `python -m app eval` ya existe desde el 8.2.
