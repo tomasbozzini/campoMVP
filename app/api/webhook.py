@@ -88,7 +88,8 @@ def procesar_mensaje(mensaje: MensajeEntrante) -> None:
             with SessionLocal() as db:
                 habilitado = acceso.puede_usar_ia(db, telefono)
                 en_alta = not habilitado and alta.en_curso(db, telefono) is not None
-                glosario = modulos.glosario(modulos.del_rubro(acceso.rubro(db, telefono)))
+                propios = acceso.nombres_propios(db, telefono)
+                glosario = modulos.glosario(modulos.del_rubro(acceso.rubro(db, telefono)), propios)
             if not habilitado:
                 # Sin IA para quien no tiene acceso: el alta se responde por escrito.
                 whatsapp.enviar_texto(telefono, alta.POR_ESCRITO if en_alta else acceso.NO_AUTORIZADO)
@@ -97,7 +98,7 @@ def procesar_mensaje(mensaje: MensajeEntrante) -> None:
             if len(audio) > config.max_audio_bytes:
                 whatsapp.enviar_texto(telefono, AUDIO_LARGO)
                 return
-            texto = interprete.transcribir(audio, glosario=glosario)
+            texto = interprete.transcribir(audio, glosario=glosario, propios=propios)
             if not texto:
                 log.info("Audio sin palabras (vacío o solo el glosario): no se procesa")
                 whatsapp.enviar_texto(telefono, AUDIO_VACIO)

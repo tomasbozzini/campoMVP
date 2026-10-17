@@ -1,10 +1,12 @@
-"""Saludos y repreguntas: respuestas cortas y fijas, escritas por el código."""
+"""Saludos, repreguntas y cancelar una pregunta del bot: respuestas cortas y fijas, escritas
+por el código."""
 
 from typing import Annotated
 
 from pydantic import BeforeValidator, Field
 
 from app.ia.esquemas import Bandera, EsquemaAccion
+from app.nucleo import preguntas
 from app.nucleo.acciones import Accion
 from app.nucleo.contexto import Contexto
 
@@ -49,8 +51,21 @@ class Aclarar(EsquemaAccion):
     ] = Field(default_factory=list)
 
 
-def saludar(_ctx: Contexto, datos: Saludo) -> str:
+class Cancelar(EsquemaAccion):
+    pass
+
+
+def saludar(ctx: Contexto, datos: Saludo) -> str:
+    if ctx.pregunta_abierta:
+        # Contestarle a una pregunta del bot con el saludo no tiene sentido: es que la deja.
+        return cancelar(ctx, Cancelar(intencion="cancelar"))
     return GRACIAS if datos.agradece else SALUDO
+
+
+def cancelar(ctx: Contexto, _datos: Cancelar) -> str:
+    """La persona cancela la pregunta que el bot le acababa de hacer ("no, dejá, no quiero
+    cambiar nada"). La pregunta ya se descartó: solo falta decírselo."""
+    return preguntas.al_cancelar(ctx.pregunta_abierta)
 
 
 def aclarar(_ctx: Contexto, datos: Aclarar) -> str:
@@ -60,4 +75,5 @@ def aclarar(_ctx: Contexto, datos: Aclarar) -> str:
 ACCIONES = [
     Accion("saludo", Saludo, saludar, se_omite_si_hay_otras=True),
     Accion("aclarar", Aclarar, aclarar),
+    Accion("cancelar", Cancelar, cancelar),
 ]

@@ -32,7 +32,7 @@ def _sin_datos_personales(db, *datos: str) -> None:
 @pytest.fixture
 def ia(monkeypatch):
     respuestas: dict[str, dict] = {}
-    monkeypatch.setattr(interprete, "interpretar", lambda texto, hoy, historial=None, partes=(): respuestas[texto])
+    monkeypatch.setattr(interprete, "interpretar", lambda texto, *_a, **_k: respuestas[texto])
     return respuestas
 
 

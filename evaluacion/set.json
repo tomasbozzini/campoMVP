@@ -114,6 +114,27 @@
     {"funcion": "varios", "frase": "bueno terminamos y anotame que mañana hay que revisar los toros", "intenciones": ["cerrar_sesion", "anotar_pendiente"]},
 
     {"funcion": "ambiguo", "frase": "quiero ver", "intenciones": ["aclarar"]},
-    {"funcion": "ambiguo", "frase": "ehh mostrame eso", "intenciones": ["aclarar"]}
+    {"funcion": "ambiguo", "frase": "ehh mostrame eso", "intenciones": ["aclarar"]},
+
+    {"funcion": "cancelar", "frase": "No, no, dejá, no quiero cambiar nada.", "intenciones": ["cancelar"], "pregunta": "rubro"},
+    {"funcion": "cancelar", "frase": "ehh no, mejor lo dejo como está", "intenciones": ["cancelar"], "pregunta": "rubro"},
+    {"funcion": "cancelar", "frase": "bueno no, me arrepentí", "intenciones": ["cancelar"], "pregunta": "rubro"},
+    {"funcion": "cancelar", "frase": "nah olvidate, después la cargo", "intenciones": ["cancelar"], "pregunta": "matricula"},
+    {"funcion": "cancelar", "frase": "uy no, pará, no borres nada", "intenciones": ["cancelar"], "pregunta": "borrar"},
+    {"funcion": "cancelar", "frase": "me equivoqué, no quería borrar eso", "intenciones": ["cancelar"], "pregunta": "borrar"},
+    {"funcion": "cancelar", "frase": "ninguno, dejá que lo anoto después", "intenciones": ["cancelar"], "pregunta": "campo"},
+    {"funcion": "pregunta_y_otro_pedido", "frase": "¿qué tengo pendiente?", "intenciones": ["ver_pendientes"], "pregunta": "rubro"},
+    {"funcion": "pregunta_y_otro_pedido", "frase": "vacuné 20 vacas en La Pastora", "intenciones": ["registrar"], "pregunta": "borrar"},
+    {"funcion": "corregir_pendiente", "frase": "Perdón, el martes no, el jueves 22 de octubre", "intenciones": ["corregir_pendiente"], "historial": [["usuario", "tengo que revisar las aguadas el martes"], ["bot", "📌 *PENDIENTE ANOTADO*\n\n📌 *Revisar las aguadas*\n      📅 Para el Mar 20/10/2026\n\n━━━━━━━━━━━━━━━\n_Cuando lo hagas, avisame. ¿Algo mal? Mandá *borrar*._"]]},
+    {"funcion": "corregir_pendiente", "frase": "no, era en el lote 4", "intenciones": ["corregir_pendiente"], "historial": [["usuario", "tengo que revisar las aguadas el martes"], ["bot", "📌 *PENDIENTE ANOTADO*\n\n📌 *Revisar las aguadas*\n      📅 Para el Mar 20/10/2026\n\n━━━━━━━━━━━━━━━\n_Cuando lo hagas, avisame. ¿Algo mal? Mandá *borrar*._"]]},
+    {"funcion": "corregir_pendiente", "frase": "El pendiente de las aguadas es para el jueves 22", "intenciones": ["corregir_pendiente"]},
+    {"funcion": "corregir_pendiente", "frase": "No son del Omu, son de La Feliz los molinos", "intenciones": ["corregir_pendiente"], "historial": [["usuario", "anotame que hay que revisar los molinos de los lotes 1, 2, 3 y 4 en Omu"], ["bot", "📌 *PENDIENTE ANOTADO*\n\n📌 *Revisar el molino*\n      Lote 4 · 📍 Omu\n\n━━━━━━━━━━━━━━━\n_Cuando lo hagas, avisame. ¿Algo mal? Mandá *borrar*._"]]},
+    {"funcion": "corregir_pendiente", "frase": "lo de llamar al veterinario pasalo para el viernes", "intenciones": ["corregir_pendiente"]},
+    {"funcion": "corregir_pendiente", "frase": "el pendiente de comprar ivermectina no es en La Pastora, es en El Retiro", "intenciones": ["corregir_pendiente"]},
+    {"funcion": "corregir", "frase": "perdón, eran 30, no 20", "intenciones": ["corregir"], "historial": [["usuario", "vacuné 20 vaquillonas en La Pastora"], ["bot", "✅ *ANOTADO*\n\n💉 *Vacunación* · 20 vaquillonas\n      📍 La Pastora · Sáb 17/10/2026\n\n━━━━━━━━━━━━━━━\n_¿Algo mal? Corregilo o mandá *borrar*._"]]},
+    {"funcion": "corregir", "frase": "no, fue en El Retiro", "intenciones": ["corregir"], "historial": [["usuario", "vacuné 20 vaquillonas en La Pastora"], ["bot", "✅ *ANOTADO*\n\n💉 *Vacunación* · 20 vaquillonas\n      📍 La Pastora · Sáb 17/10/2026\n\n━━━━━━━━━━━━━━━\n_¿Algo mal? Corregilo o mandá *borrar*._"]]},
+    {"funcion": "anotar_pendiente_pasado", "frase": "tenía que pagarle al contratista el lunes", "intenciones": ["anotar_pendiente"]},
+    {"funcion": "anotar_pendiente_pasado", "frase": "ayer había que llamar a Juan por las vacunas y no lo hice", "intenciones": ["anotar_pendiente"]},
+    {"funcion": "anotar_pendiente_pasado", "frase": "me olvidé de mandar las muestras al laboratorio el viernes, sigue pendiente", "intenciones": ["anotar_pendiente"]}
   ]
 }

@@ -16,7 +16,7 @@ from sqlalchemy import select
 from app.ia import interprete
 from app.infra.modelos import MensajeChat, Usuario
 from app.modulos.comun import conversacion
-from app.nucleo import acciones, pipeline
+from app.nucleo import acciones, pipeline, preguntas
 from tests.ayudas import con_perfil
 
 HOY = date(2026, 10, 15)
@@ -37,6 +37,8 @@ FUNCIONES = {
     "anotar_pendiente": "anotar_pendiente",
     "pendiente_hecho": "pendiente_hecho",
     "borrar_pendiente": "borrar_pendiente",
+    "corregir_pendiente": "corregir_pendiente",
+    "cancelar": "cancelar",
     "borrar_mis_datos": "borrar_mis_datos",
     "exportar_pdf": "exportar",
     "exportar_excel": "exportar",
@@ -110,6 +112,10 @@ def test_el_set_tiene_al_menos_5_formas_de_pedir_cada_funcion(funcion):
 def test_el_set_solo_espera_intenciones_que_existen():
     esperadas = {i for f in _frases() for i in f["intenciones"]}
     assert esperadas <= {*acciones.intenciones(), "fuera_de_alcance"}
+
+
+def test_las_preguntas_pendientes_del_set_existen():
+    assert {f["pregunta"] for f in _frases() if "pregunta" in f} <= set(preguntas.PREGUNTAS)
 
 
 def test_los_comandos_del_administrador_no_son_intenciones_de_la_ia():

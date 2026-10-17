@@ -78,8 +78,15 @@ def partes(nombres: Sequence[str]) -> list[Parte]:
     return [_partes[nombre] for nombre in nombres]
 
 
-def glosario(nombres: Sequence[str]) -> str:
+def glosario(nombres: Sequence[str], propios: Sequence[str] = ()) -> str:
     """El glosario para Whisper con las palabras de esos módulos, en ese orden y sin
-    repetir: "vaquillonas, novillos, ...". Vacío si no tienen ninguna."""
-    palabras = dict.fromkeys(p for nombre in nombres for p in _glosarios[nombre])
+    repetir: "vaquillonas, novillos, ...". Después, los nombres propios de la persona (sus
+    campos y lotes, "El Ombú") que entren en LARGO_MAXIMO_GLOSARIO. Vacío si no hay nada."""
+    palabras = list(dict.fromkeys(p for nombre in nombres for p in _glosarios[nombre]))
+    for propio in dict.fromkeys(propios):
+        if propio in palabras:
+            continue
+        if len(", ".join([*palabras, propio]) + ".") > LARGO_MAXIMO_GLOSARIO:
+            break
+        palabras.append(propio)
     return ", ".join(palabras) + "." if palabras else ""

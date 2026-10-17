@@ -4,6 +4,7 @@ from datetime import date
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import sessionmaker
 
 from app import main, modulos
 from app.api import webhook
@@ -11,8 +12,10 @@ from app.canales import whatsapp
 from app.ia import prompt, proveedor
 from app.ia.esquemas import EsquemaAccion
 from app.ia.prompt import Parte
+from app.infra.modelos import Evento
 from app.nucleo import acciones, pipeline
 from app.nucleo.acciones import Accion
+from app.nucleo.cuaderno import Cuaderno
 from app.nucleo.perfil import RUBROS
 from tests.ayudas import con_perfil, con_perfil_en
 
@@ -179,3 +182,43 @@ def test_cada_audio_se_transcribe_con_el_glosario_de_su_rubro(servidor, motor, g
         assert webhook.fila.esperar(5)
     assert ia.glosarios == [modulos.glosario(["comun", "ganaderia"]), modulos.glosario(["comun"])]
     assert servidor[0] == ("5491100000001", f"🎤 _tacto 30 vacas_\n\n{TACTO_ANOTADO}")
+
+
+def test_el_prompt_trae_el_calendario_de_la_semana_anterior_y_la_siguiente():
+    """El modelo calcula mal los días de la semana: "el martes" le daba el lunes."""
+    sistema = prompt.sistema(date(2026, 10, 17), modulos.partes(["comun"]))  # sábado
+    assert "- Los 7 días anteriores: sábado 2026-10-10, domingo 2026-10-11, lunes 2026-10-12," in sistema
+    assert (
+        "viernes 2026-10-16.\n- Los 7 días siguientes: domingo 2026-10-18, lunes 2026-10-19, martes 2026-10-20,"
+        in sistema
+    )
+    assert "sábado 2026-10-24.\n" in sistema
+
+
+def test_el_glosario_suma_los_nombres_propios_que_entran():
+    base = modulos.glosario(["comun"])
+    con_nombres = modulos.glosario(["comun"], ["El Ombú", "potrero grande", "El Ombú"])
+    assert con_nombres == base.removesuffix(".") + ", El Ombú, potrero grande."
+    muchos = [f"Estancia Número {i:03}" for i in range(40)]
+    glosario = modulos.glosario(["comun"], muchos)
+    assert len(glosario) <= modulos.LARGO_MAXIMO_GLOSARIO
+    assert glosario.startswith(base.removesuffix(".")) and "Estancia Número 000" in glosario
+    assert "Estancia Número 039" not in glosario  # los que no entran quedan afuera
+
+
+def test_cada_audio_se_transcribe_con_los_campos_y_lotes_de_la_persona(servidor, motor, ia, monkeypatch):
+    with sessionmaker(bind=motor)() as db:
+        u = con_perfil(db, "5491100000001")
+        cuaderno = Cuaderno(db, u)
+        ombu, pastora = cuaderno.establecimiento("El Ombú"), cuaderno.establecimiento("La Pastora")
+        cuaderno.lote("potrero grande", ombu)
+        cuaderno.lote("3", ombu)  # los números no hacen falta
+        cuaderno.agregar([Evento(establecimiento=pastora, categoria="campo", tipo="lluvia", fecha_evento=HOY)])
+        db.commit()
+    monkeypatch.setattr(whatsapp, "descargar_media", lambda _id: b"ogg")
+    mensaje = {"from": "5491100000001", "id": "wamid.o", "type": "audio", "audio": {"id": "media1"}}
+    with TestClient(main.app) as c:
+        c.post("/webhook", json={"entry": [{"changes": [{"value": {"messages": [mensaje]}}]}]})
+        assert webhook.fila.esperar(5)
+    # Primero el campo con más registros.
+    assert ia.glosarios == [modulos.glosario(["comun"], ["La Pastora", "El Ombú", "potrero grande"])]

@@ -36,7 +36,7 @@ from app.infra.config import config
 from app.infra.db import SessionLocal, engine
 from app.infra.logs import configurar_logs
 from app.modulos.comun import precios, senasa
-from app.nucleo import auditoria, pipeline, usuarios
+from app.nucleo import auditoria, pipeline, preguntas, usuarios
 
 TELEFONO_CHAT = "5490000000000"
 CARPETA_CHAT = Path("archivos_chat")  # los PDF y planillas que manda el bot en el chat de prueba
@@ -155,7 +155,14 @@ def _eval(args: argparse.Namespace) -> None:
 
     partes = modulos.partes(modulos.del_rubro(args.rubro))
     resultados, frenado = evaluacion.correr(
-        frases, proveedor.uno_solo(nombre, esfuerzo), partes, _hoy(), args.tope_usd, args.pausa, mostrar
+        frases,
+        proveedor.uno_solo(nombre, esfuerzo),
+        partes,
+        _hoy(),
+        args.tope_usd,
+        args.pausa,
+        mostrar,
+        {clave: p.para_la_ia for clave, p in preguntas.PREGUNTAS.items()},
     )
     r = evaluacion.resumir(resultados)
     costo = f"USD {r.costo_usd:.4f}" if r.costo_usd is not None else "sin dato (el proveedor no lo informa)"

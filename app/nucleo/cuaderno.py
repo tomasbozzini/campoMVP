@@ -10,6 +10,7 @@ por `cuenta_id` ni por `usuario_id` a mano.
 
 from dataclasses import dataclass
 from datetime import date, datetime
+from typing import Any
 
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
@@ -28,7 +29,7 @@ from app.infra.modelos import (
 )
 from app.infra.texto import prolijo
 from app.nucleo import auditoria
-from app.nucleo.normalizar import clave_establecimiento, normalizar_lote
+from app.nucleo.normalizar import PARECIDO_MINIMO, clave_establecimiento, normalizar_lote, parecido
 
 # Tope de registros que devuelve una búsqueda.
 MAX_EVENTOS = 5000
@@ -42,6 +43,16 @@ class Campo:
     establecimiento: Establecimiento | None
     lotes: list[str]
     registros: int
+
+
+class CampoParecido(Exception):
+    """El nombre de un campo nuevo se parece mucho al de uno que ya existe ("Omu" y "El
+    Ombú"): antes de crearlo se le pregunta a la persona si es el mismo."""
+
+    def __init__(self, nombre: str, existente: Establecimiento) -> None:
+        super().__init__(nombre)
+        self.nombre = nombre
+        self.existente = existente
 
 
 @dataclass(frozen=True)
@@ -64,6 +75,10 @@ class Cuaderno:
         self.db = db
         self.usuario_id = usuario.id
         self.cuenta_id = usuario.cuenta_id
+        # Lo que la persona ya respondió sobre campos parecidos en este pedido: qué nombre es
+        # un campo que ya existe (clave -> id) y cuáles son campos nuevos aunque se parezcan.
+        self.alias: dict[str, int] = {}
+        self.permitidos: set[str] = set()
 
     # --- Registros ------------------------------------------------------------
 
@@ -137,7 +152,11 @@ class Cuaderno:
     def establecimiento(self, nombre: str | None) -> Establecimiento | None:
         """El establecimiento con ese nombre, escrito como sea ("Estancia La Esperanza", "la
         esperanza"). Si es la primera vez que lo nombra, se crea con el nombre como lo escribió,
-        prolijo ("estancia LA PASTORA" -> "Estancia la Pastora")."""
+        prolijo ("estancia LA PASTORA" -> "Estancia la Pastora").
+
+        Si el nombre nuevo se parece mucho a uno que ya tiene ("Omu" y "El Ombú"), no se crea:
+        se levanta `CampoParecido` para preguntarle si es el mismo (salvo que ya lo haya
+        respondido: `alias` y `permitidos`)."""
         clave = clave_establecimiento(nombre)
         if not nombre or not clave:
             return None
@@ -146,10 +165,24 @@ class Cuaderno:
         )
         if existente is not None:
             return existente
+        if clave in self.alias:
+            elegido = self.db.get(Establecimiento, self.alias[clave])
+            if elegido is not None and elegido.cuenta_id == self.cuenta_id:
+                return elegido
+        if clave not in self.permitidos and (parecido_a := self._parecido(clave)) is not None:
+            raise CampoParecido(prolijo(nombre), parecido_a)
         nuevo = Establecimiento(cuenta_id=self.cuenta_id, nombre=prolijo(nombre), clave=clave)
         self.db.add(nuevo)
         self.db.flush()
         return nuevo
+
+    def _parecido(self, clave: str) -> Establecimiento | None:
+        """El establecimiento con el nombre más parecido a esa clave, si pasa el mínimo."""
+        candidatos = self.db.scalars(select(Establecimiento).where(Establecimiento.cuenta_id == self.cuenta_id))
+        puntaje, mejor = max(
+            ((parecido(clave, e.clave), e) for e in candidatos), default=(0.0, None), key=lambda x: x[0]
+        )
+        return mejor if puntaje >= PARECIDO_MINIMO else None
 
     def lote(self, nombre: str | None, establecimiento: Establecimiento | None) -> Lote | None:
         """El lote con ese nombre en ese establecimiento (o suelto, sin establecimiento). Si no
@@ -198,6 +231,15 @@ class Cuaderno:
         if lotes.get(None) or registros.get(None):
             campos.append(Campo(None, _ordenar_lotes(lotes.get(None, [])), registros.get(None, 0)))
         return campos
+
+    def nombres_propios(self) -> list[str]:
+        """Los nombres de sus campos, del que tiene más registros al que menos, y después los
+        de sus lotes que no son números ("potrero grande"): para que Whisper los escriba bien."""
+        campos = self.campos()
+        por_uso = sorted(campos, key=lambda c: -c.registros)
+        nombres = [c.establecimiento.nombre for c in por_uso if c.establecimiento is not None]
+        lotes = [lote for c in campos for lote in c.lotes if not lote.isdecimal()]
+        return list(dict.fromkeys([*nombres, *lotes]))
 
     # --- Sesiones -------------------------------------------------------------
 
@@ -265,6 +307,37 @@ class Cuaderno:
         q = select(Pendiente).where(Pendiente.cuenta_id == self.cuenta_id).order_by(Pendiente.id.desc()).limit(1)
         return self.db.scalar(q)
 
+    def corregir_pendientes(
+        self,
+        ids: list[int],
+        texto: str | None = None,
+        vence: date | None = None,
+        establecimiento_id: int | None = None,
+        lote: str | None = None,
+    ) -> list[Pendiente]:
+        """Cambia esos pendientes (los que no están hechos y son de esta cuenta). Lo que viene
+        en None no cambia. El lote se busca en el campo que quede: si cambia el campo, el "lote
+        3" pasa a ser el lote 3 del campo nuevo."""
+        campo = self.db.get(Establecimiento, establecimiento_id) if establecimiento_id else None
+        if campo is not None and campo.cuenta_id != self.cuenta_id:
+            raise ValueError("El establecimiento es de otra cuenta")
+        q = select(Pendiente).where(
+            Pendiente.id.in_(ids), Pendiente.cuenta_id == self.cuenta_id, Pendiente.hecho.is_(None)
+        )
+        pendientes = list(self.db.scalars(q.order_by(Pendiente.id)).all())
+        for p in pendientes:
+            nombre_lote = lote or (p.lote.nombre if p.lote else None)
+            if texto:
+                p.texto = texto
+            if vence:
+                p.vence = vence
+            if campo is not None:
+                p.establecimiento = campo
+            if lote or campo is not None:
+                p.lote = self.lote(nombre_lote, p.establecimiento)
+        self.db.flush()
+        return pendientes
+
     def marcar_hechos(self, ids: list[int], cuando: datetime) -> None:
         self.db.execute(
             update(Pendiente)
@@ -290,9 +363,12 @@ class Cuaderno:
 
     # --- Borrado grande esperando confirmación ---------------------------------
 
-    def guardar_borrado_pendiente(self, ids: list[int], creado: datetime, que: str = "registros") -> None:
-        """`que`: "registros" o "pendientes"."""
-        self.db.merge(BorradoPendiente(usuario_id=self.usuario_id, que=que, ids=ids, creado=creado))
+    def guardar_borrado_pendiente(
+        self, ids: list[int], creado: datetime, que: str = "registros", datos: dict[str, Any] | None = None
+    ) -> None:
+        """Una pregunta esperando el *sí* (ver `modulos/comun/confirmar.py`). `que`: "registros"
+        o "pendientes" (borrar), "corregir" (pendientes) o "campo"."""
+        self.db.merge(BorradoPendiente(usuario_id=self.usuario_id, que=que, ids=ids, datos=datos, creado=creado))
 
     def tomar_borrado_pendiente(self) -> BorradoPendiente | None:
         """El borrado pendiente, si hay uno. Se descarta al tomarlo: se usa una sola vez."""

@@ -30,6 +30,9 @@ class Contexto:
     guardar_charla: bool = True
     # Los archivos que se mandan después del texto de la respuesta.
     adjuntos: list[Adjunto] = field(default_factory=list)
+    # La pregunta del bot que esperaba respuesta y este mensaje no contestó (`nucleo/preguntas.py`):
+    # la IA la recibe como contexto, por si el mensaje la cancela.
+    pregunta_abierta: str | None = None
 
     @cached_property
     def cuaderno(self) -> Cuaderno:

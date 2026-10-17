@@ -14,7 +14,7 @@ import re
 
 from app.infra.modelos import Usuario
 from app.infra.texto import prolijo, sin_tildes
-from app.nucleo import respuestas
+from app.nucleo import preguntas, respuestas
 from app.nucleo.contexto import Contexto
 from app.salidas.whatsapp import SEPARADOR as LINEA
 
@@ -60,7 +60,7 @@ LISTO = (
 PREGUNTA_MATRICULA = (
     "¿Cuál es tu *matrícula*? Escribila como figura, por ejemplo: _MP 1234_.\n_Para borrarla, mandá *ninguna*._"
 )
-SIN_CAMBIOS = "👌 Listo, no cambié nada."
+SIN_CAMBIOS = preguntas.SIN_CAMBIOS
 RUBRO_DE_NUEVO = "Cambiaron las opciones de rubro: necesito que vuelvas a elegir el tuyo."
 
 # Palabras que identifican cada rubro en una respuesta escrita (sin tildes, minúscula):
@@ -252,9 +252,12 @@ def comando(ctx: Contexto) -> str | None:
     llegan por la IA a las mismas funciones (`modulos/comun/cuenta.py`)."""
     usuario = ctx.usuario
     pendiente, usuario.pregunta = usuario.pregunta, None
-    if pendiente in (CAMBIO_RUBRO, CAMBIO_MATRICULA) and (respuesta := _resolver_cambio(usuario, pendiente, ctx.texto)):
-        ctx.guardar_charla = False
-        return respuesta
+    if pendiente in (CAMBIO_RUBRO, CAMBIO_MATRICULA):
+        if respuesta := _resolver_cambio(usuario, pendiente, ctx.texto):
+            ctx.guardar_charla = False
+            return respuesta
+        # No es una respuesta fija: la IA ve la pregunta, por si la cancela con otras palabras.
+        ctx.pregunta_abierta = preguntas.RUBRO if pendiente == CAMBIO_RUBRO else preguntas.MATRICULA
     pedido = _normalizar(ctx.texto)
     if pedido in VER_DATOS:
         return ver_datos(ctx)

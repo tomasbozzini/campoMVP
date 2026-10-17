@@ -1,7 +1,9 @@
 """Set de evaluación contra la IA real (`python -m app eval`).
 
 Cada frase de `evaluacion/set.json` va al modelo con el prompt de un rubro y se compara la
-lista de intenciones que devuelve, en orden, con la esperada. Se mide lo que cuesta: tokens,
+lista de intenciones que devuelve, en orden, con la esperada. Una frase puede traer la charla
+reciente ("historial", como la ve la IA) y la pregunta del bot que quedó sin contestar
+("pregunta", una clave de `nucleo/preguntas.py`). Se mide lo que cuesta: tokens,
 costo (si el proveedor lo informa) y demora. Frena si el costo acumulado llega al tope.
 """
 
@@ -9,7 +11,7 @@ import json
 import math
 import statistics
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
@@ -25,6 +27,8 @@ class Frase:
     funcion: str
     frase: str
     intenciones: tuple[str, ...]
+    historial: tuple[tuple[str, str], ...] = ()  # (rol, texto): "usuario" o "bot"
+    pregunta: str | None = None
 
 
 @dataclass
@@ -63,7 +67,16 @@ class Resumen:
 
 def cargar(ruta: Path = SET) -> list[Frase]:
     datos = json.loads(ruta.read_text(encoding="utf-8"))
-    return [Frase(f["funcion"], f["frase"], tuple(f["intenciones"])) for f in datos["frases"]]
+    return [
+        Frase(
+            f["funcion"],
+            f["frase"],
+            tuple(f["intenciones"]),
+            tuple((rol, texto) for rol, texto in f.get("historial", [])),
+            f.get("pregunta"),
+        )
+        for f in datos["frases"]
+    ]
 
 
 def elegir(
@@ -92,8 +105,10 @@ def correr(
     tope_usd: float,
     pausa: float = 0.0,
     al_terminar: Callable[[Resultado], None] = lambda _r: None,
+    preguntas: Mapping[str, str] | None = None,
 ) -> tuple[list[Resultado], bool]:
-    """Corre las frases de a una. Devuelve los resultados y si frenó por el tope de costo."""
+    """Corre las frases de a una. Devuelve los resultados y si frenó por el tope de costo.
+    `preguntas`: el texto que ve la IA para cada clave de pregunta pendiente."""
     sistema = prompt.sistema(hoy, partes)
     resultados: list[Resultado] = []
     gastado = 0.0
@@ -104,7 +119,9 @@ def correr(
         inicio = time.perf_counter()
         with medir() as usos:
             try:
-                resultado.obtenidas = intenciones(proveedor.completar_json(sistema, prompt.mensaje(frase.frase)))
+                pregunta = (preguntas or {}).get(frase.pregunta or "")
+                mensaje = prompt.mensaje(frase.frase, frase.historial, pregunta)
+                resultado.obtenidas = intenciones(proveedor.completar_json(sistema, mensaje))
             except ErrorIA as e:
                 resultado.error = str(e)
         resultado.segundos = time.perf_counter() - inicio

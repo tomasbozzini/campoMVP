@@ -53,7 +53,7 @@ def ia(monkeypatch):
     }
     llamadas: list[str] = []
 
-    def interpretar(texto, hoy, historial=None, partes=()):
+    def interpretar(texto, hoy, historial=None, partes=(), pregunta=None):
         llamadas.append(texto)
         return respuestas[texto]
 

@@ -294,6 +294,101 @@ def test_borrar_deshace_lo_ultimo_que_se_anoto(db, ia):
     assert len(db.scalars(select(Evento)).all()) == 1 and _abiertos(db) == ["comprar ivermectina"]
 
 
+# --- Fechas pasadas y corregir ------------------------------------------------------
+
+
+def test_un_pendiente_con_fecha_pasada_queda_vencido(db, ia):
+    """ "Tenía que pagarle al contratista el lunes": la IA manda la fecha pasada y se guarda así."""
+    con_perfil(db, TEL)
+    r = _anotar(ia, db, "tenía que pagarle al contratista el lunes", texto="pagarle al contratista", vence="2026-10-12")
+    assert "*Venció el Lun 12/10/2026*" in r
+    assert _ultimo(db).vence == date(2026, 10, 12)
+    assert "⚠️ 1 vencido" in _mandar(db, "¿qué tengo pendiente?")
+
+
+def _corregir(ia, db, mensaje, *referencias, telefono=TEL, **cambios):
+    """Manda `mensaje` y la IA falsa devuelve "corregir_pendiente" con esas referencias y cambios."""
+    ia[mensaje] = {
+        "intencion": "corregir_pendiente",
+        "correccion_pendiente": {"pendientes": list(referencias), "cambios": cambios},
+    }
+    return _mandar(db, mensaje, telefono)
+
+
+def test_corregir_la_fecha_del_ultimo_pendiente_sin_decir_cual(db, ia):
+    con_perfil(db, TEL)
+    _anotar(ia, db, "llamar al veterinario", texto="llamar al veterinario")
+    _anotar(ia, db, "revisar las aguadas el martes", texto="revisar las aguadas", vence="2026-10-20")
+    r = _corregir(ia, db, "perdón, el martes no, el jueves 22 de octubre", vence="2026-10-22")
+    assert r.startswith("✏️ *PENDIENTE CORREGIDO*\n\n✏️ *Revisar las aguadas*\n")
+    assert "📅 Para el Jue 22/10/2026" in r
+    assert _ultimo(db).vence == date(2026, 10, 22)
+    assert db.scalars(select(Pendiente).where(Pendiente.texto == "llamar al veterinario")).one().vence is None
+
+
+def test_corregir_un_pendiente_nombrandolo(db, ia):
+    con_perfil(db, TEL)
+    _anotar(ia, db, "revisar las aguadas el martes", texto="revisar las aguadas", vence="2026-10-20")
+    _anotar(ia, db, "llamar al veterinario", texto="llamar al veterinario")
+    r = _corregir(ia, db, "el pendiente de las aguadas es para el jueves 22", {"texto": "aguadas"}, vence="2026-10-22")
+    assert r.startswith("✏️ *PENDIENTE CORREGIDO*\n\n✏️ *Revisar las aguadas*")
+    assert db.scalars(select(Pendiente).where(Pendiente.texto == "revisar las aguadas")).one().vence == date(
+        2026, 10, 22
+    )
+
+
+def test_corregir_el_texto_el_campo_y_el_lote(db, ia):
+    con_perfil(db, TEL)
+    _anotar(ia, db, "revisar el molino del lote 3", "La Pastora", texto="revisar el molino", lote="3")
+    _corregir(ia, db, "no era en La Pastora, era en El Retiro", {"texto": "molino"}, establecimiento="El Retiro")
+    assert _donde(_ultimo(db)) == ("El Retiro", "3")  # el lote 3, ahora del campo nuevo
+    _corregir(ia, db, "era el lote 4 y es arreglar la bomba", lote="4", texto="arreglar la bomba")
+    p = _ultimo(db)
+    assert (p.texto, _donde(p)) == ("arreglar la bomba", ("El Retiro", "4"))
+
+
+def test_corregir_uno_que_coincide_con_varios_muestra_las_opciones(db, ia):
+    _cuatro_molinos(ia, db)
+    r = _corregir(ia, db, "el del molino es para el viernes", {"texto": "molino"}, vence="2026-10-16")
+    assert r.startswith("🤔 *Hay 4 pendientes* que coinciden con _molino_.\nNo corregí ninguno:")
+    assert all(p.vence is None for p in db.scalars(select(Pendiente)))
+
+
+def test_corregir_4_o_mas_pide_confirmacion(db, ia):
+    _cuatro_molinos(ia, db)
+    r = _corregir(
+        ia,
+        db,
+        "no son del Omu, son de La Feliz los molinos",
+        {"texto": "molinos", "todos": True},
+        establecimiento="La Feliz",
+    )
+    assert r.startswith("✏️ *VOY A CORREGIR 4 PENDIENTES*\n\n      › 📌 Revisar el molino · Lote 1\n")
+    assert "*Van a quedar:* 📍 La Feliz" in r and "¿Confirmás? Respondé *sí*" in r
+    assert all(p.establecimiento is None for p in db.scalars(select(Pendiente)))  # todavía nada
+
+    assert _mandar(db, "dale") == "✏️ *PENDIENTES CORREGIDOS*\n\nListo, corregí 4 pendientes."
+    molinos = db.scalars(select(Pendiente).where(Pendiente.texto == "revisar el molino")).all()
+    assert [_donde(p) for p in molinos] == [("La Feliz", lote) for lote in ("1", "2", "3", "4")]
+
+
+def test_corregir_4_o_mas_se_puede_cancelar(db, ia):
+    _cuatro_molinos(ia, db)
+    _corregir(ia, db, "los molinos son para el lunes", {"texto": "molino", "todos": True}, vence="2026-10-19")
+    assert _mandar(db, "no, dejá") == "👌 Listo, no cambié nada."
+    assert all(p.vence is None for p in db.scalars(select(Pendiente)))
+
+
+def test_corregir_sin_cambios_o_sin_pendientes(db, ia):
+    con_perfil(db, TEL)
+    assert _corregir(ia, db, "corregí el pendiente") == pendientes.SIN_CAMBIOS
+    assert _corregir(ia, db, "el último es para el viernes", vence="2026-10-16") == pendientes.SIN_PENDIENTES
+    _anotar(ia, db, "llamar al veterinario", texto="llamar al veterinario")
+    _sobre(ia, db, "pendiente_hecho", "ya llamé", {"texto": "veterinario"})
+    # El último ya está hecho: no se toca, y no queda ninguno abierto.
+    assert _corregir(ia, db, "era para el viernes", vence="2026-10-16") == pendientes.SIN_PENDIENTES
+
+
 # --- Cada cuenta con lo suyo -------------------------------------------------------
 
 
@@ -307,5 +402,10 @@ def test_cada_persona_ve_y_toca_solo_sus_pendientes(db, ia):
     assert r.startswith("🔍 No encontré")
     r = _sobre(ia, db, "borrar_pendiente", "borralo", {"texto": "veterinario"}, telefono=OTRO)
     assert r.startswith("🔍 No encontré")
+    r = _corregir(ia, db, "es para el viernes", {"texto": "veterinario"}, telefono=OTRO, vence="2026-10-16")
+    assert r.startswith("🔍 No encontré")
+    assert _corregir(ia, db, "el último es para el lunes", telefono=OTRO, vence="2026-10-19") == (
+        pendientes.SIN_PENDIENTES
+    )
     assert _mandar(db, "borrar", telefono=OTRO) == "📭 No tenés nada anotado para borrar."
     assert _abiertos(db) == ["llamar al veterinario"]

@@ -25,7 +25,7 @@ def fake_llm(monkeypatch):
     respuestas: dict[str, dict] = {}
     llamadas: list[str] = []
 
-    def interpretar(texto, hoy, historial=None, partes=()):
+    def interpretar(texto, hoy, historial=None, partes=(), pregunta=None):
         llamadas.append(texto)
         return respuestas[texto]
 
@@ -638,7 +638,7 @@ def test_la_ia_recibe_la_charla_reciente_solo_del_mismo_usuario(db, monkeypatch)
         "hola": {"intencion": "saludo"},
     }
 
-    def interpretar(texto, hoy, historial=None, partes=()):
+    def interpretar(texto, hoy, historial=None, partes=(), pregunta=None):
         vistos[texto] = historial
         return respuestas[texto]
 

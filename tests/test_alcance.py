@@ -24,7 +24,7 @@ FUENTE = "Cámara Arbitral de Cereales - Bolsa de Comercio de Rosario"
 @pytest.fixture
 def respuestas(monkeypatch):
     datos: dict[str, object] = {}
-    monkeypatch.setattr(interprete, "interpretar", lambda texto, hoy, historial=None, partes=(): datos[texto])
+    monkeypatch.setattr(interprete, "interpretar", lambda texto, *_a, **_k: datos[texto])
     return datos
 
 
@@ -76,7 +76,7 @@ def test_si_la_ia_esta_saturada_o_falla_el_mensaje_no_gasta_cupo(db, monkeypatch
     u = _usuario(db)
     errores = {"saturada": IASaturada("OpenRouter 429"), "falla": ErrorIA("OpenRouter 400")}
 
-    def interpretar(texto, hoy, historial=None, partes=()):
+    def interpretar(texto, hoy, historial=None, partes=(), pregunta=None):
         if texto in errores:
             raise errores[texto]
         return {"intencion": "fuera_de_alcance"}

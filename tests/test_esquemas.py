@@ -78,7 +78,7 @@ def test_un_borrado_con_basura_no_borra_lo_ultimo(db, monkeypatch):
         "llovio": {"intencion": "registrar", "eventos": [{"categoria": "campo", "tipo": "lluvia", "valor": 20}]},
         "borra eso": {"intencion": "borrar", "borrado": {"registros": ["algo que no es un objeto"]}},
     }
-    monkeypatch.setattr(interprete, "interpretar", lambda texto, hoy, historial=None, partes=(): respuestas[texto])
+    monkeypatch.setattr(interprete, "interpretar", lambda texto, *_a, **_k: respuestas[texto])
     pipeline.manejar_mensaje(db, u.telefono, "llovio", hoy=HOY)
     assert "No entendí qué querés borrar" in pipeline.manejar_mensaje(db, u.telefono, "borra eso", hoy=HOY)
     assert len(db.scalars(select(Evento)).all()) == 1

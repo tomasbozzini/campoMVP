@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.infra.config import config
 from app.infra.modelos import Usuario
 from app.nucleo import usuarios
+from app.nucleo.cuaderno import Cuaderno
 
 # Para quien escribe sin acceso y sin código de invitación (no se guarda nada).
 NO_AUTORIZADO = """👋 *¡Hola! Soy CampoBot.*
@@ -29,6 +30,12 @@ def puede_usar_ia(db: Session, telefono: str) -> bool:
 def rubro(db: Session, telefono: str) -> str | None:
     """El rubro de ese número (para el glosario de los audios); None si no tiene."""
     return db.scalar(select(Usuario.rubro).where(Usuario.telefono == telefono))
+
+
+def nombres_propios(db: Session, telefono: str) -> list[str]:
+    """Los nombres de los campos y lotes de ese número, para el glosario de los audios."""
+    usuario = db.scalar(select(Usuario).where(Usuario.telefono == telefono))
+    return Cuaderno(db, usuario).nombres_propios() if usuario is not None else []
 
 
 def usuario_con_acceso(db: Session, telefono: str, nombre: str | None) -> Usuario | None:

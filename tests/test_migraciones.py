@@ -424,6 +424,19 @@ def test_0011_un_borrado_esperando_confirmacion_queda_como_de_registros(engine):
         assert c.execute(text("select usuario_id from borrados_pendientes")).scalar_one() == usuario_id
 
 
+def test_0012_agrega_los_datos_de_las_confirmaciones_y_vuelve_atras(engine):
+    """Solo agrega una columna opcional: lo que ya estaba esperando queda igual, sin datos."""
+    migrar_hasta(engine, "0011")
+    migrar.preparar_base(engine)
+    with engine.connect() as c:
+        assert "datos" in [col["name"] for col in inspect(c).get_columns("borrados_pendientes")]
+    with engine.begin() as c:
+        command.downgrade(migrar._config(c), "0011")
+    with engine.connect() as c:
+        assert migrar.version(c) == "0011"
+        assert "datos" not in [col["name"] for col in inspect(c).get_columns("borrados_pendientes")]
+
+
 def test_0003_no_adivina_de_quien_son_registros_sin_usuario(engine):
     """SQLite no controla las claves foráneas: una base vieja puede tener registros huérfanos."""
     migrar_hasta(engine, "0002")

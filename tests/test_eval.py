@@ -87,6 +87,36 @@ def test_mediana_y_p95_de_la_demora():
     assert (r.mediana, r.p95) == (10.5, 19.0)
 
 
+class IAQueGuarda:
+    def __init__(self) -> None:
+        self.mensajes: list[str] = []
+
+    def completar_json(self, sistema: str, mensaje: str) -> object:
+        self.mensajes.append(mensaje)
+        return {"acciones": [{"intencion": "cancelar"}]}
+
+
+def test_una_frase_puede_traer_la_charla_reciente_y_la_pregunta_pendiente(tmp_path):
+    ruta = tmp_path / "set.json"
+    ruta.write_text(
+        '{"frases": [{"funcion": "cancelar", "frase": "no, dejá", "intenciones": ["cancelar"],'
+        ' "historial": [["usuario", "cambiar rubro"], ["bot", "¿A qué te dedicás?"]], "pregunta": "rubro"}]}',
+        encoding="utf-8",
+    )
+    [frase] = evaluacion.cargar(ruta)
+    assert (
+        frase.historial == (("usuario", "cambiar rubro"), ("bot", "¿A qué te dedicás?")) and frase.pregunta == "rubro"
+    )
+
+    ia = IAQueGuarda()
+    resultados, _ = evaluacion.correr([frase], ia, [], HOY, tope_usd=1.0, preguntas={"rubro": "¿A qué te dedicás?"})
+    assert resultados[0].bien
+    assert ia.mensajes == [
+        "<<<CONVERSACION_RECIENTE\nPersona: cambiar rubro\nSistema: ¿A qué te dedicás?\nCONVERSACION_RECIENTE>>>\n\n"
+        "<<<PREGUNTA_PENDIENTE\n¿A qué te dedicás?\nPREGUNTA_PENDIENTE>>>\n\n<<<MENSAJE\nno, dejá\nMENSAJE>>>"
+    ]
+
+
 def test_el_comando_eval_muestra_cada_frase_y_el_resumen(monkeypatch, capsys):
     modulos.cargar()
     ia = IAFalsa(BIEN)

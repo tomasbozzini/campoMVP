@@ -1,8 +1,8 @@
 """Pendientes: lo que la persona tiene que hacer más adelante.
 
 Se anotan ("tengo que volver a revisar las vaquillonas el martes"), se consultan ("¿qué tengo
-pendiente?"), se marcan hechos ("ya está lo del lote 3") y se borran. Los vencidos van
-primero y destacados. Las reglas están en docs/arquitectura.md, decisión "Pendientes".
+pendiente?"), se marcan hechos ("ya está lo del lote 3"), se corrigen ("perdón, el martes no,
+el jueves") y se borran. Los vencidos van primero y destacados. Las reglas están en docs/arquitectura.md, decisión "Pendientes".
 
 El texto de un pendiente son las palabras de la persona: la IA lo recorta del mensaje y se
 guarda con hasta 120 caracteres y sin los símbolos de formato de WhatsApp (* _ ~), para que
@@ -10,7 +10,8 @@ no desarme la respuesta. Para encontrar el pendiente al que se refiere ("ya llam
 veterinario"), todas las palabras con las que lo nombra tienen que estar en el pendiente, en
 su lote o en su campo, comparadas por el principio ("llamé" y "llamar" coinciden). Si
 coincide con varios, no se toca ninguno y se muestran las opciones, salvo que pida
-explícitamente todos. Borrar 4 o más de una vez pide confirmación, como con los registros.
+explícitamente todos. Borrar o corregir 4 o más de una vez pide confirmación, como borrar
+registros. Corregir sin decir cuál cambia el último que anotó.
 """
 
 import re
@@ -38,6 +39,9 @@ MAX_REFERENCIAS = 10
 MAX_TEXTO = 120
 
 SIN_PENDIENTES = "📭 No tenés nada pendiente."
+SIN_CAMBIOS = (
+    "🤔 No entendí qué querés cambiar del pendiente.\nProbá con algo como: _el de las aguadas es para el jueves_"
+)
 NADA_CLARO = "🤔 No me quedó claro qué tenés pendiente.\nProbá con algo como: _tengo que revisar las aguadas el martes_"
 CUAL = "🤔 ¿Cuál de tus pendientes? Decime cuál, por ejemplo: _ya está lo del lote 3_."
 
@@ -96,10 +100,34 @@ def _referencias(valor: object) -> object:
     return [r for r in valor[:MAX_REFERENCIAS] if isinstance(r, dict)] if isinstance(valor, list) else []
 
 
+Referencias = Annotated[list[ReferenciaPendiente], BeforeValidator(_referencias)]
+
+
 class SobrePendientes(EsquemaAccion):
     """Marcar hechos o borrar: a qué pendientes se refiere."""
 
-    pendientes: Annotated[list[ReferenciaPendiente], BeforeValidator(_referencias)] = Field(default_factory=list)
+    pendientes: Referencias = Field(default_factory=list)
+
+
+class CambiosPendiente(Esquema):
+    """Solo lo que cambia."""
+
+    texto: Texto = None
+    lote: Lote = None
+    establecimiento: Campo = None
+    vence: Fecha = None
+
+    def hay(self) -> bool:
+        return any(getattr(self, campo) is not None for campo in CambiosPendiente.model_fields)
+
+
+class CorreccionPendiente(Esquema):
+    pendientes: Referencias = Field(default_factory=list)  # vacía: el último que anotó
+    cambios: Annotated[CambiosPendiente, SiNoVacio] = Field(default_factory=CambiosPendiente)
+
+
+class CorregirPendiente(EsquemaAccion):
+    correccion_pendiente: Annotated[CorreccionPendiente, SiNoVacio] = Field(default_factory=CorreccionPendiente)
 
 
 # --- Cómo se ven ----------------------------------------------------------------------
@@ -309,9 +337,58 @@ def borrar(ctx: Contexto, datos: SobrePendientes) -> str:
     return "\n\n".join(partes + avisos)
 
 
+def _que_cambia(cambios: CambiosPendiente, campo: Establecimiento | None) -> str:
+    """📅 Para el Jue 22/10/2026 · 📍 La Feliz · Lote 4"""
+    partes = [f"📝 {cambios.texto}"] if cambios.texto else []
+    if cambios.vence:
+        partes.append(f"📅 Para el {formato.fecha_corta(cambios.vence)}")
+    if campo is not None:
+        partes.append(f"📍 {campo.nombre}")
+    if cambios.lote:
+        partes.append(f"Lote {cambios.lote}")
+    return " · ".join(partes)
+
+
+def corregir(ctx: Contexto, datos: CorregirPendiente) -> str:
+    refs, cambios = datos.correccion_pendiente.pendientes, datos.correccion_pendiente.cambios
+    if not cambios.hay():
+        return SIN_CAMBIOS
+    cuaderno = ctx.cuaderno
+    if refs:
+        elegidos, avisos = _elegir(ctx, refs, "corregí")
+    else:
+        ultimo = cuaderno.ultimo_pendiente()
+        if ultimo is None or ultimo.hecho is not None:
+            return _sin_elegir(ctx)
+        elegidos, avisos = [ultimo], []
+    if not elegidos:
+        return "\n\n".join(avisos)
+    campo = cuaderno.establecimiento(cambios.establecimiento) if cambios.establecimiento else None
+    ids = [p.id for p in elegidos]
+    if len(elegidos) >= confirmar.CONFIRMAR_DESDE:
+        lineas = [linea(p) for p in _ordenar(elegidos, ctx.hoy)]
+        guardados = {
+            "texto": cambios.texto,
+            "vence": cambios.vence.isoformat() if cambios.vence else None,
+            "establecimiento_id": campo.id if campo is not None else None,
+            "lote": cambios.lote,
+        }
+        resumen = f"*Van a quedar:* {_que_cambia(cambios, campo)}"
+        return "\n\n".join([confirmar.pedir_correccion(cuaderno, ids, lineas, guardados, resumen, ctx.ahora), *avisos])
+    corregidos = cuaderno.corregir_pendientes(
+        ids, cambios.texto, cambios.vence, campo.id if campo is not None else None, cambios.lote
+    )
+    titulo = "✏️ *PENDIENTE CORREGIDO*" if len(corregidos) == 1 else f"✏️ *{len(corregidos)} PENDIENTES CORREGIDOS*"
+    tarjetas = "\n\n".join(tarjeta(p, ctx.hoy, icono="✏️") for p in corregidos)
+    return "\n\n".join(
+        [f"{titulo}\n\n{tarjetas}", *avisos, f"{LINEA}\n_¿Algo mal? Corregilo de nuevo o mandá *borrar*._"]
+    )
+
+
 ACCIONES = [
     Accion("anotar_pendiente", AnotarPendiente, anotar),
     Accion("ver_pendientes", VerPendientes, ver),
     Accion("pendiente_hecho", SobrePendientes, hecho),
     Accion("borrar_pendiente", SobrePendientes, borrar),
+    Accion("corregir_pendiente", CorregirPendiente, corregir),
 ]

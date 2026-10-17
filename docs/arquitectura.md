@@ -371,7 +371,7 @@ de 2b, 7 y 8b):
       "pendiente_hecho" y 4 de CSV dictado (96 en total). Corrida final de pendientes y
       exportar (43 frases): 42/43, mediana 1,3 s, p95 1,9 s, USD 0,087. Los logs salen por
       stdout.
-- [ ] 8.5 · Fallas de las pruebas desde el celular (con tests y frases nuevas en el set):
+- [x] 8.5 · Fallas de las pruebas desde el celular (con tests y frases nuevas en el set):
       1. **Cancelar dicho natural.** Toda pregunta del bot que espera respuesta (cambiar
          rubro, cambiar matrícula, las confirmaciones) se cancela con cualquier forma natural:
          - Primero, sin IA, más variantes fijas del *no* ("no, no, dejá, no quiero cambiar
@@ -397,7 +397,9 @@ de 2b, 7 y 8b):
            lo ve en la charla reciente.
       3. **Fechas pasadas en pendientes.** El prompt decía que la fecha de un pendiente es
          siempre futura. Pasa a decir: si habla en pasado ("tenía que… el lunes", "ayer"), es
-         esa fecha pasada, y el pendiente aparece como vencido.
+         esa fecha pasada, y el pendiente aparece como vencido. Al probarlo, el modelo calculaba
+         mal los días de la semana ("el martes" daba el lunes 19): el prompt suma un calendario
+         con los 7 días anteriores y los 7 siguientes, armado por el código.
       4. **Nombres de campos en audios.**
          - El glosario de Whisper suma los nombres de los campos y lotes de la persona (sus
            datos, primero los campos con más registros, sin los lotes que son números), dentro
@@ -414,6 +416,19 @@ de 2b, 7 y 8b):
       - Set: frases de "cancelar" con la pregunta pendiente, de "corregir_pendiente" (con la
         charla reciente cuando corrige el último) y de pendientes con fecha pasada. El set
         acepta, por frase, la pregunta pendiente y la charla reciente.
+      - Al medir: "tenía que..." la IA lo tomaba como "pendiente_hecho"; el prompt aclara que,
+        sin decir que lo hizo, es "anotar_pendiente". Y un corte de conexión de OpenRouter
+        tardó 12 s con la espera de 6 s (httpx gasta la espera de conectarse una vez por
+        dirección): conectarse espera la mitad.
+
+      Cómo quedó: preguntas pendientes en `app/nucleo/preguntas.py` (rubro, matrícula,
+      borrar, corregir, campo), cada una con su texto para la IA y su respuesta al cancelar.
+      "corregir_pendiente" en el módulo común; desde 4, la confirmación guarda los cambios en
+      `datos` (migración 0012). El campo parecido se detecta con `difflib` sin los artículos
+      (desde 0,84) y lo hecho del mensaje se deshace con un punto de guardado hasta la
+      respuesta. Set: 20 frases nuevas (116 en total). Corrida de cancelar, corregir,
+      corregir_pendiente, anotar_pendiente (también en pasado) y pendiente_hecho (34 frases):
+      34/34, mediana 1,4 s, p95 1,8 s, USD 0,079.
 - [ ] 9a · Modo prueba.
 - [ ] 9b · Set de evaluación armado con el modo prueba (`eval revisar`); el comando
       `python -m app eval` ya existe desde el 8.2.

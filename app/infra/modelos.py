@@ -269,16 +269,20 @@ class MensajeChat(Base):
 
 
 class BorradoPendiente(Base):
-    """Un borrado grande esperando que la persona confirme con "sí".
+    """Una pregunta esperando que la persona confirme con "sí": un borrado grande (el nombre
+    viene de ahí), una corrección de muchos pendientes o un campo parecido a otro.
 
-    Se guardan los ids a borrar; se descarta si la persona manda otra cosa o pasa el tiempo.
+    Se guardan los ids y, si hace falta, los datos para terminar el pedido; se descarta si la
+    persona manda otra cosa o pasa el tiempo.
     """
 
     __tablename__ = "borrados_pendientes"
 
     usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), primary_key=True)
-    que: Mapped[str] = mapped_column(String(10), default="registros", server_default="registros")  # | pendientes
+    # registros | pendientes (borrar) | corregir (pendientes) | campo (¿es el mismo campo?)
+    que: Mapped[str] = mapped_column(String(10), default="registros", server_default="registros")
     ids: Mapped[list[int]] = mapped_column(JSON)
+    datos: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_ahora)
 
 

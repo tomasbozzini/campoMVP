@@ -20,7 +20,7 @@ def ia(monkeypatch):
     """La IA falsa: anota qué textos le llegaron y responde un saludo."""
     llamadas: list[str] = []
 
-    def interpretar(texto, hoy, historial=None, partes=()):
+    def interpretar(texto, hoy, historial=None, partes=(), pregunta=None):
         llamadas.append(texto)
         return {"intencion": "saludo"}
 

@@ -19,6 +19,8 @@ PROMPT = Parte(
         "ver_pendientes",
         "pendiente_hecho",
         "borrar_pendiente",
+        "corregir_pendiente",
+        "cancelar",
         "mis_campos",
         "mis_datos",
         "cambiar_rubro",
@@ -42,14 +44,16 @@ PROMPT = Parte(
   "sesion": { "lote": string | null, "actividad": string | null } | null,  // solo si intencion = "abrir_sesion"
   "pendiente": PENDIENTE | null,   // solo si intencion = "anotar_pendiente"
   "pendientes": [ REF_PENDIENTE, ... ] | null,  // solo si intencion = "pendiente_hecho" o "borrar_pendiente"
+  "correccion_pendiente": CORRECCION_PENDIENTE | null,  // solo si intencion = "corregir_pendiente"
   "precio": PRECIO | null,         // solo si intencion = "precio"
   "producto_veterinario": { "nombre": string } | null  // solo si intencion = "producto_veterinario\"""",
     descripciones="""\
 - "registrar": el usuario informa algo que hizo o pasó (vacunó, nacieron, llovió, pesó, hizo tacto...).
-- "corregir": cambia o completa algo que YA anotó antes, en vez de contar algo nuevo. Se reconoce
-  porque se refiere a un registro anterior: "a esas 5 vaquillonas las vacuné con ivermectina",
-  "eran 30, no 20", "me equivoqué, fue en el lote 4", "lo de recién fue ayer", "corregí: ...".
-  Si cuenta algo que hizo además de lo anterior ("también desparasité 10 terneros"), es "registrar".
+- "corregir": cambia o completa un REGISTRO (algo que hizo) que YA anotó antes, en vez de contar
+  algo nuevo. Se reconoce porque se refiere a un registro anterior: "a esas 5 vaquillonas las
+  vacuné con ivermectina", "eran 30, no 20", "me equivoqué, fue en el lote 4", "lo de recién fue
+  ayer", "corregí: ...". Si cuenta algo que hizo además de lo anterior ("también desparasité 10
+  terneros"), es "registrar". Si corrige un PENDIENTE (algo por hacer), es "corregir_pendiente".
 - "borrar": pide borrar o eliminar uno o varios registros que anotó ("borrá la lluvia de La Pastora",
   "eliminá las 5 vaquillonas y la cosecha del lote 5"), o deshacer lo último que anotó ("sacá lo
   último", "deshacé eso", "me equivoqué, borralo", "eso no va, sacalo"). Tachar algo porque ya
@@ -78,12 +82,15 @@ PROMPT = Parte(
 - "anotar_pendiente": algo que TIENE QUE HACER más adelante y quiere tener presente ("tengo que
   volver a revisar las vaquillonas el martes", "acordate de pedir vacunas", "pendiente: llamar al
   veterinario", "en 21 días toca la segunda dosis en El Ombú"). No es "registrar": todavía no pasó.
+  También lo que TENÍA que hacer y no dice que lo hizo ("tenía que vacunar los terneros el lunes",
+  "había que arreglar el alambrado ayer"): sigue pendiente, con la fecha pasada.
 - "ver_pendientes": pregunta qué tiene pendiente o por hacer ("¿qué tengo pendiente?",
   "pendientes", "¿qué me falta hacer en El Ombú?"). Completá "establecimiento" si pregunta por un campo.
 - "pendiente_hecho": avisa que ya hizo algo que tenía pendiente, o pide tacharlo o marcarlo como
   hecho ("ya está lo del lote 3", "ya llamé al veterinario", "listo lo de las vacunas", "marcá
   como hecho lo de Juan"). Se reconoce porque nombra algo por hacer con "lo de..." o "eso de..."
-  y dice que ya está, listo o ya lo hizo, aunque no diga la palabra "pendiente". "Tachá" o
+  y dice que ya está, listo o ya lo hizo, aunque no diga la palabra "pendiente". "Tenía que..." o
+  "había que..." sin decir que lo hizo NO es "pendiente_hecho": es "anotar_pendiente". "Tachá" o
   "marcá" algo, contando que ya lo hizo, es siempre "pendiente_hecho". Las gestiones (comprar, llamar, pedir, revisar,
   avisar) son lo típico de un pendiente: "ya compré el alambre" o "ya revisé el molino" son
   "pendiente_hecho", no "registrar", porque no traen datos de un trabajo en el campo. Si además
@@ -93,6 +100,13 @@ PROMPT = Parte(
   el pendiente de llamar a Juan", "sacá lo de las vacunas de los pendientes, al final no va").
   Tachar un pendiente porque ya lo hizo es "pendiente_hecho". Si habla de algo que anotó como
   hecho, es "borrar".
+- "corregir_pendiente": cambia la fecha, el texto, el campo o el lote de uno o varios pendientes
+  que ya anotó ("el pendiente de las aguadas es para el jueves", "lo de llamar a Juan pasalo al
+  viernes", "los del molino no son de El Ombú, son de La Feliz"). Si la conversación reciente
+  muestra que lo último que anotó fue un pendiente ("PENDIENTE ANOTADO") y corrige sin decir
+  cuál ("perdón, el martes no, el miércoles", "no, era en el lote 4"), es "corregir_pendiente"
+  sobre ese, no "corregir".
+- "cancelar": SOLO si viene una PREGUNTA_PENDIENTE y el mensaje la rechaza o la cancela (ver arriba).
 - "mis_campos": quiere ver la lista de sus campos, establecimientos o lotes ("quiero ver mis
   campos", "¿qué campos tengo cargados?", "mostrame los establecimientos", "pasame los lotes que tengo").
 - "mis_datos": quiere ver los datos de su perfil: nombre, rubro, localidad o matrícula ("mostrame
@@ -195,7 +209,9 @@ PENDIENTE:
 {
   "texto": string,              // qué tiene que hacer, corto (hasta 120 letras) y con sus palabras (ej: "revisar las vaquillonas"), sin la fecha ni el campo
   "lote": string | null,        // como en EVENTO
-  "vence": "YYYY-MM-DD" | null  // para cuándo, si lo dice ("el martes", "en 21 días")
+  "vence": "YYYY-MM-DD" | null  // para cuándo, si lo dice. Si dice lo que TIENE que hacer, futura ("el martes" =
+                                // el de "Los 7 días siguientes"); si dice lo que TENÍA que hacer o se olvidó,
+                                // pasada ("tenía que… el lunes" = el de "Los 7 días anteriores")
 }
 
 REF_PENDIENTE (uno por cada pendiente que nombra):
@@ -206,6 +222,20 @@ REF_PENDIENTE (uno por cada pendiente que nombra):
   "todos": bool                 // true SOLO si dice explícitamente todos ("ya hice todo lo de El Ombú")
 }
   Si se refiere a uno que el sistema le mostró recién ("el segundo", "ese"), copiá su texto.
+  Si nombra varios en plural ("los molinos", "los de El Ombú"), "todos": true.
+
+CORRECCION_PENDIENTE:
+{
+  "pendientes": [ REF_PENDIENTE, ... ],  // cuáles corrige, con las palabras con que los nombra (en
+                                         // "establecimiento", el campo donde ESTÁN ahora); [] si
+                                         // corrige el último que anotó sin decir cuál
+  "cambios": {                           // SOLO lo nuevo que dice el mensaje
+    "texto": string | null,              // qué hay que hacer, si lo cambia
+    "vence": "YYYY-MM-DD" | null,        // la fecha nueva
+    "establecimiento": string | null,    // el campo nuevo
+    "lote": string | null                // el lote nuevo, como en EVENTO
+  }
+}
 
 PRECIO:
 {
@@ -214,8 +244,11 @@ PRECIO:
 }""",
     reglas="""\
 - Fechas relativas ("ayer", "el lunes", "la semana pasada") convertilas a YYYY-MM-DD usando la fecha de hoy.
-  Si no se menciona fecha en un registro, usá la de hoy. En un pendiente la fecha es futura ("el
-  martes" es el próximo martes) y, si no la dice, "vence" es null.
+  Si no se menciona fecha en un registro, usá la de hoy. En un pendiente la fecha suele ser futura
+  ("el martes" es el próximo martes), pero si lo cuenta en pasado ("tenía que vacunar los terneros
+  el lunes", "había que arreglar el alambrado ayer", "me olvidé de pedir los rollos el sábado") es
+  esa fecha PASADA, la más reciente con ese día: el pendiente quedó vencido. Si no dice la fecha,
+  "vence" es null.
 - En consultas como "este mes" o "este año", completá "desde" y "hasta".
 - NUNCA inventes datos. Si falta algo, null. Si el mensaje es ambiguo, confianza "baja".
 - Las preguntas ("¿cuántas...?", "¿cuándo...?", "¿qué se le dio...?") son "consultar", no "registrar".

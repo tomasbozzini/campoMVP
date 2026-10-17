@@ -47,7 +47,9 @@ class ProveedorOpenRouter:
         self._modelo = modelo
         self._esfuerzo = esfuerzo
         self._espera = espera
-        self._cliente = cliente or httpx.Client(timeout=espera)
+        # Conectarse tiene su propia espera, que httpx puede gastar más de una vez (con IPv6 y
+        # con IPv4): con la mitad, el pedido entero sigue dentro de la espera.
+        self._cliente = cliente or httpx.Client(timeout=httpx.Timeout(espera, connect=espera / 2))
 
     def pedido(self, sistema: str, mensaje: str) -> dict[str, Any]:
         return {

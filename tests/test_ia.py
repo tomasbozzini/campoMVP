@@ -90,6 +90,26 @@ def test_un_audio_con_otras_palabras_se_transcribe(falso, transcripcion):
     assert interprete.transcribir(b"ogg", glosario=GLOSARIO) == transcripcion
 
 
+PROPIOS = ["El Ombú", "La Feliz"]
+CON_PROPIOS = "vaquillonas, novillos, parición, SENASA, El Ombú, La Feliz."
+
+
+@pytest.mark.parametrize(
+    ("transcripcion", "vacio"),
+    [
+        ("El Ombú.", False),  # la respuesta a "¿en qué campo fue?"
+        ("en La Feliz", False),
+        ("El Ombú, La Feliz.", True),  # el glosario repetido
+        ("vaquillonas, novillos, El Ombú, La Feliz", True),
+        ("Vaquillonas.", True),
+    ],
+)
+def test_un_solo_nombre_propio_es_un_mensaje(falso, transcripcion, vacio):
+    falso.transcripcion = transcripcion
+    esperado = "" if vacio else transcripcion
+    assert interprete.transcribir(b"ogg", glosario=CON_PROPIOS, propios=PROPIOS) == esperado
+
+
 def test_un_audio_vacio_no_llega_a_la_ia(servidor, motor, falso, monkeypatch):
     con_perfil_en(motor, "5491100000001")
     monkeypatch.setattr(whatsapp, "descargar_media", lambda _id: b"ogg")

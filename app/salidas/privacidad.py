@@ -80,8 +80,9 @@ campo puede ver lo que vos anotaste sobre ese campo.</p>
   <li><strong>OpenRouter, Inc.</strong>: recibe el texto de tus mensajes y lo pasa al proveedor del modelo de
   inteligencia artificial que lo interpreta. Solo usamos proveedores con retención cero: no guardan tus
   mensajes después de responder ni los usan para entrenar sus modelos.</li>
-  <li><strong>Groq, Inc.</strong>: transcribe tus audios a texto e interpreta el texto si OpenRouter no
-  responde. No usa tus datos para entrenar sus modelos.</li>
+  <li><strong>Groq, Inc.</strong>: transcribe tus audios a texto (con los nombres de tus campos y lotes, para
+  escribirlos bien) e interpreta el texto si OpenRouter no responde. No usa tus datos para entrenar sus
+  modelos.</li>
   <li><strong>El proveedor de servidores y base de datos</strong> donde está alojado CampoBot.</li>
 </ul>
 <p>Algunos de estos proveedores están fuera de la Argentina (por ejemplo, en Estados Unidos). Al usar

@@ -24,10 +24,11 @@ from app.ia.esquemas import EsquemaAccion
 from app.ia.proveedor import IASaturada
 from app.infra.config import config
 from app.modulos.comun import borrar, campos, confirmar
-from app.nucleo import acciones, alta, charla, comandos, invitaciones, perfil, sesiones
+from app.nucleo import acciones, alta, charla, comandos, invitaciones, perfil, preguntas, sesiones
 from app.nucleo.acceso import es_admin, usuario_con_acceso
 from app.nucleo.acciones import Accion
 from app.nucleo.contexto import Adjunto, Contexto
+from app.nucleo.cuaderno import CampoParecido
 
 log = logging.getLogger(__name__)
 
@@ -130,7 +131,8 @@ def _atajo(ctx: Contexto, telefono: str) -> str | None:
 
 def _responder(ctx: Contexto, telefono: str) -> str:
     texto = ctx.texto
-    if (respuesta := confirmar.resolver(ctx.cuaderno, texto, ctx.ahora)) is not None:
+    suyos = modulos.del_rubro(ctx.usuario.rubro)
+    if (respuesta := confirmar.resolver(ctx, lambda pedidos: _ejecutar(ctx, pedidos, suyos))) is not None:
         return respuesta
     if (respuesta := perfil.comando(ctx)) is not None:
         return respuesta
@@ -146,10 +148,13 @@ def _responder(ctx: Contexto, telefono: str) -> str:
     if not ctx.cuaderno.consumir_cupo(ctx.hoy, config.limite_diario_ia):
         return SIN_CUPO
 
-    suyos = modulos.del_rubro(ctx.usuario.rubro)
     try:
         interpretado = interprete.interpretar(
-            texto, ctx.hoy, charla.historial(ctx.cuaderno), partes=modulos.partes(suyos)
+            texto,
+            ctx.hoy,
+            charla.historial(ctx.cuaderno),
+            partes=modulos.partes(suyos),
+            pregunta=preguntas.para_la_ia(ctx.pregunta_abierta),
         )
     except IASaturada as e:
         # Límite, sin saldo o sin respuesta: no es culpa del mensaje. El error solo trae
@@ -175,7 +180,23 @@ def _pedidos(interpretado: object) -> list[dict[str, Any]]:
 
 
 def _ejecutar(ctx: Contexto, pedidos: list[dict[str, Any]], suyos: list[str]) -> str:
-    """Ejecuta los pedidos. Uno de un módulo que la persona no tiene se trata como fuera de
+    """Ejecuta los pedidos, o pregunta antes si nombran un campo nuevo muy parecido a uno que
+    ya existe ("Omu" y "El Ombú"). En ese caso no queda nada hecho: lo que se había hecho del
+    mensaje se deshace y los pedidos se guardan para después de la respuesta."""
+    adjuntos = len(ctx.adjuntos)
+    try:
+        with ctx.db.begin_nested():
+            return _hacer(ctx, pedidos, suyos)
+    except CampoParecido as p:
+        del ctx.adjuntos[adjuntos:]
+        cuaderno = ctx.cuaderno
+        return confirmar.preguntar_campo(
+            cuaderno, p.nombre, p.existente, pedidos, cuaderno.alias, sorted(cuaderno.permitidos), ctx.ahora
+        )
+
+
+def _hacer(ctx: Contexto, pedidos: list[dict[str, Any]], suyos: list[str]) -> str:
+    """Hace los pedidos. Uno de un módulo que la persona no tiene se trata como fuera de
     alcance, aunque la IA lo devuelva: su prompt no lo ofrecía."""
     varios = len(pedidos) > 1
     respuestas: list[str] = []
