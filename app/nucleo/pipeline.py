@@ -128,8 +128,7 @@ def _atajo(ctx: Contexto, telefono: str) -> str | None:
 
 def _responder(ctx: Contexto, telefono: str) -> str:
     texto = ctx.texto
-    comando = texto.lower().strip(" !.¡")
-    if (respuesta := confirmar.resolver(ctx.cuaderno, comando, ctx.ahora)) is not None:
+    if (respuesta := confirmar.resolver(ctx.cuaderno, texto, ctx.ahora)) is not None:
         return respuesta
     if (respuesta := perfil.comando(ctx)) is not None:
         return respuesta

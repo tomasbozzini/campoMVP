@@ -147,6 +147,17 @@ def test_cambiar_rubro(db, ia):
     assert ia == []
 
 
+def test_cambiar_rubro_con_la_palabra_o_cancelando_con_variantes(db, ia):
+    u = con_perfil(db, TEL, rubro="veterinario")
+    assert "número o la palabra" in _mandar(db, "cambiar rubro")
+    assert "Productor" in _mandar(db, "productor")
+    assert u.rubro == "productor"
+    for cancelar in ("no, dejá", "Nada, dejalo así", "mejor no"):
+        _mandar(db, "cambiar rubro")
+        assert _mandar(db, cancelar) == perfil.SIN_CAMBIOS
+    assert u.rubro == "productor" and ia == []
+
+
 def test_cambiar_rubro_y_mandar_otra_cosa_descarta_el_cambio(db, ia):
     u = con_perfil(db, TEL, rubro="veterinario")
     _mandar(db, "cambiar rubro")
@@ -187,6 +198,19 @@ def test_cambiar_matricula(db, ia):
         ("5", None),
         ("veterinario y productor", None),
         ("no sé", None),
+        # Por la palabra, como se escribe o se dice
+        ("Agrónomo", "agronomo"),
+        ("vete", "veterinario"),
+        ("vet", "veterinario"),
+        ("agro", "agronomo"),
+        ("soy productora", "productor"),
+        ("ganadero", "productor"),
+        ("asesora", "agronomo"),
+        ("2, agrónomo", "agronomo"),
+        ("el 1", "veterinario"),
+        ("1 agrónomo", None),  # el número dice una cosa y la palabra otra
+        ("vacuné 3 vacas", None),  # el número no es la opción
+        ("vetado", None),
     ],
 )
 def test_leer_rubro(texto, rubro):

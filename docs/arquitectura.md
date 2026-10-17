@@ -294,10 +294,14 @@ de 2b, 7 y 8b):
       nunca se toma como fórmula (en Excel va como texto; en el CSV, con un apóstrofo
       adelante si empieza con =, +, - o @). WhatsApp no acepta `text/csv` como documento: el
       CSV se sube como texto plano, con su nombre `.csv`.
-- [ ] 8.1 · Respuestas fijas más flexibles, sin IA: la pregunta del rubro acepta el número o
+- [x] 8.1 · Respuestas fijas más flexibles, sin IA: la pregunta del rubro acepta el número o
       la palabra ("agrónomo", "vete", "productor"), y los *sí* / *no* de una confirmación
       aceptan variantes comunes ("dale", "ok", "sí, borrá", "no, dejá"). Si la respuesta
       mezcla un sí y un no, o trae otra cosa, no es una respuesta y sigue su camino normal.
+      Las variantes están en `nucleo/respuestas.py` (también para cancelar un cambio de
+      rubro o matrícula). El número del rubro vale solo o con el rubro y relleno ("opción
+      2", "2, agrónomo"): "vacuné 3 vacas" ya no se toma como la opción 3, y "1 agrónomo"
+      vuelve a preguntar.
 - [ ] 8.2 · IA por OpenRouter (decisión "IA", arriba):
       - Un `ProveedorIA` nuevo para OpenRouter (API compatible con OpenAI). Con
         `OPENROUTER_API_KEY`, OpenRouter interpreta y Groq queda de respaldo; sin la clave, todo

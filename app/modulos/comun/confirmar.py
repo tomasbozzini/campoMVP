@@ -1,11 +1,13 @@
 """Borrados grandes: desde 4 registros o 4 pendientes de una vez se pide confirmación.
 
 El borrado queda esperando un *sí* durante 10 minutos. *no* lo cancela y cualquier otro
-mensaje lo descarta (y sigue su camino normal).
+mensaje lo descarta (y sigue su camino normal). Se aceptan las variantes de siempre
+("dale", "sí, borrá", "no, dejá"): ver `nucleo/respuestas.py`.
 """
 
 from datetime import UTC, datetime, timedelta
 
+from app.nucleo import respuestas
 from app.nucleo.cuaderno import Cuaderno
 from app.salidas.whatsapp import SANGRIA
 from app.salidas.whatsapp import SEPARADOR as LINEA
@@ -13,8 +15,6 @@ from app.salidas.whatsapp import SEPARADOR as LINEA
 CONFIRMAR_DESDE = 4
 CONFIRMAR_MINUTOS = 10
 MAX_EN_LISTA = 10
-SI = {"si", "sí", "dale", "confirmo", "confirmar", "ok", "si, borralos", "sí, borralos", "si borralos", "sí borralos"}
-NO = {"no", "cancelar", "cancela", "cancelá", "no, cancelar"}
 
 # Qué se va a borrar.
 REGISTROS, PENDIENTES = "registros", "pendientes"
@@ -33,7 +33,7 @@ def pedir(cuaderno: Cuaderno, que: str, ids: list[int], lineas: list[str], ahora
     return "\n".join(texto)
 
 
-def resolver(cuaderno: Cuaderno, comando: str, ahora: datetime) -> str | None:
+def resolver(cuaderno: Cuaderno, texto: str, ahora: datetime) -> str | None:
     """Si hay un borrado esperando confirmación: "sí" lo hace, "no" lo cancela, y
     cualquier otro mensaje lo descarta (y sigue el flujo normal)."""
     pendiente = cuaderno.tomar_borrado_pendiente()
@@ -41,9 +41,9 @@ def resolver(cuaderno: Cuaderno, comando: str, ahora: datetime) -> str | None:
         return None
     creado = pendiente.creado if pendiente.creado.tzinfo else pendiente.creado.replace(tzinfo=UTC)
     vigente = ahora - creado <= timedelta(minutes=CONFIRMAR_MINUTOS)
-    if comando in NO:
+    if respuestas.es_no(texto):
         return "👌 Listo, no borré nada."
-    if comando not in SI:
+    if not respuestas.es_si(texto):
         return None
     if not vigente:
         return "⏱️ Pasó mucho tiempo desde que lo pediste y no borré nada.\nSi querés, pedilo de nuevo."

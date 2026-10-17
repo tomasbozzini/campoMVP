@@ -14,6 +14,7 @@ import re
 
 from app.infra.modelos import Usuario
 from app.infra.texto import prolijo, sin_tildes
+from app.nucleo import respuestas
 from app.nucleo.contexto import Contexto
 from app.salidas.whatsapp import SEPARADOR as LINEA
 
@@ -31,13 +32,12 @@ CAMBIO_MATRICULA = "cambio_matricula"
 VER_DATOS = {"mis datos", "mi perfil", "perfil"}
 CAMBIAR_RUBRO = {"cambiar rubro", "cambiar mi rubro"}
 CAMBIAR_MATRICULA = {"cambiar matricula", "cambiar mi matricula", "cargar matricula", "cargar mi matricula"}
-CANCELAR = {"cancelar", "cancela", "no", "nada"}
 SIN_MATRICULA = {"ninguna", "no tengo", "sin matricula", "borrar", "borrarla"}
 
 PREGUNTAS = {
     "nombre": "¿Cuál es tu *nombre y apellido*?",
     "rubro": (
-        "¿A qué te dedicás? Respondé con el número:\n"
+        "¿A qué te dedicás? Respondé con el número o la palabra:\n"
         "      *1* Veterinario\n"
         "      *2* Agrónomo o asesor\n"
         "      *3* Productor"
@@ -46,7 +46,7 @@ PREGUNTAS = {
 }
 NO_ENTENDI = {
     "nombre": "🤔 Necesito tu nombre y apellido, por ejemplo: _Juan Pérez_.",
-    "rubro": "🤔 No entendí. Elegí una opción del 1 al 3.",
+    "rubro": "🤔 No entendí. Elegí una opción del 1 al 3 o escribila, por ejemplo: _agrónomo_.",
     "localidad": "🤔 No entendí la localidad. Escribila sola, por ejemplo: _Tandil_.",
 }
 
@@ -63,12 +63,17 @@ PREGUNTA_MATRICULA = (
 SIN_CAMBIOS = "👌 Listo, no cambié nada."
 RUBRO_DE_NUEVO = "Cambiaron las opciones de rubro: necesito que vuelvas a elegir el tuyo."
 
-# Palabras que identifican cada rubro en una respuesta escrita (sin tildes, minúscula).
+# Palabras que identifican cada rubro en una respuesta escrita (sin tildes, minúscula):
+# alcanza con que una palabra de la respuesta empiece así ("veterinaria", "asesora").
 _PALABRAS_RUBRO = {
     "veterinario": ("veterinari", "vete"),
     "agronomo": ("agronom", "asesor"),
-    "productor": ("productor",),
+    "productor": ("productor", "ganader", "agricultor", "tamber"),
 }
+# Abreviaturas que tienen que ser la palabra entera ("vet", no "vetado").
+_ABREVIATURAS_RUBRO = {"vet": "veterinario", "agro": "agronomo"}
+# Lo que puede acompañar al número de la opción ("opción 2", "el 3", "soy 1").
+_RELLENO_RUBRO = {"opcion", "el", "la", "numero", "nro", "n", "soy", "o", "y"}
 _NUMEROS_RUBRO = {"1": "veterinario", "2": "agronomo", "3": "productor"}
 _PREFIJOS_NOMBRE = ("me llamo ", "mi nombre es ", "soy ")
 _PREFIJOS_LOCALIDAD = ("soy de ", "vivo en ", "estoy en ", "de ", "en ")
@@ -99,15 +104,27 @@ def leer_nombre(texto: str) -> str | None:
 
 
 def leer_rubro(texto: str) -> str | None:
-    """El rubro elegido, por número (1 a 3) o por nombre. None si no se entiende o hay más de uno."""
+    """El rubro elegido, por número (1 a 3), por nombre o con los dos ("2, agrónomo"). None
+    si no se entiende o nombra más de uno ("1 agrónomo", "veterinario y productor")."""
     respuesta = _normalizar(texto)
-    numeros = set(re.findall(r"\d+", respuesta))
-    if len(numeros) == 1 and (numero := numeros.pop()) in _NUMEROS_RUBRO and len(respuesta) <= 12:
-        return _NUMEROS_RUBRO[numero]
-    elegidos = {
-        rubro for rubro, palabras in _PALABRAS_RUBRO.items() if any(p in w for w in respuesta.split() for p in palabras)
-    }
+    palabras = re.findall(r"[a-z]+", respuesta)
+    de_cada_una = {p: _rubro_de(p) for p in palabras}
+    elegidos = {rubro for rubro in de_cada_una.values() if rubro}
+    numeros = re.findall(r"\d+", respuesta)
+    if numeros:
+        # El número vale si el resto es el rubro o relleno ("opción 2", "2, agrónomo"): en
+        # "vacuné 3 vacas" no es una respuesta.
+        sueltas = [p for p, rubro in de_cada_una.items() if rubro is None and p not in _RELLENO_RUBRO]
+        if len(numeros) > 1 or numeros[0] not in _NUMEROS_RUBRO or sueltas:
+            return None
+        elegidos.add(_NUMEROS_RUBRO[numeros[0]])
     return elegidos.pop() if len(elegidos) == 1 else None
+
+
+def _rubro_de(palabra: str) -> str | None:
+    if palabra in _ABREVIATURAS_RUBRO:
+        return _ABREVIATURAS_RUBRO[palabra]
+    return next((rubro for rubro, raices in _PALABRAS_RUBRO.items() if palabra.startswith(raices)), None)
 
 
 def leer_localidad(texto: str) -> str | None:
@@ -191,7 +208,7 @@ def _resolver_cambio(usuario: Usuario, pregunta: str, texto: str) -> str | None:
     """La respuesta a "cambiar rubro" o "cambiar matrícula". None si el mensaje no es una
     respuesta: el cambio se descarta y el mensaje sigue su camino normal."""
     respuesta = _normalizar(texto)
-    if respuesta in CANCELAR:
+    if respuestas.es_no(texto):
         return SIN_CAMBIOS
     if pregunta == CAMBIO_RUBRO:
         rubro = leer_rubro(texto)

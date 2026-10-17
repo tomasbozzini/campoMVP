@@ -724,6 +724,20 @@ def test_borrar_todo_se_puede_cancelar_o_se_descarta(db, fake_llm):
     assert len(db.scalars(select(Evento)).all()) == 6
 
 
+def test_la_confirmacion_acepta_variantes_del_si_y_del_no(db, fake_llm):
+    respuestas, llamadas = fake_llm
+    u = _con_campo(db)
+    _cinco_en_la_pastora(respuestas, db, u)
+    respuestas["borrá todo"] = {"intencion": "borrar", "borrado": {"registros": [{"todos": True}]}}
+    antes = len(llamadas)
+
+    pipeline.manejar_mensaje(db, u.telefono, "borrá todo", hoy=HOY)
+    assert pipeline.manejar_mensaje(db, u.telefono, "No, dejá", hoy=HOY) == "👌 Listo, no borré nada."
+    pipeline.manejar_mensaje(db, u.telefono, "borrá todo", hoy=HOY)
+    assert "borré 6 registros" in pipeline.manejar_mensaje(db, u.telefono, "dale, borralos", hoy=HOY)
+    assert len(llamadas) == antes + 2  # las respuestas no pasan por la IA
+
+
 def test_confirmacion_vencida_no_borra(db, fake_llm):
     respuestas, _ = fake_llm
     u = _con_campo(db)
