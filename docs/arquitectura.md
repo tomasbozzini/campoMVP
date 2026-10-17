@@ -51,7 +51,7 @@ app/
   canales/        WhatsApp: parseo de entrada, envío de texto y documentos. Aislado del resto
   nucleo/         pipeline del mensaje, acceso y alta de usuarios, cuentas y perfiles,
                   sesiones (abrir/cerrar manga o lote), registro de acciones, permisos
-  ia/             proveedor de IA detrás de una interfaz (hoy Groq), armado del prompt por
+  ia/             proveedor de IA detrás de una interfaz (OpenRouter y Groq), armado del prompt por
                   perfil, esquemas estrictos de salida, glosario para la transcripción
   modulos/
     comun/          cuaderno, consultar, corregir, borrar, precios, SENASA
@@ -85,6 +85,7 @@ del perfil del usuario (menos tokens, menos latencia, más precisión).
 | PDF | Con logo y marca CampoBot | Decisión de producto |
 | Alta de usuarios | **Código de invitación** + alta guiada. La aprobación del administrador se suma después sobre el mismo flujo | Entran al instante, sin carga manual ni mensajes pagos; control de quién entra |
 | Producción | **Railway** desde la etapa 1: el bot, Postgres y el cron `actualizar-precios` (`30 21 * * 1-5`). Cada push a la rama despliega y migra al arrancar, sin esperar al CI | Se adelantó (el plan lo dejaba para la etapa 4): las pruebas desde el celular son contra Railway |
+| IA | Interpretar: `openai/gpt-oss-120b` por **OpenRouter** (con `OPENROUTER_API_KEY`), solo con proveedores que no guardan ni entrenan con los datos (`data_collection: deny`) y que aceptan todos los parámetros del pedido (`require_parameters`); **Groq** de respaldo si OpenRouter falla, o como único si no hay clave. Audios: Whisper en Groq | Groq no habilita el plan pago y con el gratuito el bot atiende un mensaje por minuto |
 
 ## 5. Seguridad
 
@@ -293,8 +294,28 @@ de 2b, 7 y 8b):
       nunca se toma como fórmula (en Excel va como texto; en el CSV, con un apóstrofo
       adelante si empieza con =, +, - o @). WhatsApp no acepta `text/csv` como documento: el
       CSV se sube como texto plano, con su nombre `.csv`.
+- [ ] 8.1 · Respuestas fijas más flexibles, sin IA: la pregunta del rubro acepta el número o
+      la palabra ("agrónomo", "vete", "productor"), y los *sí* / *no* de una confirmación
+      aceptan variantes comunes ("dale", "ok", "sí, borrá", "no, dejá"). Si la respuesta
+      mezcla un sí y un no, o trae otra cosa, no es una respuesta y sigue su camino normal.
+- [ ] 8.2 · IA por OpenRouter (decisión "IA", arriba):
+      - Un `ProveedorIA` nuevo para OpenRouter (API compatible con OpenAI). Con
+        `OPENROUTER_API_KEY`, OpenRouter interpreta y Groq queda de respaldo; sin la clave, todo
+        sigue con Groq, sin fallar al arrancar.
+      - Si la IA rechaza por límite, no responde o no hay saldo, el bot contesta "⏳ Estoy con
+        mucha demanda, probá de nuevo en un minuto" en vez del error genérico, y queda en los
+        logs sin datos personales.
+      - Política de privacidad: el texto lo procesa OpenRouter con el proveedor del modelo (Groq
+        si OpenRouter no responde) y los audios Groq, sin uso para entrenar.
+      - `python -m app eval` se adelanta del paso 9b: corre el set entero o una parte, muestra
+        llamadas, tokens, costo estimado y latencia (mediana y p95), y frena si pasa un tope
+        configurable. Antes de correr algo que cueste más de USD 0,50, se pregunta.
+      - Esfuerzo de razonamiento: se compara `low` contra `medium` con el set y se muestra la
+        comparación antes de cambiarlo (hasta entonces, `medium`, el que usaba Groq).
+      - Un test controla el tamaño del prompt de cada rubro, con un tope.
 - [ ] 9a · Modo prueba.
-- [ ] 9b · Set de evaluación y `python -m app eval`.
+- [ ] 9b · Set de evaluación armado con el modo prueba (`eval revisar`); el comando
+      `python -m app eval` ya existe desde el 8.2.
 
 **Decisiones de producto de la etapa 1:**
 
@@ -365,9 +386,10 @@ de 2b, 7 y 8b):
       borrar exige escribir exacto `confirmo borrar mis datos`.
     - Comandos del administrador (`invitar`, `invitaciones`, `anular`, `autorizar`,
       `quitar`, `autorizados`): solo exactos y escritos; no pasan por la IA.
-  - Siguen fijas las respuestas a una pregunta del bot (el número del rubro, *sí* / *no*
-    de un borrado grande, *cancelar*) y, durante el alta, que es sin IA, solo valen los
-    atajos `ayuda` y `privacidad`.
+  - Siguen fijas, sin IA, las respuestas a una pregunta del bot (el rubro, por número o
+    palabra; *sí* / *no* de un borrado grande, con variantes como "dale" o "no, dejá";
+    *cancelar*) y, durante el alta, que es sin IA, solo valen los atajos `ayuda` y
+    `privacidad`.
   - El set de evaluación tiene al menos 5 formas distintas de pedir cada función, con
     frases largas, muletillas y como salen de un audio.
 - **Salidas:** "Excel" o "planilla" → .xlsx; CSV solo si lo pide, con `;` y BOM. El PDF lleva
@@ -379,8 +401,9 @@ de 2b, 7 y 8b):
   `eval revisar` lee la base local; para otra base, `--base` explícito y en solo lectura. Lo
   aprobado se guarda solo en `evaluacion/set.json`.
 - **Set de evaluación:** las frases de la especificación entran con lo esperado hoy; cada
-  etapa sube la versión y cambia lo esperado. `python -m app eval` contra Groq solo cuando
-  cambia el prompt o un esquema, informando llamadas, tokens y latencia.
+  etapa sube la versión y cambia lo esperado. `python -m app eval` contra la IA real solo
+  cuando cambia el prompt o un esquema, informando llamadas, tokens, costo y latencia, con
+  un tope de costo.
 - **Trilla (etapa 3):** el bot informa qué componente de la pérdida supera la tolerancia del
   INTA, citando la fuente, sin decir qué hacer.
 
