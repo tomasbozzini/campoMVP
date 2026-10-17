@@ -1,6 +1,7 @@
 """OpenRouter como IA principal, Groq de respaldo, y la IA saturada."""
 
 import json
+import time
 from collections.abc import Callable
 from datetime import date
 from types import SimpleNamespace
@@ -64,7 +65,7 @@ def test_pide_solo_proveedores_que_no_guardan_datos_y_aceptan_el_json():
     assert cuerpo["model"] == "openai/gpt-oss-120b"
     assert cuerpo["messages"] == [{"role": "system", "content": "sis"}, {"role": "user", "content": "msj"}]
     assert cuerpo["response_format"] == {"type": "json_object"}
-    assert cuerpo["provider"] == {"data_collection": "deny", "require_parameters": True}
+    assert cuerpo["provider"] == {"zdr": True, "data_collection": "deny", "require_parameters": True}
     assert cuerpo["reasoning"] == {"effort": "low"}
 
 
@@ -94,6 +95,25 @@ def test_sin_respuesta_es_ia_saturada():
     openrouter, _ = _openrouter(colgado)
     with pytest.raises(IASaturada, match="ReadTimeout"):
         openrouter.completar_json("sis", "msj")
+
+
+class Goteo(httpx.SyncByteStream):
+    """Como OpenRouter mientras procesa: espacios cada tanto, y la respuesta al final."""
+
+    def __iter__(self):
+        for _ in range(5):
+            time.sleep(0.03)
+            yield b" "
+        yield json.dumps(_respuesta_ok()).encode()
+
+
+def test_los_espacios_para_mantener_viva_la_conexion_no_estiran_la_espera():
+    cliente = httpx.Client(transport=httpx.MockTransport(lambda _p: httpx.Response(200, stream=Goteo())))
+    lento = ProveedorOpenRouter("clave-or", "openai/gpt-oss-120b", "low", cliente, espera=0.05)
+    with pytest.raises(IASaturada, match=r"sin respuesta en 0.05 s"):
+        lento.completar_json("sis", "msj")
+    a_tiempo = ProveedorOpenRouter("clave-or", "openai/gpt-oss-120b", "low", cliente, espera=5)
+    assert a_tiempo.completar_json("sis", "msj") == {"acciones": [{"intencion": "saludo"}]}
 
 
 @pytest.mark.parametrize(

@@ -342,6 +342,13 @@ class Cuaderno:
         self.db.flush()
         return True
 
+    def devolver_cupo(self, hoy: date) -> None:
+        """Resta el uso que se sumó para un mensaje que la IA no pudo interpretar."""
+        uso = self.db.scalar(select(UsoDiario).where(UsoDiario.usuario_id == self.usuario_id, UsoDiario.fecha == hoy))
+        if uso is not None and uso.cantidad > 0:
+            uso.cantidad -= 1
+            self.db.flush()
+
     # --- Todo ------------------------------------------------------------------
 
     def borrar_todo(self) -> None:

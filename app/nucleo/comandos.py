@@ -112,7 +112,7 @@ def privacidad() -> str:
         "🔒 *TUS DATOS*\n\n"
         "      › Guardo tu número, tu nombre, rubro y localidad, y lo que anotás, solo para mostrártelo a vos.\n"
         "      › Nadie más ve tu cuaderno, ni siquiera quien tenga el mismo campo.\n"
-        "      › Tus mensajes los interpreta una IA (OpenRouter y Groq) que no los usa para entrenar, y viajan por WhatsApp (Meta).\n"
+        "      › Tus mensajes los interpreta una IA (OpenRouter y Groq) que no los guarda ni los usa para entrenar, y viajan por WhatsApp (Meta).\n"
         "      › No vendo ni comparto tus datos con nadie más.\n\n"
         "*Qué podés hacer*\n"
         "      › Ver todo lo tuyo: *mis datos* y _¿qué tengo anotado?_\n"

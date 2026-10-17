@@ -155,9 +155,11 @@ def _responder(ctx: Contexto, telefono: str) -> str:
         # Límite, sin saldo o sin respuesta: no es culpa del mensaje. El error solo trae
         # el tipo y el código, sin el texto de la persona.
         log.warning("IA con mucha demanda: %s", e)
+        ctx.cuaderno.devolver_cupo(ctx.hoy)  # un mensaje que no se atendió no cuenta
         return DEMANDA
     except Exception:
         log.exception("Error interpretando mensaje")
+        ctx.cuaderno.devolver_cupo(ctx.hoy)
         return ERROR_IA
     return _ejecutar(ctx, _pedidos(interpretado), suyos)
 

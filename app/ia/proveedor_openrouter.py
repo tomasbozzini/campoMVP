@@ -1,8 +1,8 @@
 """OpenRouter: interpreta los mensajes con el mismo modelo que Groq (API compatible con OpenAI).
 
-OpenRouter elige qué servidor corre el modelo. Le pedimos solo los que no guardan ni
-entrenan con los datos (`data_collection: deny`) y que aceptan todos los parámetros del
-pedido (`require_parameters`), así la salida en JSON está garantizada.
+OpenRouter elige qué servidor corre el modelo. Le pedimos solo los de retención cero (`zdr`),
+que no guardan ni entrenan con los datos (`data_collection: deny`) y que aceptan todos los
+parámetros del pedido (`require_parameters`), así la salida en JSON está garantizada.
 """
 
 import json
@@ -14,8 +14,10 @@ import httpx
 from app.ia.proveedor import ErrorIA, IASaturada, Uso, anotar_uso
 
 URL = "https://openrouter.ai/api/v1/chat/completions"
-# Para que WhatsApp no espere de más: si no responde, contesta el respaldo.
-ESPERA = 20.0  # segundos
+# Para que WhatsApp no espere de más: si no responde, contesta el respaldo. Es el tope del
+# pedido entero: mientras procesa, OpenRouter manda espacios para mantener viva la conexión, y
+# el tiempo de espera de httpx se reinicia con cada uno.
+ESPERA = 12.0  # segundos
 # Códigos que no son culpa del pedido: 402 sin saldo, 408 sin respuesta, 429 límite de
 # pedidos, 5xx sin servidores disponibles.
 _SATURADA = {402, 408, 429, 500, 502, 503, 504}
@@ -32,11 +34,14 @@ def _entero(valor: object) -> int:
 
 
 class ProveedorOpenRouter:
-    def __init__(self, api_key: str, modelo: str, esfuerzo: str, cliente: httpx.Client | None = None) -> None:
+    def __init__(
+        self, api_key: str, modelo: str, esfuerzo: str, cliente: httpx.Client | None = None, espera: float = ESPERA
+    ) -> None:
         self._api_key = api_key
         self._modelo = modelo
         self._esfuerzo = esfuerzo
-        self._cliente = cliente or httpx.Client(timeout=ESPERA)
+        self._espera = espera
+        self._cliente = cliente or httpx.Client(timeout=espera)
 
     def pedido(self, sistema: str, mensaje: str) -> dict[str, Any]:
         return {
@@ -46,24 +51,32 @@ class ProveedorOpenRouter:
             "temperature": 0.1,
             "max_tokens": 3000,
             "reasoning": {"effort": self._esfuerzo},
-            "provider": {"data_collection": "deny", "require_parameters": True},
+            "provider": {"zdr": True, "data_collection": "deny", "require_parameters": True},
             "usage": {"include": True},
         }
 
-    def completar_json(self, sistema: str, mensaje: str) -> object:
-        inicio = time.perf_counter()
+    def _enviar(self, cuerpo: dict[str, Any], inicio: float) -> tuple[int, bytes]:
+        """El código y el cuerpo de la respuesta, cortando si el pedido entero pasa la espera."""
+        partes: list[bytes] = []
         try:
-            respuesta = self._cliente.post(
-                URL,
-                json=self.pedido(sistema, mensaje),
-                headers={"Authorization": f"Bearer {self._api_key}", "X-Title": "CampoBot"},
-            )
+            with self._cliente.stream(
+                "POST", URL, json=cuerpo, headers={"Authorization": f"Bearer {self._api_key}", "X-Title": "CampoBot"}
+            ) as respuesta:
+                for parte in respuesta.iter_bytes():
+                    partes.append(parte)
+                    if time.perf_counter() - inicio > self._espera:
+                        raise IASaturada(f"OpenRouter sin respuesta en {self._espera:g} s")
+                return respuesta.status_code, b"".join(partes)
         except httpx.HTTPError as e:
             raise IASaturada(f"OpenRouter {type(e).__name__}") from None
-        if respuesta.status_code != 200:
-            raise _error(respuesta.status_code)
+
+    def completar_json(self, sistema: str, mensaje: str) -> object:
+        inicio = time.perf_counter()
+        codigo, contenido_crudo = self._enviar(self.pedido(sistema, mensaje), inicio)
+        if codigo != 200:
+            raise _error(codigo)
         try:
-            datos = respuesta.json()
+            datos = json.loads(contenido_crudo)
         except ValueError:
             raise ErrorIA("OpenRouter devolvió algo que no es JSON") from None
         if not isinstance(datos, dict):

@@ -326,7 +326,7 @@ de 2b, 7 y 8b):
       `--desde`, `--limite`, `--proveedor`, `--esfuerzo`, `--rubro`, `--tope-usd` (0,50 por
       defecto) y `--pausa`; Groq no informa el costo. Tope del prompt: 24.000 caracteres
       por rubro (`LARGO_MAXIMO_PROMPT`; hoy 16.600). La comparación de esfuerzo pasó al 8.3.
-- [ ] 8.3 · Ajustes de la IA (los cambios extra del 8.1 y el 8.2 quedan aceptados):
+- [x] 8.3 · Ajustes de la IA (los cambios extra del 8.1 y el 8.2 quedan aceptados):
       - OpenRouter espera 12 s antes de pasar al respaldo (20 s más el respaldo es demasiado;
         la meta es responder en menos de 3 s). Después se ajusta con la p95 del eval.
       - Si la IA está saturada o falla, ese mensaje no cuenta para el límite diario.
@@ -335,6 +335,13 @@ de 2b, 7 y 8b):
         parámetros del pedido. La política de privacidad lo dice.
       - Comparación de esfuerzo `low` contra `medium` con el set completo; se muestra la
         tabla antes de cambiarlo.
+
+      Cómo quedó: los 12 s son el tope del pedido entero. Mientras procesa, OpenRouter manda
+      espacios para mantener viva la conexión y el tiempo de espera de httpx se reinicia con
+      cada uno (en el eval hubo pedidos de 15 y 19 s). El cupo se devuelve
+      (`Cuaderno.devolver_cupo`) si la IA está saturada o falla. Comparación con el set
+      completo (88 frases, rubro productor): `medium` 83/88, USD 0,029, mediana 5,5 s, p95
+      18,9 s; `low` 85/88, USD 0,026, mediana 4,7 s, p95 10,0 s. Queda `medium` hasta decidir.
 - [ ] 9a · Modo prueba.
 - [ ] 9b · Set de evaluación armado con el modo prueba (`eval revisar`); el comando
       `python -m app eval` ya existe desde el 8.2.

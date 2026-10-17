@@ -9,6 +9,7 @@ from app.fuentes import oficiales
 from app.fuentes import precios as fuentes_precios
 from app.fuentes import senasa as fuentes_senasa
 from app.ia import interprete
+from app.ia.proveedor import ErrorIA, IASaturada
 from app.infra.config import config
 from app.infra.modelos import Cotizacion
 from app.modulos.comun import conversacion, precios, senasa
@@ -68,6 +69,25 @@ def test_limite_diario(db, respuestas, monkeypatch):
     assert pipeline.manejar_mensaje(db, u.telefono, "x", hoy=date(2026, 10, 10)) == pipeline.FUERA_DE_ALCANCE
     # los comandos no gastan cupo
     assert "CAMPOBOT" in pipeline.manejar_mensaje(db, u.telefono, "ayuda", hoy=HOY)
+
+
+def test_si_la_ia_esta_saturada_o_falla_el_mensaje_no_gasta_cupo(db, monkeypatch):
+    monkeypatch.setattr(config, "limite_diario_ia", 2)
+    u = _usuario(db)
+    errores = {"saturada": IASaturada("OpenRouter 429"), "falla": ErrorIA("OpenRouter 400")}
+
+    def interpretar(texto, hoy, historial=None, partes=()):
+        if texto in errores:
+            raise errores[texto]
+        return {"intencion": "fuera_de_alcance"}
+
+    monkeypatch.setattr(interprete, "interpretar", interpretar)
+    for _ in range(3):
+        assert pipeline.manejar_mensaje(db, u.telefono, "saturada", hoy=HOY) == pipeline.DEMANDA
+        assert pipeline.manejar_mensaje(db, u.telefono, "falla", hoy=HOY) == pipeline.ERROR_IA
+    assert pipeline.manejar_mensaje(db, u.telefono, "x", hoy=HOY) == pipeline.FUERA_DE_ALCANCE
+    assert pipeline.manejar_mensaje(db, u.telefono, "x", hoy=HOY) == pipeline.FUERA_DE_ALCANCE
+    assert "límite" in pipeline.manejar_mensaje(db, u.telefono, "x", hoy=HOY)
 
 
 def test_usuario_sin_campo_no_usa_la_ia(db, respuestas):
