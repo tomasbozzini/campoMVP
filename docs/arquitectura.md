@@ -345,7 +345,7 @@ de 2b, 7 y 8b):
       Con 22 frases y `low`, ordenar los servidores por velocidad bajó la mediana de 5,3 s a
       1,1 s y la p95 de 12,0 s a 3,2 s (`sort: throughput`, al doble de costo: USD 0,001
       por mensaje).
-- [ ] 8.4 · IA más rápida y más precisa:
+- [x] 8.4 · IA más rápida y más precisa:
       - `OPENROUTER_ESFUERZO` por defecto `low`.
       - `sort: throughput` en el pedido, siempre dentro de `zdr` y `require_parameters`, con
         `allow_fallbacks` (si un servidor falla, OpenRouter prueba otro antes de caer en Groq).
@@ -362,6 +362,15 @@ de 2b, 7 y 8b):
         pedidos a un servidor que tarda 4 a 8 s (34/43, 9 cortados, p95 7,2 s); `sort:
         latency` dio 38/43 (3 cortados, p95 6,1 s); Cerebras y Groq, 42/43, sin cortes,
         mediana 1,3 s y p95 1,9 s, a USD 0,002 por mensaje.
+
+      Cómo quedó: en el prompt, "pendiente_hecho" explica cómo se reconoce (algo por hacer
+      con "lo de..." o "eso de..." que ya está, aunque no diga "pendiente"; tachar o marcar;
+      las gestiones como comprar o llamar no son "registrar"), "borrar_pendiente" es para lo
+      que no se hizo, "borrar" aclara que tachar no es borrar, y "exportar" acepta el formato
+      deletreado o escrito como suena al transcribir un audio. Set: 4 frases nuevas de
+      "pendiente_hecho" y 4 de CSV dictado (96 en total). Corrida final de pendientes y
+      exportar (43 frases): 42/43, mediana 1,3 s, p95 1,9 s, USD 0,087. Los logs salen por
+      stdout.
 - [ ] 9a · Modo prueba.
 - [ ] 9b · Set de evaluación armado con el modo prueba (`eval revisar`); el comando
       `python -m app eval` ya existe desde el 8.2.

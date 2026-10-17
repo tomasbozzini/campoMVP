@@ -33,14 +33,16 @@ class FormateadorSinTelefonos(logging.Formatter):
         return enmascarar(super().format(record))
 
 
-class _SalidaDeErrores(logging.StreamHandler):  # type: ignore[type-arg]
-    """Escribe en el sys.stderr de cada momento y no en el que había al configurar los logs
-    (los tests lo reemplazan). Si escribiera en uno ya cerrado, logging volcaría el mensaje
-    sin formatear, con los teléfonos a la vista."""
+class _SalidaEstandar(logging.StreamHandler):  # type: ignore[type-arg]
+    """Escribe en stdout: Railway pinta en rojo, como errores, todo lo que sale por stderr.
+
+    Usa el sys.stdout de cada momento y no el que había al configurar los logs (los tests lo
+    reemplazan). Si escribiera en uno ya cerrado, logging volcaría el mensaje sin formatear,
+    con los teléfonos a la vista."""
 
     @property
     def stream(self) -> TextIO:
-        return sys.stderr
+        return sys.stdout
 
     @stream.setter
     def stream(self, _valor: TextIO) -> None:
@@ -59,7 +61,7 @@ class _SinQueryString(logging.Filter):
 
 
 def configurar_logs(nivel: int = logging.INFO) -> None:
-    manejador = _SalidaDeErrores()
+    manejador = _SalidaEstandar()
     manejador.setFormatter(FormateadorSinTelefonos(FORMATO))
     raiz = logging.getLogger()
     raiz.handlers = [manejador]

@@ -52,7 +52,8 @@ PROMPT = Parte(
   Si cuenta algo que hizo además de lo anterior ("también desparasité 10 terneros"), es "registrar".
 - "borrar": pide borrar o eliminar uno o varios registros que anotó ("borrá la lluvia de La Pastora",
   "eliminá las 5 vaquillonas y la cosecha del lote 5"), o deshacer lo último que anotó ("sacá lo
-  último", "deshacé eso", "me equivoqué, borralo", "eso no va, sacalo").
+  último", "deshacé eso", "me equivoqué, borralo", "eso no va, sacalo"). Tachar algo porque ya
+  lo hizo no es borrar: es "pendiente_hecho".
 - "consultar": pregunta por cosas que ÉL MISMO anotó antes, o pide la lista de lo que tiene
   anotado ("¿qué tengo anotado?", "pasame la lista de La Pastora") ("¿qué hice hoy?", "¿qué hice en La Esperanza?").
   Lo que tiene pendiente o por hacer es "ver_pendientes"; la lista de sus campos o lotes, sin
@@ -61,7 +62,9 @@ PROMPT = Parte(
   ("mandame un PDF de lo que hice en La Pastora este mes", "pasame la planilla de las
   vacunaciones", "quiero el informe de la semana para mandárselo al dueño"). Completá "consulta"
   con los filtros, como en "consultar". "formato": "excel" si dice Excel o planilla, "csv" solo
-  si dice CSV; si no dice, "pdf".
+  si dice CSV; si no dice, "pdf". Muchos mensajes vienen de un audio transcripto: el formato
+  puede llegar deletreado o escrito como suena ("c s v", "ce ese ve", "pe de efe", "ecsel"). Es
+  el mismo formato, y pedir que le saquen, pasen o manden eso es "exportar", no "fuera_de_alcance".
 - "establecimiento": solo avisa dónde está o a qué campo llegó, sin registrar nada
   ("estoy en La Esperanza", "llegué a El Ombú"). Completá "establecimiento".
 - "abrir_sesion": avisa que EMPIEZA un trabajo en un lote, una manga o una tarea, para que lo que
@@ -77,11 +80,19 @@ PROMPT = Parte(
   veterinario", "en 21 días toca la segunda dosis en El Ombú"). No es "registrar": todavía no pasó.
 - "ver_pendientes": pregunta qué tiene pendiente o por hacer ("¿qué tengo pendiente?",
   "pendientes", "¿qué me falta hacer en El Ombú?"). Completá "establecimiento" si pregunta por un campo.
-- "pendiente_hecho": avisa que ya hizo algo que tenía pendiente ("ya está lo del lote 3", "ya
-  llamé al veterinario", "listo lo de las vacunas"). Si además cuenta un trabajo con datos para
-  anotar ("ya vacuné las 30 vaquillonas que tenía pendientes"), van "registrar" y "pendiente_hecho".
-- "borrar_pendiente": pide borrar o sacar un pendiente ("borrá el pendiente de llamar a Juan",
-  "sacá lo de las vacunas de los pendientes"). Si habla de algo que anotó como hecho, es "borrar".
+- "pendiente_hecho": avisa que ya hizo algo que tenía pendiente, o pide tacharlo o marcarlo como
+  hecho ("ya está lo del lote 3", "ya llamé al veterinario", "listo lo de las vacunas", "marcá
+  como hecho lo de Juan"). Se reconoce porque nombra algo por hacer con "lo de..." o "eso de..."
+  y dice que ya está, listo o ya lo hizo, aunque no diga la palabra "pendiente". "Tachá" o
+  "marcá" algo, contando que ya lo hizo, es siempre "pendiente_hecho". Las gestiones (comprar, llamar, pedir, revisar,
+  avisar) son lo típico de un pendiente: "ya compré el alambre" o "ya revisé el molino" son
+  "pendiente_hecho", no "registrar", porque no traen datos de un trabajo en el campo. Si además
+  cuenta un trabajo con datos para anotar ("ya vacuné las 30 vaquillonas que tenía pendientes"),
+  van "registrar" y "pendiente_hecho".
+- "borrar_pendiente": pide sacar un pendiente que NO hizo, porque ya no va o se anotó mal ("borrá
+  el pendiente de llamar a Juan", "sacá lo de las vacunas de los pendientes, al final no va").
+  Tachar un pendiente porque ya lo hizo es "pendiente_hecho". Si habla de algo que anotó como
+  hecho, es "borrar".
 - "mis_campos": quiere ver la lista de sus campos, establecimientos o lotes ("quiero ver mis
   campos", "¿qué campos tengo cargados?", "mostrame los establecimientos", "pasame los lotes que tengo").
 - "mis_datos": quiere ver los datos de su perfil: nombre, rubro, localidad o matrícula ("mostrame

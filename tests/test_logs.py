@@ -34,7 +34,7 @@ def logs(capsys):
     configurar_logs()
 
     def leer() -> str:
-        salida: str = capsys.readouterr().err
+        salida: str = capsys.readouterr().out
         return salida
 
     return leer
@@ -114,6 +114,13 @@ def test_el_access_log_no_muestra_el_token_de_verificacion(logs):
     salida = logs()
     assert '"GET /webhook HTTP/1.1" 200' in salida
     assert "TOKEN-SECRETO" not in salida
+
+
+def test_los_logs_salen_por_stdout_para_que_railway_no_los_pinte_como_errores(capsys):
+    configurar_logs()
+    logging.getLogger("app.prueba").info("IA openrouter (Groq): 4712 + 95 tokens")
+    salida = capsys.readouterr()
+    assert "IA openrouter (Groq)" in salida.out and salida.err == ""
 
 
 def test_el_enmascarado_cubre_numeros_de_hasta_15_digitos():

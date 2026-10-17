@@ -34,9 +34,9 @@ class Configuracion(BaseSettings):
     # transcribiendo los audios). Sin la clave, todo va por Groq.
     openrouter_api_key: str = ""
     openrouter_modelo: str = "openai/gpt-oss-120b"
-    # Cuánto razona el modelo antes de responder: más es más lento y gasta más tokens.
-    # "medium" es el que usa Groq por defecto.
-    openrouter_esfuerzo: Esfuerzo = "medium"
+    # Cuánto razona el modelo antes de responder: más es más lento y gasta más tokens. Con el
+    # set de evaluación, "low" acertó más que "medium" y tardó menos (paso 8.3 del plan).
+    openrouter_esfuerzo: Esfuerzo = "low"
 
     # WhatsApp Cloud API (Meta)
     wa_token: str = ""

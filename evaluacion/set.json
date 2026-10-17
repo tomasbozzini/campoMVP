@@ -70,6 +70,10 @@
     {"funcion": "pendiente_hecho", "frase": "listo lo de la ivermectina, ya la compré", "intenciones": ["pendiente_hecho"]},
     {"funcion": "pendiente_hecho", "frase": "bueno lo del lote 3 que tenía pendiente ya lo hice", "intenciones": ["pendiente_hecho"]},
     {"funcion": "pendiente_hecho", "frase": "ehh tachá lo de las aguadas que ya lo revisé", "intenciones": ["pendiente_hecho"]},
+    {"funcion": "pendiente_hecho", "frase": "ya está lo del molino", "intenciones": ["pendiente_hecho"]},
+    {"funcion": "pendiente_hecho", "frase": "eso de las vacunas ya lo hice", "intenciones": ["pendiente_hecho"]},
+    {"funcion": "pendiente_hecho", "frase": "listo, ya llamé", "intenciones": ["pendiente_hecho"]},
+    {"funcion": "pendiente_hecho", "frase": "marcá como hecho lo de pedir las caravanas, ya las pedí", "intenciones": ["pendiente_hecho"]},
 
     {"funcion": "borrar_pendiente", "frase": "borrá el pendiente de las aguadas", "intenciones": ["borrar_pendiente"]},
     {"funcion": "borrar_pendiente", "frase": "sacá lo de llamar al veterinario de los pendientes", "intenciones": ["borrar_pendiente"]},
@@ -100,6 +104,10 @@
     {"funcion": "exportar_csv", "frase": "quiero exportar las vacunaciones a csv", "intenciones": ["exportar"]},
     {"funcion": "exportar_csv", "frase": "bueno, necesito un archivo csv de lo de La Pastora para cargarlo en otro sistema", "intenciones": ["exportar"]},
     {"funcion": "exportar_csv", "frase": "ehh sacame un ce ese ve de este mes", "intenciones": ["exportar"]},
+    {"funcion": "exportar_csv", "frase": "pasame un ce ese ve con lo de La Pastora", "intenciones": ["exportar"]},
+    {"funcion": "exportar_csv", "frase": "mandame en c s v las vacunaciones de la semana", "intenciones": ["exportar"]},
+    {"funcion": "exportar_csv", "frase": "che, quiero un archivo cé ese vé con todo", "intenciones": ["exportar"]},
+    {"funcion": "exportar_csv", "frase": "bueno sacame el ce ese ve del mes pasado", "intenciones": ["exportar"]},
 
     {"funcion": "varios", "frase": "mostrame mis campos y qué tengo pendiente", "intenciones": ["mis_campos", "ver_pendientes"]},
     {"funcion": "varios", "frase": "che pasame mis datos y decime quién ve lo que anoto", "intenciones": ["mis_datos", "privacidad"]},

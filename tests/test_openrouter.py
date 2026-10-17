@@ -65,7 +65,13 @@ def test_pide_solo_proveedores_que_no_guardan_datos_y_aceptan_el_json():
     assert cuerpo["model"] == "openai/gpt-oss-120b"
     assert cuerpo["messages"] == [{"role": "system", "content": "sis"}, {"role": "user", "content": "msj"}]
     assert cuerpo["response_format"] == {"type": "json_object"}
-    assert cuerpo["provider"] == {"zdr": True, "data_collection": "deny", "require_parameters": True}
+    assert cuerpo["provider"] == {
+        "zdr": True,
+        "data_collection": "deny",
+        "require_parameters": True,
+        "order": ["cerebras", "groq"],
+        "allow_fallbacks": True,
+    }
     assert cuerpo["reasoning"] == {"effort": "low"}
 
 
@@ -207,11 +213,11 @@ def test_sin_clave_de_openrouter_todo_va_por_groq(monkeypatch):
 
 def test_con_clave_openrouter_es_el_principal_y_groq_el_respaldo(monkeypatch):
     monkeypatch.setattr(config, "openrouter_api_key", "clave-or")
-    monkeypatch.setattr(config, "openrouter_esfuerzo", "low")
+    monkeypatch.setattr(config, "openrouter_esfuerzo", "high")
     armado = proveedor.armar()
     assert isinstance(armado, ConRespaldo)
     assert isinstance(armado.principal, ProveedorOpenRouter) and isinstance(armado.respaldo, ProveedorGroq)
-    assert armado.principal.pedido("s", "m")["reasoning"] == {"effort": "low"}
+    assert armado.principal.pedido("s", "m")["reasoning"] == {"effort": "high"}
     assert "OpenRouter" in proveedor.describir() and "Groq de respaldo" in proveedor.describir()
 
 
@@ -229,7 +235,7 @@ def test_openrouter_no_es_obligatoria_para_arrancar_en_produccion(monkeypatch):
         clave_hash="h",
     )
     assert c.faltantes_para_produccion() == []
-    assert (c.openrouter_api_key, c.openrouter_modelo, c.openrouter_esfuerzo) == ("", "openai/gpt-oss-120b", "medium")
+    assert (c.openrouter_api_key, c.openrouter_modelo, c.openrouter_esfuerzo) == ("", "openai/gpt-oss-120b", "low")
 
 
 def test_esfuerzo_invalido_no_arranca(monkeypatch):
@@ -278,6 +284,6 @@ def test_la_ia_saturada_queda_en_el_log_sin_datos_personales(servidor, motor, mo
     finally:
         proveedor.usar(None)
     assert servidor == [(TELEFONO, pipeline.DEMANDA), (TELEFONO, pipeline.DEMANDA)]  # el texto y el audio
-    salida = capsys.readouterr().err
+    salida = capsys.readouterr().out
     assert salida.count("IA con mucha demanda: RateLimitError 429") == 2
     assert TELEFONO not in salida and TEXTO not in salida and "Traceback" not in salida

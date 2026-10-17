@@ -2,7 +2,11 @@
 
 OpenRouter elige qué servidor corre el modelo. Le pedimos solo los de retención cero (`zdr`),
 que no guardan ni entrenan con los datos (`data_collection: deny`) y que aceptan todos los
-parámetros del pedido (`require_parameters`), así la salida en JSON está garantizada.
+parámetros del pedido (`require_parameters`), así la salida en JSON está garantizada. Entre
+esos, primero Cerebras y después Groq (`order`), y si los dos fallan prueba otro
+(`allow_fallbacks`) antes de que conteste el respaldo. Dejarlo elegir no alcanza: por precio,
+los servidores tardan unos 5 s, y ordenados por velocidad (`sort: throughput`) parte de los
+pedidos va a uno que tarda de 4 a 8 s (paso 8.4 del plan).
 """
 
 import json
@@ -17,7 +21,9 @@ URL = "https://openrouter.ai/api/v1/chat/completions"
 # Para que WhatsApp no espere de más: si no responde, contesta el respaldo. Es el tope del
 # pedido entero: mientras procesa, OpenRouter manda espacios para mantener viva la conexión, y
 # el tiempo de espera de httpx se reinicia con cada uno.
-ESPERA = 12.0  # segundos
+ESPERA = 6.0  # segundos (la p95 del eval con Cerebras es de unos 2 s)
+# Los servidores más rápidos para este modelo, en orden (con retención cero, como todos).
+SERVIDORES = ["cerebras", "groq"]
 # Códigos que no son culpa del pedido: 402 sin saldo, 408 sin respuesta, 429 límite de
 # pedidos, 5xx sin servidores disponibles.
 _SATURADA = {402, 408, 429, 500, 502, 503, 504}
@@ -51,7 +57,13 @@ class ProveedorOpenRouter:
             "temperature": 0.1,
             "max_tokens": 3000,
             "reasoning": {"effort": self._esfuerzo},
-            "provider": {"zdr": True, "data_collection": "deny", "require_parameters": True},
+            "provider": {
+                "zdr": True,
+                "data_collection": "deny",
+                "require_parameters": True,
+                "order": SERVIDORES,
+                "allow_fallbacks": True,
+            },
             "usage": {"include": True},
         }
 

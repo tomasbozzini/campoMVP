@@ -64,7 +64,8 @@ def test_db_migrar_con_una_base_vieja_distinta_explica_sin_traceback(motor, monk
         terminal.main(["db", "migrar"])
     mensaje = str(salida.value.code)
     assert "mensaje_id" in mensaje and "No se tocó nada" in mensaje
-    assert "Traceback" not in mensaje + capsys.readouterr().err
+    salida = capsys.readouterr()
+    assert "Traceback" not in mensaje + salida.err + salida.out
 
 
 @pytest.mark.parametrize("comando", [["usuarios", "lista"], ["precios", "ver", "soja"], ["chat"]])
