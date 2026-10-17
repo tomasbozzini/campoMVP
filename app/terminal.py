@@ -13,11 +13,14 @@ python -m app senasa ver ivermectina
 python -m app db migrar                          crea la base o la pone al día (sin perder datos)
 python -m app db estado                          versión de la base y diferencias con el código
 python -m app auditoria [--limite 50]            últimas acciones sensibles (solo ids)
+python -m app eval [--funcion ayuda] [--desde 1] [--limite 10] [--esfuerzo low] [--tope-usd 0.5]
+                                                 set de evaluación contra la IA real
 """
 
 import argparse
 import csv
 import io
+import logging
 import sys
 from datetime import date, datetime
 from pathlib import Path
@@ -27,6 +30,7 @@ from sqlalchemy.orm import Session
 from app import modulos
 from app.fuentes import precios as fuentes_precios
 from app.fuentes import senasa as fuentes_senasa
+from app.ia import evaluacion, proveedor
 from app.infra import migrar
 from app.infra.config import config
 from app.infra.db import SessionLocal, engine
@@ -124,6 +128,48 @@ def _auditoria(db: Session, args: argparse.Namespace) -> None:
         print(f"{fecha:%Y-%m-%d %H:%M}  {f.accion:<18} por {actor:<9} sobre {sobre:<6} {detalle}".rstrip())
 
 
+def _eval(args: argparse.Namespace) -> None:
+    """El set de evaluación contra la IA real, sin respaldo: mide un solo proveedor."""
+    nombre = args.proveedor or ("openrouter" if config.openrouter_api_key else "groq")
+    if nombre == "openrouter" and not config.openrouter_api_key:
+        sys.exit("Falta OPENROUTER_API_KEY en el .env")
+    if nombre == "groq" and not config.groq_api_key:
+        sys.exit("Falta GROQ_API_KEY en el .env")
+    frases = evaluacion.elegir(evaluacion.cargar(), args.funcion or (), args.desde, args.limite)
+    if not frases:
+        sys.exit("No hay frases con esos filtros.")
+    esfuerzo = args.esfuerzo or config.openrouter_esfuerzo
+    detalle = f"esfuerzo {esfuerzo}" if nombre == "openrouter" else config.groq_modelo
+    print(f"{len(frases)} frases contra {nombre} ({detalle}), rubro {args.rubro}, tope USD {args.tope_usd:.2f}\n")
+    logging.getLogger("app.ia.proveedor").setLevel(logging.WARNING)  # cada llamada se muestra abajo
+
+    def mostrar(r: evaluacion.Resultado) -> None:
+        marca = "✓" if r.bien else "✗"
+        tokens = sum(u.tokens_entrada + u.tokens_salida for u in r.usos)
+        linea = f"{marca} {r.segundos:5.1f} s {tokens:6} tok  {r.frase.funcion:<18} {r.frase.frase}"
+        if r.error:
+            linea += f"\n      error: {r.error}"
+        elif not r.bien:
+            linea += f"\n      esperaba {list(r.frase.intenciones)} y vino {list(r.obtenidas)}"
+        print(linea, flush=True)
+
+    partes = modulos.partes(modulos.del_rubro(args.rubro))
+    resultados, frenado = evaluacion.correr(
+        frases, proveedor.uno_solo(nombre, esfuerzo), partes, _hoy(), args.tope_usd, args.pausa, mostrar
+    )
+    r = evaluacion.resumir(resultados)
+    costo = f"USD {r.costo_usd:.4f}" if r.costo_usd is not None else "sin dato (el proveedor no lo informa)"
+    print(
+        f"\nPrecisión: {r.bien}/{r.total} ({r.precision:.0%})"
+        f"\nLlamadas: {r.total} ({r.errores} con error)"
+        f"\nTokens: {r.tokens_entrada} de entrada, {r.tokens_salida} de salida ({r.tokens_razonamiento} de razonamiento)"
+        f"\nCosto: {costo}"
+        f"\nDemora: mediana {r.mediana:.1f} s, p95 {r.p95:.1f} s"
+    )
+    if frenado:
+        print(f"\n⚠️ Frené en {r.total} de {len(frases)} frases: se llegó al tope de USD {args.tope_usd:.2f}.")
+
+
 def _db(args: argparse.Namespace) -> None:
     if args.accion == "migrar":
         try:
@@ -175,6 +221,16 @@ def _argumentos() -> argparse.ArgumentParser:
     registro_acciones.add_argument("--limite", type=int, default=50, help="cuántas mostrar (50 por defecto)")
     registro_acciones.set_defaults(ejecutar=_auditoria)
 
+    evaluar = comandos.add_parser("eval", help="set de evaluación contra la IA real (cuesta plata)")
+    evaluar.add_argument("--funcion", action="append", help="solo las frases de esa función (se puede repetir)")
+    evaluar.add_argument("--desde", type=int, default=1, help="desde qué frase, contando desde 1")
+    evaluar.add_argument("--limite", type=int, help="cuántas frases como mucho")
+    evaluar.add_argument("--proveedor", choices=["openrouter", "groq"], help="por defecto, el principal")
+    evaluar.add_argument("--esfuerzo", choices=["low", "medium", "high"], help="razonamiento (solo OpenRouter)")
+    evaluar.add_argument("--rubro", choices=list(modulos.MODULOS_POR_RUBRO), default="productor")
+    evaluar.add_argument("--tope-usd", type=float, default=0.50, help="frena al llegar a este costo (0.50)")
+    evaluar.add_argument("--pausa", type=float, default=0.0, help="segundos entre llamadas (Groq gratis: 60)")
+
     base = comandos.add_parser("db", help="base de datos y migraciones")
     acciones = base.add_subparsers(dest="accion", required=True)
     acciones.add_parser("migrar", help="crea la base o aplica las migraciones que falten")
@@ -193,6 +249,9 @@ def main(argv: list[str] | None = None) -> None:
     modulos.cargar()
     if args.comando == "db":
         _db(args)
+        return
+    if args.comando == "eval":  # no usa la base
+        _eval(args)
         return
     # Solo `db migrar` cambia la base: el resto avisa si falta migrar.
     try:

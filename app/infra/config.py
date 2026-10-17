@@ -12,6 +12,7 @@ from pydantic import field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 Entorno = Literal["desarrollo", "produccion"]
+Esfuerzo = Literal["low", "medium", "high"]
 
 
 class Configuracion(BaseSettings):
@@ -28,6 +29,14 @@ class Configuracion(BaseSettings):
     # mirá https://console.groq.com/docs/models y poné otro en GROQ_MODELO.
     groq_modelo: str = "openai/gpt-oss-120b"
     groq_modelo_audio: str = "whisper-large-v3-turbo"
+
+    # OpenRouter interpreta los mensajes si está la clave; Groq queda de respaldo (y sigue
+    # transcribiendo los audios). Sin la clave, todo va por Groq.
+    openrouter_api_key: str = ""
+    openrouter_modelo: str = "openai/gpt-oss-120b"
+    # Cuánto razona el modelo antes de responder: más es más lento y gasta más tokens.
+    # "medium" es el que usa Groq por defecto.
+    openrouter_esfuerzo: Esfuerzo = "medium"
 
     # WhatsApp Cloud API (Meta)
     wa_token: str = ""
@@ -70,6 +79,11 @@ class Configuracion(BaseSettings):
     @classmethod
     def _entorno(cls, valor: object) -> object:
         return str(valor).strip().lower().replace("ó", "o") if isinstance(valor, str) else valor
+
+    @field_validator("openrouter_esfuerzo", mode="before")
+    @classmethod
+    def _esfuerzo(cls, valor: object) -> object:
+        return valor.strip().lower() if isinstance(valor, str) else valor
 
     @field_validator("wa_ar_quitar_9", mode="before")
     @classmethod

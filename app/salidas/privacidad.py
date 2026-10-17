@@ -77,7 +77,11 @@ campo puede ver lo que vos anotaste sobre ese campo.</p>
 <p>Para funcionar, CampoBot usa estos proveedores, que tratan los datos solo para prestar el servicio:</p>
 <ul>
   <li><strong>Meta (WhatsApp Business Platform)</strong>: transporta tus mensajes entre tu celular y CampoBot.</li>
-  <li><strong>Groq, Inc.</strong>: interpreta el texto de tus mensajes y transcribe tus audios con inteligencia artificial.</li>
+  <li><strong>OpenRouter, Inc.</strong>: recibe el texto de tus mensajes y lo pasa al proveedor del modelo de
+  inteligencia artificial que lo interpreta. Solo usamos proveedores que no guardan tus mensajes ni los usan
+  para entrenar sus modelos.</li>
+  <li><strong>Groq, Inc.</strong>: transcribe tus audios a texto e interpreta el texto si OpenRouter no
+  responde. No usa tus datos para entrenar sus modelos.</li>
   <li><strong>El proveedor de servidores y base de datos</strong> donde está alojado CampoBot.</li>
 </ul>
 <p>Algunos de estos proveedores están fuera de la Argentina (por ejemplo, en Estados Unidos). Al usar

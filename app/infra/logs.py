@@ -5,7 +5,8 @@
   muestra el query string: el GET /webhook de Meta trae el token de verificación.
 - El código no loguea el texto de los mensajes ni el wamid (en base64 lleva el teléfono).
   Los errores de la base no muestran los parámetros (`hide_parameters`, en app/infra/db.py)
-  y los de la IA, solo el tipo y el código de estado (app/ia/proveedor_groq.py).
+  y los de la IA, solo el tipo y el código de estado (app/ia/proveedor_*.py). De cada
+  pedido a la IA se loguea quién respondió, los tokens, el costo y la demora.
 """
 
 import logging

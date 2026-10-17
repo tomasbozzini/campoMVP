@@ -51,6 +51,7 @@ bot> Eso no lo puedo responder. Solo puedo: ...
 - **Informa precios de referencia** de granos y hacienda de fuentes oficiales y mercados regulados, siempre con la fuente, la fecha de publicación, la moneda, si incluye impuestos u otros costos, y el link.
 - **Verifica productos veterinarios en SENASA**: si un producto figura en el registro, con número, titular y estado. **No** informa precios de medicamentos ni de instrumental, ni dosis o indicaciones.
 - **Entiende audios**: los transcribe con Whisper en Groq, con un glosario de palabras del campo según el rubro de cada persona (vaquillonas, caravana, ivermectina...).
+- **La IA**: los mensajes los interpreta `openai/gpt-oss-120b` a través de **OpenRouter** (si está `OPENROUTER_API_KEY`), solo con servidores que no guardan ni entrenan con los datos (`data_collection: deny`) y que aceptan la salida en JSON (`require_parameters`). Si OpenRouter falla, responde **Groq** con el mismo modelo; sin la clave, todo va por Groq. Si ninguno atiende (límite de pedidos, sin saldo, sin respuesta), el bot contesta "⏳ Estoy con mucha demanda, probá de nuevo en un minuto". Cada pedido deja en el log quién respondió, los tokens, el costo y la demora (`IA openrouter (Cerebras): 4712 + 95 tokens, USD 0.000310, 0.9 s`), sin nada del mensaje.
 - **Solo para personas invitadas**: quien escribe sin código de invitación recibe un mensaje fijo ("CampoBot está en prueba privada") y no se gasta IA ni se guarda nada.
 - **Respuestas cortas sin IA**: el rubro se responde con el número o la palabra ("2", "agrónomo", "vete", "productor"), y los *sí* / *no* de una confirmación aceptan variantes comunes ("dale", "ok", "sí, borrá", "no, dejá", "mejor no"). Si la respuesta mezcla un sí y un no, o trae otra cosa ("no, borrá solo la de ayer"), no se toma como respuesta y sigue su camino normal.
 - **Perfil por rubro**: nombre y apellido, rubro (veterinario, agrónomo o asesor, o productor) y localidad, con preguntas fijas al empezar. `mis datos` los muestra; `cambiar rubro` y `cambiar matrícula` los cambian.
@@ -105,7 +106,7 @@ WhatsApp ──► Meta Cloud API ──► POST /webhook (api/webhook.py)
 | `app/api/` | Rutas web finas: webhook de WhatsApp (firma, deduplicación, audios, orden), salud y `/privacidad` |
 | `app/canales/` | WhatsApp: lectura del webhook, envío de mensajes, descarga de audios, firma |
 | `app/nucleo/` | El camino del mensaje (`pipeline.py`), acceso, comandos fijos, charla reciente, registro de acciones y el `Cuaderno`: la única puerta a los datos de cada persona |
-| `app/ia/` | El proveedor de IA detrás de una interfaz (hoy Groq), el armado del prompt y los tipos que validan su salida |
+| `app/ia/` | Los proveedores de IA detrás de una interfaz (OpenRouter, con Groq de respaldo y para los audios), el armado del prompt, los tipos que validan su salida y el set de evaluación (`evaluacion.py`) |
 | `app/modulos/comun/` | Las acciones: registrar, corregir, borrar, consultar, establecimiento, sesiones, pendientes, lo de la cuenta (ayuda, privacidad, mis campos, mis datos, cambiar rubro y matrícula, borrar mis datos), saludo/aclarar, precios y SENASA. Cada una con su esquema y su manejador; lo que el módulo le suma al prompt está en `prompt.py` y su glosario para Whisper en `glosario.py` |
 | `app/fuentes/` | Descarga y carga de precios oficiales y del registro de SENASA |
 | `app/salidas/` | Formato de los mensajes de WhatsApp y la página de privacidad |
@@ -113,6 +114,8 @@ WhatsApp ──► Meta Cloud API ──► POST /webhook (api/webhook.py)
 | `app/terminal.py` | Los comandos `python -m app ...` |
 
 **Para sumar una acción**: un archivo en el módulo con su esquema (qué puede devolver la IA), su manejador (qué hace el código) y `ACCION = Accion("intencion", Esquema, manejar)`; se agrega a `ACCIONES` del módulo y se describe en la parte del prompt del módulo (`prompt.py`: la intención, sus campos, qué es y sus reglas). El núcleo no se toca.
+
+**Tope del prompt**: el prompt de cada rubro tiene como mucho `LARGO_MAXIMO_PROMPT` caracteres (24.000; hoy son unos 16.600) y un test lo verifica: cada carácter de más se paga y se espera en cada mensaje.
 
 **Prompt por perfil**: cada persona recibe un prompt armado con los módulos de su rubro (`MODULOS_POR_RUBRO` en `app/modulos/__init__.py`): el común lo tienen todos; ganadería (veterinario y productor) y agricultura (agrónomo y productor) se suman cuando existan. Si la IA devuelve una acción de un módulo que la persona no tiene, se trata como fuera de alcance. Los audios se transcriben con el glosario de esos mismos módulos (las palabras que Whisper suele escribir mal), que entra en el `prompt` de Whisper: hasta 500 caracteres por rubro, y un test lo verifica.
 
@@ -217,6 +220,21 @@ python -m app chat
 
 `db migrar` crea la base (`campo.db`, SQLite) o la pone al día. `chat` abre un chat por terminal con el bot, sin WhatsApp.
 
+### Set de evaluación contra la IA real
+
+`python -m app eval` manda las frases de `evaluacion/set.json` a la IA y compara las intenciones que devuelve con las esperadas. Cuesta plata (con OpenRouter, el set entero sale unos centavos de dólar): correlo cuando cambia el prompt o un esquema.
+
+```bat
+python -m app eval --funcion ayuda --funcion mis_campos
+python -m app eval --desde 20 --limite 10
+python -m app eval --esfuerzo low --tope-usd 0.20
+python -m app eval --proveedor groq --limite 5 --pausa 60
+```
+
+- Por defecto usa OpenRouter si está `OPENROUTER_API_KEY` (si no, Groq), sin respaldo, con el prompt de un productor (`--rubro`).
+- Muestra cada frase (✓ o ✗, demora y tokens) y al final la precisión, las llamadas, los tokens, el costo y la demora (mediana y p95).
+- Frena si el costo llega al tope (`--tope-usd`, USD 0,50 por defecto). Groq no informa el costo: con Groq no hay tope por costo, y en el plan gratuito conviene `--pausa 60` y pocas frases.
+
 ### Probar con el celular (ngrok)
 
 1. En `.env`: `ENTORNO=desarrollo`, `GROQ_API_KEY`, `WA_TOKEN`, `WA_PHONE_NUMBER_ID`, `WA_VERIFY_TOKEN`, `META_APP_SECRET` y tu número en `ADMIN_TELEFONOS`. Para probar invitaciones, también `CLAVE_HASH` y `WA_NUMERO_BOT`. Con `META_APP_SECRET` puesto, la firma de Meta se valida igual que en producción.
@@ -286,7 +304,7 @@ En Railway el proyecto queda armado con **tres servicios**, todos dentro del mis
 
 1. Entrá a [railway.com](https://railway.com) con tu cuenta de GitHub → *New Project* → *Deploy from GitHub repo* → este repo. En *Settings → Source → Branch* elegí la rama del bot.
 2. *New → Database → PostgreSQL*.
-3. En el servicio del bot → *Variables* → *Raw Editor*: `DATABASE_URL=${{Postgres.DATABASE_URL}}`, `ENTORNO=produccion` y el resto de las variables de `.env.example` (`GROQ_API_KEY`, `WA_TOKEN`, `WA_PHONE_NUMBER_ID`, `META_APP_SECRET`, `WA_VERIFY_TOKEN`, `ADMIN_TELEFONOS`, `CLAVE_HASH`, `WA_NUMERO_BOT`, `PRIVACIDAD_*`). Si falta alguna obligatoria, el deploy falla y el log dice cuál.
+3. En el servicio del bot → *Variables* → *Raw Editor*: `DATABASE_URL=${{Postgres.DATABASE_URL}}`, `ENTORNO=produccion` y el resto de las variables de `.env.example` (`GROQ_API_KEY`, `OPENROUTER_API_KEY`, `WA_TOKEN`, `WA_PHONE_NUMBER_ID`, `META_APP_SECRET`, `WA_VERIFY_TOKEN`, `ADMIN_TELEFONOS`, `CLAVE_HASH`, `WA_NUMERO_BOT`, `PRIVACIDAD_*`). Si falta alguna obligatoria, el deploy falla y el log dice cuál.
 4. *Settings → Networking → Generate Domain*. Abrí `https://tu-bot.up.railway.app/`: tiene que responder `{"ok": true}`.
 5. Creá el servicio **actualizar-precios** (*New → GitHub Repo*, mismo repo y rama) con el start command y el cron de la tabla, y la variable `DATABASE_URL`. Ejecutalo una vez a mano para cargar los datos iniciales.
 6. En Meta → *Casos de uso → Conectar en WhatsApp → Personalizar* → *Configuración* (*Configuration*), sección *Webhook*: Callback URL `https://tu-bot.up.railway.app/webhook`, el mismo verify token, y suscripción a **messages**. La política de privacidad queda en `https://tu-bot.up.railway.app/privacidad`.
@@ -296,6 +314,7 @@ En Railway el proyecto queda armado con **tres servicios**, todos dentro del mis
 
 - **Subir cambios**: hacés `git push` a la rama y Railway vuelve a construir y prender el bot solo. Si el cambio trae una migración, se aplica al arrancar (`python -m app db migrar`, en el `Dockerfile`).
 - **Cambiar una clave** (por ejemplo, el token de Meta): editás la variable en *Variables* y se redeploya solo.
+- **La IA**: con `OPENROUTER_API_KEY` en *Variables*, OpenRouter interpreta los mensajes y Groq queda de respaldo; sin ella, todo va por Groq (no es obligatoria: el bot arranca igual). Al arrancar, el log dice cuál se usa (`IA: OpenRouter (openai/gpt-oss-120b, esfuerzo medium) con Groq de respaldo; audios en Groq`), y cada mensaje deja una línea `IA openrouter (...)` o `IA groq`. El saldo y los pedidos se ven en [openrouter.ai/activity](https://openrouter.ai/activity). `OPENROUTER_ESFUERZO` (low, medium o high) cambia cuánto razona el modelo.
 - **Ver qué pasa**: *View logs* del bot muestra lo mismo que la terminal de uvicorn.
 - **Copias de la base**: Postgres → *Backups*, o `pg_dump` con la `DATABASE_URL`.
 - **Costo**: plan Hobby, alrededor de USD 5 por mes para este tamaño (revisá el precio vigente).

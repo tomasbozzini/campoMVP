@@ -14,6 +14,7 @@ from app import modulos
 from app.canales import whatsapp
 from app.canales.whatsapp import MensajeEntrante
 from app.ia import interprete
+from app.ia.proveedor import IASaturada
 from app.infra.config import config
 from app.infra.db import SessionLocal
 from app.infra.modelos import MensajeProcesado
@@ -109,6 +110,9 @@ def procesar_mensaje(mensaje: MensajeEntrante) -> None:
         with SessionLocal() as db:
             respuesta = pipeline.atender(db, telefono, texto, nombre=mensaje.nombre)
             db.commit()
+    except IASaturada as e:  # al transcribir un audio
+        log.warning("IA con mucha demanda: %s", e)
+        respuesta = pipeline.Respuesta(pipeline.DEMANDA)
     except Exception:
         log.exception("Error procesando un mensaje")
         respuesta = pipeline.Respuesta(ERROR)

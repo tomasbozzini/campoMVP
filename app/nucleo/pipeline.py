@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from app import modulos
 from app.ia import interprete
 from app.ia.esquemas import EsquemaAccion
+from app.ia.proveedor import IASaturada
 from app.infra.config import config
 from app.modulos.comun import borrar, campos, confirmar
 from app.nucleo import acciones, alta, charla, comandos, invitaciones, perfil, sesiones
@@ -50,6 +51,7 @@ FUERA_PARCIAL = (
 MUY_LARGO = "✋ El mensaje es muy largo.\nMandalo en partes más cortas, de a un tema por vez."
 SIN_CUPO = "⏳ Llegaste al límite de mensajes por hoy.\nMañana podés seguir."
 ERROR_IA = "😕 Uy, no pude procesar el mensaje.\nProbá de nuevo en un ratito."
+DEMANDA = "⏳ Estoy con mucha demanda, probá de nuevo en un minuto."
 
 
 def _hoy() -> date:
@@ -149,6 +151,11 @@ def _responder(ctx: Contexto, telefono: str) -> str:
         interpretado = interprete.interpretar(
             texto, ctx.hoy, charla.historial(ctx.cuaderno), partes=modulos.partes(suyos)
         )
+    except IASaturada as e:
+        # Límite, sin saldo o sin respuesta: no es culpa del mensaje. El error solo trae
+        # el tipo y el código, sin el texto de la persona.
+        log.warning("IA con mucha demanda: %s", e)
+        return DEMANDA
     except Exception:
         log.exception("Error interpretando mensaje")
         return ERROR_IA

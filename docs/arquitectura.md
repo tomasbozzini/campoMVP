@@ -302,7 +302,7 @@ de 2b, 7 y 8b):
       rubro o matrícula). El número del rubro vale solo o con el rubro y relleno ("opción
       2", "2, agrónomo"): "vacuné 3 vacas" ya no se toma como la opción 3, y "1 agrónomo"
       vuelve a preguntar.
-- [ ] 8.2 · IA por OpenRouter (decisión "IA", arriba):
+- [x] 8.2 · IA por OpenRouter (decisión "IA", arriba):
       - Un `ProveedorIA` nuevo para OpenRouter (API compatible con OpenAI). Con
         `OPENROUTER_API_KEY`, OpenRouter interpreta y Groq queda de respaldo; sin la clave, todo
         sigue con Groq, sin fallar al arrancar.
@@ -317,6 +317,16 @@ de 2b, 7 y 8b):
       - Esfuerzo de razonamiento: se compara `low` contra `medium` con el set y se muestra la
         comparación antes de cambiarlo (hasta entonces, `medium`, el que usaba Groq).
       - Un test controla el tamaño del prompt de cada rubro, con un tope.
+
+      Cómo quedó: `ia/proveedor_openrouter.py` (con httpx, sin dependencias nuevas; espera
+      20 s y pasa al respaldo), `ConRespaldo` en `ia/proveedor.py` y `IASaturada` para 402,
+      408, 429, 5xx y sin respuesta (en Groq: límite, sin conexión o caído), también al
+      transcribir un audio. Cada pedido deja en el log quién respondió, tokens, costo y
+      demora, y al arrancar se loguea qué IA se usa. `python -m app eval` tiene `--funcion`,
+      `--desde`, `--limite`, `--proveedor`, `--esfuerzo`, `--rubro`, `--tope-usd` (0,50 por
+      defecto) y `--pausa`; Groq no informa el costo. Tope del prompt: 24.000 caracteres
+      por rubro (`LARGO_MAXIMO_PROMPT`; hoy 16.600). Pendiente: la comparación de esfuerzo,
+      cuando esté cargada la clave.
 - [ ] 9a · Modo prueba.
 - [ ] 9b · Set de evaluación armado con el modo prueba (`eval revisar`); el comando
       `python -m app eval` ya existe desde el 8.2.
