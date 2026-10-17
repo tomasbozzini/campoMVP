@@ -85,7 +85,7 @@ del perfil del usuario (menos tokens, menos latencia, más precisión).
 | PDF | Con logo y marca CampoBot | Decisión de producto |
 | Alta de usuarios | **Código de invitación** + alta guiada. La aprobación del administrador se suma después sobre el mismo flujo | Entran al instante, sin carga manual ni mensajes pagos; control de quién entra |
 | Producción | **Railway** desde la etapa 1: el bot, Postgres y el cron `actualizar-precios` (`30 21 * * 1-5`). Cada push a la rama despliega y migra al arrancar, sin esperar al CI | Se adelantó (el plan lo dejaba para la etapa 4): las pruebas desde el celular son contra Railway |
-| IA | Interpretar: `openai/gpt-oss-120b` por **OpenRouter** (con `OPENROUTER_API_KEY`), solo con proveedores de retención cero (`zdr`), que no guardan ni entrenan con los datos (`data_collection: deny`) y que aceptan todos los parámetros del pedido (`require_parameters`); **Groq** de respaldo si OpenRouter falla, o como único si no hay clave. Audios: Whisper en Groq | Groq no habilita el plan pago y con el gratuito el bot atiende un mensaje por minuto |
+| IA | Interpretar: `openai/gpt-oss-120b` por **OpenRouter** (con `OPENROUTER_API_KEY`), solo con proveedores de retención cero (`zdr`), que no guardan ni entrenan con los datos (`data_collection: deny`) y que aceptan todos los parámetros del pedido (`require_parameters`); entre ellos, primero los más rápidos (`sort: throughput`), y si uno falla OpenRouter prueba el siguiente (`allow_fallbacks`). Esfuerzo de razonamiento `low`. **Groq** de respaldo si OpenRouter falla o no responde en 6 s, o como único si no hay clave. Audios: Whisper en Groq | Groq no habilita el plan pago y con el gratuito el bot atiende un mensaje por minuto |
 
 ## 5. Seguridad
 
@@ -342,6 +342,20 @@ de 2b, 7 y 8b):
       (`Cuaderno.devolver_cupo`) si la IA está saturada o falla. Comparación con el set
       completo (88 frases, rubro productor): `medium` 83/88, USD 0,029, mediana 5,5 s, p95
       18,9 s; `low` 85/88, USD 0,026, mediana 4,7 s, p95 10,0 s. Queda `medium` hasta decidir.
+      Con 22 frases y `low`, ordenar los servidores por velocidad bajó la mediana de 5,3 s a
+      1,1 s y la p95 de 12,0 s a 3,2 s (`sort: throughput`, al doble de costo: USD 0,001
+      por mensaje).
+- [ ] 8.4 · IA más rápida y más precisa:
+      - `OPENROUTER_ESFUERZO` por defecto `low`.
+      - `sort: throughput` en el pedido, siempre dentro de `zdr` y `require_parameters`, con
+        `allow_fallbacks` (si un servidor falla, OpenRouter prueba otro antes de caer en Groq).
+      - Espera de 6 s.
+      - "listo lo de la ivermectina, ya la compré" y "tachá lo de las aguadas que ya lo
+        revisé" marcan el pendiente como hecho, y "sacame un ce ese ve" (CSV dictado por audio)
+        exporta: se mejora la descripción de esas funciones en el prompt (sin agregar las
+        frases sueltas) y se suman 3 o 4 variantes de cada una al set.
+      - Los logs salen por stdout, así Railway no los pinta en rojo como errores.
+      - Se corren las funciones de pendientes y exportar con la configuración nueva.
 - [ ] 9a · Modo prueba.
 - [ ] 9b · Set de evaluación armado con el modo prueba (`eval revisar`); el comando
       `python -m app eval` ya existe desde el 8.2.
