@@ -85,7 +85,7 @@ del perfil del usuario (menos tokens, menos latencia, más precisión).
 | PDF | Con logo y marca CampoBot | Decisión de producto |
 | Alta de usuarios | **Código de invitación** + alta guiada. La aprobación del administrador se suma después sobre el mismo flujo | Entran al instante, sin carga manual ni mensajes pagos; control de quién entra |
 | Producción | **Railway** desde la etapa 1: el bot, Postgres y el cron `actualizar-precios` (`30 21 * * 1-5`). Cada push a la rama despliega y migra al arrancar, sin esperar al CI | Se adelantó (el plan lo dejaba para la etapa 4): las pruebas desde el celular son contra Railway |
-| IA | Interpretar: `openai/gpt-oss-120b` por **OpenRouter** (con `OPENROUTER_API_KEY`), solo con proveedores de retención cero (`zdr`), que no guardan ni entrenan con los datos (`data_collection: deny`) y que aceptan todos los parámetros del pedido (`require_parameters`); entre ellos, primero los más rápidos (`sort: throughput`), y si uno falla OpenRouter prueba el siguiente (`allow_fallbacks`). Esfuerzo de razonamiento `low`. **Groq** de respaldo si OpenRouter falla o no responde en 6 s, o como único si no hay clave. Audios: Whisper en Groq | Groq no habilita el plan pago y con el gratuito el bot atiende un mensaje por minuto |
+| IA | Interpretar: `openai/gpt-oss-120b` por **OpenRouter** (con `OPENROUTER_API_KEY`), solo con proveedores de retención cero (`zdr`), que no guardan ni entrenan con los datos (`data_collection: deny`) y que aceptan todos los parámetros del pedido (`require_parameters`); entre ellos, primero Cerebras y después Groq (`order`), y si los dos fallan OpenRouter prueba otro (`allow_fallbacks`). Esfuerzo de razonamiento `low`. **Groq** de respaldo si OpenRouter falla o no responde en 6 s, o como único si no hay clave. Audios: Whisper en Groq | Groq no habilita el plan pago y con el gratuito el bot atiende un mensaje por minuto |
 
 ## 5. Seguridad
 
@@ -356,6 +356,12 @@ de 2b, 7 y 8b):
         frases sueltas) y se suman 3 o 4 variantes de cada una al set.
       - Los logs salen por stdout, así Railway no los pinta en rojo como errores.
       - Se corren las funciones de pendientes y exportar con la configuración nueva.
+      - Cambio aprobado después de medir: en vez de `sort: throughput`, `order: ["cerebras",
+        "groq"]` con `allow_fallbacks`, siempre dentro de `zdr` y `require_parameters`. Con las
+        43 frases de pendientes y exportar y la espera de 6 s, `throughput` mandó parte de los
+        pedidos a un servidor que tarda 4 a 8 s (34/43, 9 cortados, p95 7,2 s); `sort:
+        latency` dio 38/43 (3 cortados, p95 6,1 s); Cerebras y Groq, 42/43, sin cortes,
+        mediana 1,3 s y p95 1,9 s, a USD 0,002 por mensaje.
 - [ ] 9a · Modo prueba.
 - [ ] 9b · Set de evaluación armado con el modo prueba (`eval revisar`); el comando
       `python -m app eval` ya existe desde el 8.2.
