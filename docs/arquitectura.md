@@ -482,6 +482,19 @@ de 2b, 7 y 8b):
       total). Antes del arreglo, 38/53 (10 fechas mal, entre ellas las de la prueba); después,
       pendientes 21/23 y registros, consultas y correcciones 19/21, con las fallas corregidas
       en el prompt y probadas de a una. Costo de la tanda: USD 0,247.
+- [ ] 8.5.2 · Fallas de las pruebas del 8.5.1 desde el celular:
+      1. 🎤 "Tenía que pagar al contratista el sábado." → "No me quedó claro qué tenés
+         pendiente": la IA devolvió `"pendiente": null` (ya pasó en el eval con la misma frase).
+         Se busca la causa con esa frase y 2 o 3 variantes, unas 5 veces cada una, mirando el JSON
+         crudo, y se arregla la causa. Tope: USD 0,05.
+      2. Con el mes, el sentido cuenta igual que sin el mes. "El 5 de marzo nacieron 3 terneros"
+         daba 2027-03-05 (el más cercano a hoy), que el registro pasaba a hoy sin avisar, y
+         "¿qué hice desde el 1 de marzo?" buscaba desde 2027-03-01:
+         - para atrás (registros, consultas o un "pasado" dicho): la más reciente que no sea
+           después de hoy;
+         - con un "próximo" dicho: la primera que no sea antes de hoy;
+         - en un pendiente sin "pasado" ni "próximo": la más cercana a hoy, como hasta ahora.
+      - Tests con esos casos.
 - [ ] 8.6 · El bot pasa a llamarse **Anotagro** (el detalle se anota antes de empezarlo).
 - [ ] 8.7 · Renombrar y unir campos, adelantado de "más adelante" (el detalle se anota antes de
       empezarlo).
