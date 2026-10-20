@@ -74,6 +74,8 @@ ACCION:
   "establecimiento": string | null, // establecimiento/estancia/campo que NOMBRA el mensaje, tal como lo escribió (ej: "La Esperanza"). null si no nombra ninguno
 {campos}
 }}
+Cada ACCION lleva SOLO "intencion", "establecimiento" y el campo de SU intención (ej: "anotar_pendiente"
+lleva "pendiente"; "registrar", "eventos"). Los campos de las otras intenciones NO los escribas, ni en null.
 
 Qué es cada intención:
 {descripciones}

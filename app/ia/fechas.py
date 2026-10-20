@@ -7,10 +7,11 @@ persona en un formato fijo (FECHA) y acá se convierte con la fecha de hoy en ho
 - {"dias": -1}: días para atrás o para adelante ("ayer", "anteayer", "en 21 días").
 - {"dia_semana": "sabado", "cual": "pasado"}: el más reciente antes de hoy, o el primero
   después de hoy con "proximo". "El sábado" dicho un sábado es hace 7 días o dentro de 7.
-- {"dia": 22, "mes": 10}: con el mes, el 22/10 más cercano a hoy (de este año, el anterior o
-  el siguiente); sin el mes, el 22 de este mes, el anterior o el siguiente, el más cercano a
-  hoy en el sentido que corresponde. Si también dice el día de la semana y no coincide ("el
-  viernes 22" cuando el 22 es jueves), se levanta `FechaDudosa` para preguntarle.
+- {"dia": 22, "mes": 10}: el 22/10 (o el 22 de este mes, el anterior o el siguiente, si no
+  dice el mes) en el sentido que corresponde: para atrás, el más reciente que no sea después
+  de hoy; para adelante, el primero que no sea antes de hoy. Un pendiente con el mes y sin
+  "pasado" ni "próximo" es el más cercano a hoy (paso 8.5.2). Si también dice el día de la
+  semana y no coincide ("el viernes 22" cuando el 22 es jueves), se levanta `FechaDudosa`.
 
 Sin "cual", el sentido lo pone el dato: los registros y las consultas miran para atrás y los
 pendientes para adelante. Los períodos de las consultas ("esta semana", "el mes pasado")
@@ -109,14 +110,21 @@ def dia_de_semana(hoy: date, dia_semana: int, sentido: str) -> date:
 
 
 def _por_numero(d: Dicha, hoy: date, sentido: str) -> date | None:
+    """Con el mes, la de este año, los anteriores o el siguiente (hasta 4 años para atrás, por
+    el 29 de febrero); sin el mes, la de este mes, el anterior o el siguiente. Para atrás, la
+    más reciente que no sea después de hoy; para adelante, la primera que no sea antes de hoy.
+    En un pendiente sin "pasado" ni "próximo", con el mes es la más cercana a hoy: "el 15 de
+    octubre" dicho el 20 es la que ya venció, no la del año que viene."""
     assert d.dia is not None
     if d.mes is not None:
-        anios = [d.anio] if d.anio else [hoy.year - 1, hoy.year, hoy.year + 1]
-        candidatas = [f for a in anios if (f := _fecha(a, d.mes, d.dia))]
+        if d.anio:
+            return _fecha(d.anio, d.mes, d.dia)
+        candidatas = [f for a in range(hoy.year - 4, hoy.year + 2) if (f := _fecha(a, d.mes, d.dia))]
+        if d.cual is None and sentido == PROXIMO:
+            return min(candidatas, key=lambda f: abs((f - hoy).days), default=None)
     else:
-        meses = [_mes(hoy, c) for c in (-1, 0, 1)]
-        candidatas = [f for a, m in meses if (f := _fecha(a, m, d.dia))]
-        candidatas = [f for f in candidatas if (f <= hoy if sentido == PASADO else f >= hoy)]
+        candidatas = [f for a, m in (_mes(hoy, c) for c in (-1, 0, 1)) if (f := _fecha(a, m, d.dia))]
+    candidatas = [f for f in candidatas if (f <= hoy if sentido == PASADO else f >= hoy)]
     return min(candidatas, key=lambda f: abs((f - hoy).days), default=None)
 
 

@@ -90,7 +90,9 @@ def test_cada_modulo_suma_su_parte_en_su_lugar(ganaderia):
         return posiciones == sorted(posiciones)
 
     assert '"producto_veterinario" | "tacto" | "fuera_de_alcance",' in sistema
-    assert antes('"producto_veterinario": {', '"tacto": TACTO | null', "}\n\nQué es cada intención")
+    assert antes(
+        '"producto_veterinario": {', '"tacto": TACTO | null', "}\nCada ACCION lleva SOLO", "Qué es cada intención"
+    )
     assert antes('- "saludo":', '- "tacto":', '- "fuera_de_alcance":')
     assert antes('acción "registrar" con varios eventos.', "Cada rodeo", "Devolvé ÚNICAMENTE")
     assert antes("PRECIO:", "TACTO:", "Reglas:")

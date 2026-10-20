@@ -482,7 +482,7 @@ de 2b, 7 y 8b):
       total). Antes del arreglo, 38/53 (10 fechas mal, entre ellas las de la prueba); después,
       pendientes 21/23 y registros, consultas y correcciones 19/21, con las fallas corregidas
       en el prompt y probadas de a una. Costo de la tanda: USD 0,247.
-- [ ] 8.5.2 · Fallas de las pruebas del 8.5.1 desde el celular:
+- [x] 8.5.2 · Fallas de las pruebas del 8.5.1 desde el celular:
       1. 🎤 "Tenía que pagar al contratista el sábado." → "No me quedó claro qué tenés
          pendiente": la IA devolvió `"pendiente": null` (ya pasó en el eval con la misma frase).
          Se busca la causa con esa frase y 2 o 3 variantes, unas 5 veces cada una, mirando el JSON
@@ -495,6 +495,18 @@ de 2b, 7 y 8b):
          - con un "próximo" dicho: la primera que no sea antes de hoy;
          - en un pendiente sin "pasado" ni "próximo": la más cercana a hoy, como hasta ahora.
       - Tests con esos casos.
+
+      Cómo quedó: el prompt no tenía reglas que se contradijeran (lo de "la fecha de un
+      pendiente suele ser futura" ya no estaba). En 15 llamadas (3 frases, 5 veces) falló una,
+      igual que en la prueba: el razonamiento del modelo armaba bien el pendiente y la fecha, pero
+      el JSON salía con `"pendiente": null`. La causa es la forma de la respuesta: cada acción
+      copiaba la plantilla ACCION entera, unos 15 campos de todas las intenciones en null (con
+      `pendiente` y `pendientes` uno al lado del otro), y en ese relleno a veces ponía null en
+      el que le tocaba. El prompt ahora dice que cada acción lleva solo "intencion",
+      "establecimiento" y el campo de su intención (los esquemas toman como vacío lo que no
+      viene). Con el cambio, las 3 frases salieron bien. Con el mes, `_por_numero` filtra por
+      el sentido (desde 4 años atrás, por el 29 de febrero); solo el pendiente sin "pasado" ni
+      "próximo" toma la más cercana. Costo: USD 0,048.
 - [ ] 8.6 · El bot pasa a llamarse **Anotagro** (el detalle se anota antes de empezarlo).
 - [ ] 8.7 · Renombrar y unir campos, adelantado de "más adelante" (el detalle se anota antes de
       empezarlo).

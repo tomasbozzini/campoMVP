@@ -118,13 +118,44 @@ def test_solo_el_numero_cruza_el_mes_y_el_anio():
     assert _calcular({"dia": 31}, date(2026, 11, 20), PROXIMO) == date(2026, 12, 31)
 
 
-def test_dia_y_mes_es_el_mas_cercano_a_hoy():
+def test_dia_y_mes_para_atras_es_el_mas_reciente_que_no_es_despues_de_hoy():
+    """Registros y consultas (paso 8.5.2): cargar cosas viejas del cuaderno."""
+    # "El 5 de marzo nacieron 3 terneros": este año, no el que viene.
+    assert _calcular({"dia": 5, "mes": 3}) == date(2026, 3, 5)
+    # "desde el 1 de marzo"
+    assert _calcular({"dia": 1, "mes": 3}) == date(2026, 3, 1)
+    # Un día después de hoy ya es del año pasado; hoy es hoy.
+    assert _calcular({"dia": 21, "mes": 10}) == date(2025, 10, 21)
+    assert _calcular({"dia": 20, "mes": 10}) == MARTES
+    assert _calcular({"dia": 20, "mes": 4}) == date(2026, 4, 20)
+    # Cambio de año: "el 28 de diciembre" dicho el 2 de enero.
+    assert _calcular({"dia": 28, "mes": 12}, date(2027, 1, 2)) == date(2026, 12, 28)
+    # El 29 de febrero, del último año bisiesto.
+    assert _calcular({"dia": 29, "mes": 2}, date(2027, 6, 1)) == date(2024, 2, 29)
+
+
+def test_dia_y_mes_con_pasado_o_proximo_dicho():
+    # Un "pasado" dicho en un pendiente mira para atrás.
+    assert _calcular({"dia": 25, "mes": 10, "cual": "pasado"}, sentido=PROXIMO) == date(2025, 10, 25)
+    assert _calcular({"dia": 5, "mes": 3, "cual": "pasado"}, sentido=PROXIMO) == date(2026, 3, 5)
+    # Un "próximo" dicho: el primero que no sea antes de hoy.
+    assert _calcular({"dia": 15, "mes": 10, "cual": "proximo"}) == date(2027, 10, 15)
+    assert _calcular({"dia": 20, "mes": 10, "cual": "proximo"}) == MARTES
+    # "el 3 de enero que viene" dicho el 20 de diciembre
+    assert _calcular({"dia": 3, "mes": 1, "cual": "proximo"}, date(2026, 12, 20)) == date(2027, 1, 3)
+
+
+def test_dia_y_mes_en_un_pendiente_sin_decir_cual_es_el_mas_cercano():
     assert _calcular({"dia": 5, "mes": 11}, sentido=PROXIMO) == date(2026, 11, 5)
     assert _calcular({"dia": 28, "mes": 9}, sentido=PROXIMO) == date(2026, 9, 28)  # ya pasó: vencido
-    # "el 3 de enero" dicho el 20 de diciembre es del año que viene, y al revés.
-    assert _calcular({"dia": 3, "mes": 1}, date(2026, 12, 20)) == date(2027, 1, 3)
-    assert _calcular({"dia": 28, "mes": 12}, date(2027, 1, 2)) == date(2026, 12, 28)
-    assert _calcular({"dia": 5, "mes": 11, "anio": 2025}) == date(2025, 11, 5)
+    assert _calcular({"dia": 15, "mes": 10}, sentido=PROXIMO) == date(2026, 10, 15)
+    # "el 3 de enero" dicho el 20 de diciembre es del año que viene.
+    assert _calcular({"dia": 3, "mes": 1}, date(2026, 12, 20), PROXIMO) == date(2027, 1, 3)
+
+
+def test_con_el_anio_es_esa_fecha():
+    assert _calcular({"dia": 5, "mes": 11, "anio": 2025}, sentido=PROXIMO) == date(2025, 11, 5)
+    assert _calcular({"dia": 5, "mes": 11, "anio": 2027}) == date(2027, 11, 5)
 
 
 def test_un_dia_que_no_existe_no_es_una_fecha():
@@ -134,7 +165,8 @@ def test_un_dia_que_no_existe_no_es_una_fecha():
 
 def test_dia_de_la_semana_y_numero_que_coinciden():
     assert _calcular({"dia_semana": "jueves", "dia": 22}, sentido=PROXIMO) == date(2026, 10, 22)
-    assert _calcular({"dia_semana": "jueves", "dia": 22, "mes": 10}) == date(2026, 10, 22)
+    assert _calcular({"dia_semana": "jueves", "dia": 22, "mes": 10}, sentido=PROXIMO) == date(2026, 10, 22)
+    assert _calcular({"dia_semana": "jueves", "dia": 15, "mes": 10}) == date(2026, 10, 15)
 
 
 def test_dia_de_la_semana_y_numero_que_no_coinciden_es_dudosa():
@@ -205,6 +237,7 @@ def test_meses_y_rangos_de_las_consultas():
     assert rango({"periodo": "mes_pasado"}, date(2027, 1, 10)) == (date(2026, 12, 1), date(2026, 12, 31))
     assert rango({"desde": {"dia_semana": "lunes"}}) == (date(2026, 10, 19), None)
     assert rango({"desde": {"dias": -10}}) == (date(2026, 10, 10), None)
+    assert rango({"desde": {"dia": 1, "mes": 3}}) == (date(2026, 3, 1), None)  # no el de 2027
     assert rango({"periodo": "la quincena", "mes": 0}) == (None, None)
 
 
@@ -244,11 +277,11 @@ PENDIENTE_DUDOSO = {
 def ia(monkeypatch):
     respuestas_ia: dict[str, object] = {
         "el viernes 22 tengo que ir a vacunar a la pastora": PENDIENTE_DUDOSO,
-        "el viernes 22 vacuné 30 vacas": {
+        "el viernes 15 vacuné 30 vacas": {
             "intencion": "registrar",
             "eventos": [
                 {"categoria": "sanidad", "tipo": "vacunacion", "cantidad_animales": 30, "categoria_animal": "vacas"}
-                | {"fecha_evento": {"dia_semana": "viernes", "dia": 22, "mes": 10}},
+                | {"fecha_evento": {"dia_semana": "viernes", "dia": 15, "mes": 10}},
             ],
         },
         "no, dejá, después lo anoto": {"intencion": "cancelar"},
@@ -287,10 +320,10 @@ def test_con_la_respuesta_lo_anota_en_esa_fecha(db, ia, respuesta, fecha):
 
 def test_un_registro_con_fecha_dudosa_tambien_pregunta(db, ia):
     con_perfil(db, TEL)
-    assert _mandar(db, "el viernes 22 vacuné 30 vacas").startswith("🤔 *¿Para cuándo?*")
-    # El 22/10 está en el futuro: elegido el viernes 23 también; un registro nunca queda en el futuro.
-    assert _mandar(db, "el jueves").startswith("✅")
-    assert [e.fecha_evento for e in db.scalars(select(Evento))] == [MARTES]
+    r = _mandar(db, "el viernes 15 vacuné 30 vacas")
+    assert r.startswith("🤔 *¿Para cuándo?*\n\nEl 15/10 es jueves, no viernes.") and "2️⃣ Vie 16/10/2026" in r
+    assert _mandar(db, "el viernes").startswith("✅")
+    assert [e.fecha_evento for e in db.scalars(select(Evento))] == [date(2026, 10, 16)]
 
 
 def test_cancelar_o_no_no_anota_nada(db, ia):
@@ -309,3 +342,30 @@ def test_la_respuesta_vale_10_minutos(db, ia):
     reloj["ahora"] = AHORA + timedelta(minutes=11)
     assert _mandar(db, "2").startswith("⏱️ Pasó mucho tiempo")
     assert _vencimientos(db) == []
+
+
+NACIMIENTO = {"categoria": "movimiento", "tipo": "nacimiento", "cantidad_animales": 3, "categoria_animal": "terneros"}
+
+
+def test_un_registro_viejo_con_dia_y_mes_queda_en_su_fecha_y_se_corrige(db, ia):
+    """Paso 8.5.2: "el 5 de marzo" quedaba en el año que viene y el registro, en hoy."""
+    respuestas_ia, _ = ia
+    respuestas_ia["el 5 de marzo nacieron 3 terneros"] = {
+        "intencion": "registrar",
+        "eventos": [NACIMIENTO | {"fecha_evento": {"dia": 5, "mes": 3}}],
+    }
+    respuestas_ia["nacieron 3 terneros"] = {"intencion": "registrar", "eventos": [NACIMIENTO]}
+    respuestas_ia["ese nacimiento fue el 5 de marzo"] = {
+        "intencion": "corregir",
+        "correccion": {"referencia": {"tipo": "nacimiento"}, "cambios": {"fecha_evento": {"dia": 5, "mes": 3}}},
+    }
+    respuestas_ia["¿qué hice desde el 1 de marzo?"] = {
+        "intencion": "consultar",
+        "consulta": {"desde": {"dia": 1, "mes": 3}},
+    }
+    con_perfil(db, TEL)
+    assert "Jue 05/03/2026" in _mandar(db, "el 5 de marzo nacieron 3 terneros")
+    _mandar(db, "nacieron 3 terneros")  # quedó en hoy, como el registro de la prueba
+    assert "05/03/2026" in _mandar(db, "ese nacimiento fue el 5 de marzo")
+    assert [e.fecha_evento for e in db.scalars(select(Evento))] == [date(2026, 3, 5), date(2026, 3, 5)]
+    assert "2 registros" in _mandar(db, "¿qué hice desde el 1 de marzo?")
