@@ -89,7 +89,9 @@ AYUDA_ADMIN = """
 *autorizados* → lista de números con acceso
 *invitar* → crea un código de invitación
 *invitaciones* → códigos vigentes
-*anular ANOTA-XXXX-XXXX* → anula un código"""
+*anular ANOTA-XXXX-XXXX* → anula un código
+*modo prueba* → guarda tus mensajes para el set de evaluación
+*fin modo prueba* → deja de guardarlos"""
 
 PEDIR_AYUDA = {"ayuda", "help", "menu", "menú"}
 DESHACER = {"borrar", "deshacer"}

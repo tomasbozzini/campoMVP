@@ -1,7 +1,19 @@
 from datetime import UTC, date, datetime
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    false,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.infra.db import Base
@@ -44,6 +56,8 @@ class Usuario(Base):
     autorizado: Mapped[bool] = mapped_column(Boolean, default=False)
     # Último establecimiento que nombró: se usa cuando anota algo sin decir dónde fue.
     establecimiento_actual_id: Mapped[int | None] = mapped_column(ForeignKey("establecimientos.id"))
+    # Solo el administrador: guarda sus mensajes para el set de evaluación (paso 9a, `Prueba`).
+    modo_prueba: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_ahora)
 
     establecimiento_actual: Mapped["Establecimiento | None"] = relationship(lazy="joined")
@@ -283,6 +297,25 @@ class BorradoPendiente(Base):
     que: Mapped[str] = mapped_column(String(10), default="registros", server_default="registros")
     ids: Mapped[list[int]] = mapped_column(JSON)
     datos: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_ahora)
+
+
+class Prueba(Base):
+    """Un mensaje del administrador en modo prueba (paso 9a): lo que vio la IA, el JSON que
+    devolvió y lo que respondió el bot, para armar el set de evaluación (`eval revisar`). De un
+    audio se guarda solo la transcripción."""
+
+    __tablename__ = "pruebas"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)
+    texto: Mapped[str] = mapped_column(Text)  # el mensaje o la transcripción del audio
+    audio: Mapped[bool] = mapped_column(Boolean, default=False)
+    historial: Mapped[list[list[str]]] = mapped_column(JSON)  # la charla que vio la IA: [rol, texto]
+    pregunta: Mapped[str | None] = mapped_column(String(20))  # la pregunta abierta (`nucleo/preguntas.py`)
+    hoy: Mapped[date] = mapped_column(Date)
+    interpretacion: Mapped[Any] = mapped_column(JSON, nullable=False)  # lo que devolvió la IA, tal cual
+    respuesta: Mapped[str] = mapped_column(Text)
     creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_ahora)
 
 

@@ -437,6 +437,35 @@ def test_0012_agrega_los_datos_de_las_confirmaciones_y_vuelve_atras(engine):
         assert "datos" not in [col["name"] for col in inspect(c).get_columns("borrados_pendientes")]
 
 
+def test_0013_agrega_el_modo_prueba_apagado_y_vuelve_atras(engine):
+    """Solo agrega: los usuarios que ya estaban quedan con el modo prueba apagado."""
+    migrar_hasta(engine, "0012")
+    with engine.begin() as c:
+        creado = bindparam("creado", type_=DateTime(timezone=True))
+        cuenta_id = c.execute(
+            text("insert into cuentas (creado) values (:creado) returning id").bindparams(creado),
+            {"creado": datetime(2026, 10, 1, tzinfo=UTC)},
+        ).scalar_one()
+        c.execute(
+            text(
+                "insert into usuarios (cuenta_id, telefono, autorizado, creado) "
+                "values (:cuenta, '5491100000001', :si, :creado)"
+            ).bindparams(bindparam("si", type_=Boolean), creado),
+            {"cuenta": cuenta_id, "si": True, "creado": datetime(2026, 10, 1, tzinfo=UTC)},
+        )
+    migrar.preparar_base(engine)
+    with engine.connect() as c:
+        assert c.execute(text("select modo_prueba from usuarios")).scalars().all() == [False]
+        assert "pruebas" in inspect(c).get_table_names()
+    with engine.begin() as c:
+        command.downgrade(migrar._config(c), "0012")
+    with engine.connect() as c:
+        assert migrar.version(c) == "0012"
+        assert "modo_prueba" not in [col["name"] for col in inspect(c).get_columns("usuarios")]
+        assert "pruebas" not in inspect(c).get_table_names()
+        assert c.execute(text("select telefono from usuarios")).scalars().all() == ["5491100000001"]
+
+
 def test_0003_no_adivina_de_quien_son_registros_sin_usuario(engine):
     """SQLite no controla las claves foráneas: una base vieja puede tener registros huérfanos."""
     migrar_hasta(engine, "0002")

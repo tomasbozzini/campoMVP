@@ -3,6 +3,7 @@
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from functools import cached_property
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -33,6 +34,8 @@ class Contexto:
     # La pregunta del bot que esperaba respuesta y este mensaje no contestó (`nucleo/preguntas.py`):
     # la IA la recibe como contexto, por si el mensaje la cancela.
     pregunta_abierta: str | None = None
+    # Modo prueba del administrador: lo que vio y devolvió la IA (`nucleo/pruebas.py`).
+    prueba: dict[str, Any] | None = None
 
     @cached_property
     def cuaderno(self) -> Cuaderno:

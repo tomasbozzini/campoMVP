@@ -25,7 +25,7 @@ from app.ia.fechas import FechaDudosa
 from app.ia.proveedor import IASaturada
 from app.infra.config import config
 from app.modulos.comun import borrar, campos, confirmar
-from app.nucleo import acciones, alta, charla, comandos, invitaciones, perfil, preguntas, sesiones
+from app.nucleo import acciones, alta, charla, comandos, invitaciones, perfil, preguntas, pruebas, sesiones
 from app.nucleo.acceso import es_admin, usuario_con_acceso
 from app.nucleo.acciones import Accion
 from app.nucleo.contexto import Adjunto, Contexto
@@ -77,7 +77,10 @@ def manejar_mensaje(db: Session, telefono: str, texto: str, nombre: str | None =
     return atender(db, telefono, texto, nombre, hoy).texto
 
 
-def atender(db: Session, telefono: str, texto: str, nombre: str | None = None, hoy: date | None = None) -> Respuesta:
+def atender(
+    db: Session, telefono: str, texto: str, nombre: str | None = None, hoy: date | None = None, audio: bool = False
+) -> Respuesta:
+    """`audio`: si el texto es la transcripción de un audio (para el modo prueba)."""
     texto = texto.strip()
     alta.limpiar(db)
     usuario = usuario_con_acceso(db, telefono, nombre) or alta.en_curso(db, telefono)
@@ -100,6 +103,7 @@ def atender(db: Session, telefono: str, texto: str, nombre: str | None = None, h
         respuesta = cerrada + SEPARADOR + respuesta
     if ctx.guardar_charla:
         charla.guardar(ctx.cuaderno, texto, respuesta)
+    pruebas.guardar(ctx, es_admin(telefono), respuesta, audio)
     return Respuesta(respuesta, ctx.adjuntos)
 
 
@@ -137,7 +141,9 @@ def _responder(ctx: Contexto, telefono: str) -> str:
         return respuesta
     if (respuesta := perfil.comando(ctx)) is not None:
         return respuesta
-    if es_admin(telefono) and (respuesta := comandos.admin(ctx.db, texto, ctx.usuario.id)):
+    if es_admin(telefono) and (
+        respuesta := pruebas.comando(ctx, comandos.normalizar(texto)) or comandos.admin(ctx.db, texto, ctx.usuario.id)
+    ):
         return respuesta
     if invitaciones.es_solo_un_codigo(texto):
         return alta.YA_TENES_ACCESO
@@ -149,10 +155,11 @@ def _responder(ctx: Contexto, telefono: str) -> str:
     if not ctx.cuaderno.consumir_cupo(ctx.hoy, config.limite_diario_ia):
         return SIN_CUPO
 
+    historial = charla.historial(ctx.cuaderno)
     try:
         interpretado = interprete.interpretar(
             texto,
-            charla.historial(ctx.cuaderno),
+            historial,
             partes=modulos.partes(suyos),
             pregunta=preguntas.para_la_ia(ctx.pregunta_abierta),
         )
@@ -166,6 +173,7 @@ def _responder(ctx: Contexto, telefono: str) -> str:
         log.exception("Error interpretando mensaje")
         ctx.cuaderno.devolver_cupo(ctx.hoy)
         return ERROR_IA
+    pruebas.anotar(ctx, historial, interpretado)
     return _ejecutar(ctx, _pedidos(interpretado), suyos)
 
 

@@ -22,6 +22,7 @@ from app.infra.modelos import (
     Lote,
     MensajeChat,
     Pendiente,
+    Prueba,
     Sesion,
     Solicitud,
     UsoDiario,
@@ -759,7 +760,7 @@ class Cuaderno:
         )
         self.db.execute(delete(Lote).where(Lote.cuenta_id == self.cuenta_id))
         self.db.execute(delete(Establecimiento).where(Establecimiento.cuenta_id == self.cuenta_id))
-        for modelo in (MensajeChat, UsoDiario, BorradoPendiente, Solicitud):
+        for modelo in (MensajeChat, UsoDiario, BorradoPendiente, Solicitud, Prueba):
             self.db.execute(delete(modelo).where(modelo.usuario_id == self.usuario_id))
         self.db.flush()
 

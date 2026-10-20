@@ -109,7 +109,7 @@ def procesar_mensaje(mensaje: MensajeEntrante) -> None:
             return
 
         with SessionLocal() as db:
-            respuesta = pipeline.atender(db, telefono, texto, nombre=mensaje.nombre)
+            respuesta = pipeline.atender(db, telefono, texto, nombre=mensaje.nombre, audio=mensaje.tipo == "audio")
             db.commit()
     except IASaturada as e:  # al transcribir un audio
         log.warning("IA con mucha demanda: %s", e)

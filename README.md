@@ -70,6 +70,7 @@ Los administradores se configuran con la variable `ADMIN_TELEFONOS` (números se
 - `autorizar 5492494123456`: le da acceso a ese número directamente.
 - `quitar 5492494123456`: le saca el acceso. Sus registros se conservan.
 - `autorizados`: lista los números con acceso.
+- `modo prueba` / `fin modo prueba`: mientras está prendido, cada mensaje tuyo que va a la IA se guarda (tabla `pruebas`) con la charla y la pregunta abierta que vio la IA, el JSON que devolvió y lo que respondió el bot; de un audio, solo la transcripción. Sirve para ver un caso raro sin reproducirlo y para armar el set de evaluación con `python -m app eval revisar`. Los atajos y los *sí* / *no* no se guardan, y `borrar mis datos` también borra las pruebas.
 
 **Alta con código**: quien manda un código válido responde tres preguntas fijas, sin IA (nombre y apellido, rubro y localidad), y queda habilitado. El código queda atado a ese número, que tiene 7 días para terminar; después se borra lo que cargó y el código queda gastado. Después de 5 códigos equivocados en 24 horas, ningún código sirve desde ese número (sin avisarle); para contarlos se guarda el teléfono con HMAC (`CLAVE_HASH`), nunca el número.
 

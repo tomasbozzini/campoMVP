@@ -698,9 +698,48 @@ de 2b, 7 y 8b):
       los lotes) y rehace el pedido. Si el parecido es el mismo campo o lote que el nombre nuevo
       ("uní Lomu con Omu"), no pregunta: dice que no existe. La pregunta suma su texto para la
       IA cuando se descarta, como las demás (no es el prompt).
-- [ ] 9a · Modo prueba.
+- [x] 9a · Modo prueba.
+      - `modo prueba` / `fin modo prueba`: comandos del administrador, exactos y escritos, solo
+        en su número (como `invitar`; no pasan por la IA). La ayuda del administrador los suma.
+      - Mientras está prendido, cada mensaje del administrador que va a la IA se guarda en la
+        tabla `pruebas`: el texto (la transcripción, si fue audio, y si fue audio), la charla y
+        la pregunta abierta que vio la IA, el día, **el JSON que devolvió la IA** (pedido del
+        usuario, para ver un caso raro sin reproducirlo) y la respuesta del bot. Los audios no se
+        guardan. Los mensajes que no van a la IA (atajos, *sí* / *no*) no se guardan.
+      - Solo si el número es administrador al momento de guardar (si sale de `ADMIN_TELEFONOS`,
+        deja de guardarse aunque el modo siga prendido).
+      - `fin modo prueba` dice cuántos mensajes guardó. `borrar mis datos` también borra las
+        pruebas.
+      - Migración `0013`: la columna `usuarios.modo_prueba` (falso por defecto) y la tabla
+        `pruebas`. Solo agrega; no cambia ni borra datos.
+      - El prompt no cambia: sin eval.
+
+      Cómo quedó: `app/nucleo/pruebas.py`; el pipeline anota lo que vio y devolvió la IA en el
+      contexto y lo guarda con la respuesta. El webhook avisa si el texto vino de un audio
+      (`atender(..., audio=True)`). `modo prueba` y `fin modo prueba` no van a la charla, para
+      que no aparezcan en la de los mensajes que se prueban. Tests también sobre Postgres.
+      Costo: USD 0.
 - [ ] 9b · Set de evaluación armado con el modo prueba (`eval revisar`); el comando
       `python -m app eval` ya existe desde el 8.2.
+      - `python -m app eval revisar` muestra de a una las pruebas que no están en el set: el
+        mensaje (🎤 si fue audio), la charla, la pregunta abierta, lo que devolvió la IA
+        (intenciones, fechas calculadas y el JSON) y la respuesta del bot. Por cada una:
+        *a* aprobar (lo que devolvió la IA es lo esperado), *c* corregir (se escriben las
+        intenciones esperadas), *d* descartar, *s* saltar, *q* salir. Al aprobar o corregir pide
+        la función (por defecto, la primera intención).
+      - Lo aprobado se guarda solo en `evaluacion/set.json` (con la charla, la pregunta, el día
+        y las fechas, si hay), marcado `"origen": "modo prueba"`; la base no se toca. Lo
+        descartado queda en un archivo local fuera del repo (`evaluacion/descartadas.txt`, solo
+        un hash de cada prueba, sin texto) para no volver a mostrarlo.
+      - Lee la base local; para otra base, `--base <URL>` explícito, en solo lectura (en
+        Postgres, la conexión abre transacciones de solo lectura; en SQLite, `query_only`). Para
+        Railway: la URL pública de Postgres (`DATABASE_PUBLIC_URL`).
+      - El eval informa además los tokens de entrada que salen del caché de OpenRouter (si los
+        informa), para decidir el tope del prompt al empezar la etapa 2.
+      - Al final, una sola corrida del set entero como **línea de base** (precisión por función,
+        tokens, caché, costo y demora), anotada acá.
+      - Presupuesto del 9 (9a y 9b): USD 0,50, con la línea de base adentro; `--tope-usd` en
+        cada corrida y el gasto después de cada una.
 
 **Decisiones de producto de la etapa 1:**
 
@@ -801,6 +840,11 @@ Tacto y cierre (preñez por cabeza/cuerpo/cola, % y CC promedio, PDF), raspaje (
 resultado de laboratorio, pendiente de repetición), sanidad (planes oficiales, dosis, consumo,
 carencia). La visita ya queda registrada con las sesiones (campo, horario, duración y lo
 anotado); la liquidación de visita y honorarios pasó a "Después del MVP".
+
+**Tope del prompt:** se decide al empezar esta etapa y hasta entonces no se toca
+(`LARGO_MAXIMO_PROMPT`, 24.500 desde el 8.7.2). Para decidirlo: cuántos tokens son de verdad,
+cuántos salen del caché de OpenRouter (si lo informa) y qué partes del prompt se repiten o se
+pueden juntar.
 
 **Glosario:** pasan del glosario del módulo común al de ganadería ivermectina, aftosa,
 brucelosis, tacto, manga y destete, así el común queda corto y el rubro tiene lugar para

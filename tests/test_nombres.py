@@ -36,6 +36,7 @@ NOMBRES = {
     "cuentas": {"pk": "cuentas_pkey", "fk": set(), "uq": set()},
     "auditoria": {"pk": "auditoria_pkey", "fk": set(), "uq": set()},
     "invitaciones": {"pk": "invitaciones_pkey", "fk": set(), "uq": {"invitaciones_codigo_key"}},
+    "pruebas": {"pk": "pruebas_pkey", "fk": {"pruebas_usuario_id_fkey"}, "uq": set()},
     "solicitudes": {
         "pk": "solicitudes_pkey",
         "fk": {"solicitudes_usuario_id_fkey", "solicitudes_invitacion_id_fkey"},

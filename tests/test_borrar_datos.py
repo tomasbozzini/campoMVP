@@ -19,6 +19,7 @@ from app.infra.modelos import (
     Lote,
     MensajeChat,
     Pendiente,
+    Prueba,
     Sesion,
     UsoDiario,
     Usuario,
@@ -59,6 +60,7 @@ def _todo_lo_de(db, u: Usuario) -> None:
             MensajeChat(usuario_id=u.id, rol="usuario", texto="hola"),
             UsoDiario(usuario_id=u.id, fecha=HOY, cantidad=1),
             BorradoPendiente(usuario_id=u.id, ids=[1], creado=datetime.now(UTC)),
+            Prueba(usuario_id=u.id, texto="hola", historial=[], hoy=HOY, interpretacion={}, respuesta="hola"),
         ]
     )
     db.flush()

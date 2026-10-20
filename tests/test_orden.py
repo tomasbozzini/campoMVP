@@ -174,7 +174,7 @@ class PipelineFalso:
         self.frenados[texto] = threading.Event()
         return self.frenados[texto]
 
-    def __call__(self, _db, _telefono, texto: str, nombre=None, hoy=None) -> pipeline.Respuesta:
+    def __call__(self, _db, _telefono, texto: str, nombre=None, hoy=None, audio=False) -> pipeline.Respuesta:
         self.orden.append(texto)
         self.empezo[texto].set()
         if texto in self.frenados:
