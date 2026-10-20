@@ -10,6 +10,9 @@ campos parecidos a otro y fechas dudosas.
   existe el nombre nuevo y lo anota ahí, y "cancelá" o "dejá" no anota nada.
 - Unir dos campos o dos lotes ("Omu y El Ombú son el mismo campo") pide confirmación y
   muestra qué pasa al que queda. Borrar un campo o un lote, también, mostrando lo que se borra.
+- Al renombrar, unir o borrar un campo o un lote que no existe, si hay uno parecido ("Lomu" y
+  Omu), se pregunta si es ese: *sí* sigue con ese, *no* cancela (paso 8.7.4). Lo del mensaje
+  se hace después, como con un campo parecido.
 - Si el día de la semana y el número no coinciden ("el viernes 22" cuando el 22 es jueves),
   se pregunta para cuándo, con las dos fechas: *1* o *2*, o el día ("el jueves", "el 23").
   Lo del mensaje se hace después, como con un campo parecido.
@@ -26,8 +29,8 @@ from typing import Any
 from app.infra.modelos import BorradoPendiente, Establecimiento, Lote
 from app.nucleo import preguntas, respuestas
 from app.nucleo.contexto import Contexto
-from app.nucleo.cuaderno import Contenido, Cuaderno
-from app.nucleo.normalizar import clave_establecimiento
+from app.nucleo.cuaderno import Contenido, Cuaderno, NombreParecido
+from app.nucleo.normalizar import clave_establecimiento, normalizar_lote
 from app.salidas import whatsapp as formato
 from app.salidas.whatsapp import SANGRIA
 from app.salidas.whatsapp import SEPARADOR as LINEA
@@ -40,6 +43,7 @@ MAX_EN_LISTA = 10
 REGISTROS, PENDIENTES, CORREGIR, CAMPO, FECHA = "registros", "pendientes", "corregir", "campo", "fecha"
 UNIR_CAMPOS, UNIR_LOTES = "unir_campo", "unir_lote"  # `que` tiene hasta 10 letras
 BORRAR_CAMPO, BORRAR_LOTE = "baja_campo", "baja_lote"
+PARECIDO = "parecido"
 
 PASO_EL_TIEMPO = "⏱️ Pasó mucho tiempo desde que lo pediste y no {hice}.\nSi querés, pedilo de nuevo."
 
@@ -107,13 +111,19 @@ def pedir_correccion(
 def _respondido(cuaderno: Cuaderno) -> dict[str, Any]:
     """Lo que la persona ya respondió en este pedido (campos parecidos y fechas dudosas), para
     guardarlo junto con el pedido mientras espera otra respuesta."""
-    return {"alias": cuaderno.alias, "permitidos": sorted(cuaderno.permitidos), "fechas": cuaderno.fechas}
+    return {
+        "alias": cuaderno.alias,
+        "permitidos": sorted(cuaderno.permitidos),
+        "fechas": cuaderno.fechas,
+        "alias_lotes": cuaderno.alias_lotes,
+    }
 
 
 def _recuperar(cuaderno: Cuaderno, datos: dict[str, Any]) -> None:
     cuaderno.alias = {k: int(v) for k, v in datos.get("alias", {}).items()}
     cuaderno.permitidos = set(datos.get("permitidos", []))
     cuaderno.fechas = {k: str(v) for k, v in datos.get("fechas", {}).items()}
+    cuaderno.alias_lotes = {k: int(v) for k, v in datos.get("alias_lotes", {}).items()}
 
 
 def preguntar_campo(
@@ -129,6 +139,30 @@ def preguntar_campo(
         f"Respondé *sí* para anotarlo en {existente.nombre}, *no* para crear el campo *{nuevo}*, "
         f"*cambiale el nombre* para que {existente.nombre} pase a llamarse {nuevo}, o *cancelá*."
     )
+
+
+def preguntar_parecido(
+    cuaderno: Cuaderno, parecido: NombreParecido, pedidos: list[dict[str, Any]], ahora: datetime
+) -> str:
+    """¿Es ese? Se nombró un campo o un lote que no existe y hay uno parecido. Guarda el pedido
+    entero para hacerlo después del *sí*, como con un campo parecido al anotar."""
+    existente = parecido.existente
+    es_lote = isinstance(existente, Lote)
+    nombre = nombre_lote(existente.nombre) if es_lote else existente.nombre
+    datos = {
+        "pedidos": pedidos,
+        "nombre": parecido.nombre,
+        "existente": existente.id,
+        "lote": es_lote,
+        **_respondido(cuaderno),
+    }
+    cuaderno.guardar_borrado_pendiente([], ahora, PARECIDO, datos)
+    if es_lote:
+        donde = f"*{parecido.donde}*" if parecido.donde else "tus lotes sin campo"
+        titulo, falta = f"¿Es el {nombre}?", f"No encontré el *{parecido.nombre}* en {donde}, pero sí el *{nombre}*."
+    else:
+        titulo, falta = f"¿Es {nombre}?", f"No tenés ningún campo que se llame *{parecido.nombre}*, pero sí *{nombre}*."
+    return f"🤔 *{titulo}*\n\n{falta}\n\n{LINEA}\nRespondé *sí* para seguir con {nombre} o *no* para cancelar."
 
 
 def pedir_union(cuaderno: Cuaderno, que: str, origen: int, destino: int, texto: str, ahora: datetime) -> str:
@@ -181,6 +215,8 @@ def resolver(ctx: Contexto, rehacer: Callable[[list[dict[str, Any]]], str]) -> s
         return _resolver_campo(ctx, pendiente, rehacer)
     if pendiente.que == FECHA:
         return _resolver_fecha(ctx, pendiente, rehacer)
+    if pendiente.que == PARECIDO:
+        return _resolver_parecido(ctx, pendiente, rehacer)
     if pendiente.que in (UNIR_CAMPOS, UNIR_LOTES):
         pregunta = preguntas.UNIR
     else:
@@ -307,6 +343,26 @@ def _resolver_campo(
         ctx.cuaderno.alias[clave] = int(datos["existente"])
     else:
         ctx.cuaderno.permitidos.add(clave)
+    return rehacer(datos["pedidos"])
+
+
+def _resolver_parecido(
+    ctx: Contexto, pendiente: BorradoPendiente, rehacer: Callable[[list[dict[str, Any]]], str]
+) -> str | None:
+    texto = ctx.texto
+    if respuestas.es_no(texto) or respuestas.es_cancelar(texto):
+        return preguntas.al_cancelar(preguntas.PARECIDO)
+    if not respuestas.es_si(texto):
+        ctx.pregunta_abierta = preguntas.PARECIDO
+        return None
+    if not _vigente(pendiente, ctx.ahora):
+        return PASO_EL_TIEMPO.format(hice="cambié nada")
+    datos = pendiente.datos or {}
+    _recuperar(ctx.cuaderno, datos)
+    if datos["lote"]:
+        ctx.cuaderno.alias_lotes[normalizar_lote(datos["nombre"]) or ""] = int(datos["existente"])
+    else:
+        ctx.cuaderno.alias[clave_establecimiento(datos["nombre"]) or ""] = int(datos["existente"])
     return rehacer(datos["pedidos"])
 
 

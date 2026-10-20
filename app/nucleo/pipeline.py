@@ -29,7 +29,7 @@ from app.nucleo import acciones, alta, charla, comandos, invitaciones, perfil, p
 from app.nucleo.acceso import es_admin, usuario_con_acceso
 from app.nucleo.acciones import Accion
 from app.nucleo.contexto import Adjunto, Contexto
-from app.nucleo.cuaderno import CampoParecido
+from app.nucleo.cuaderno import CampoParecido, NombreParecido
 
 log = logging.getLogger(__name__)
 
@@ -181,7 +181,8 @@ def _pedidos(interpretado: object) -> list[dict[str, Any]]:
 
 def _ejecutar(ctx: Contexto, pedidos: list[dict[str, Any]], suyos: list[str]) -> str:
     """Ejecuta los pedidos, o pregunta antes si nombran un campo nuevo muy parecido a uno que
-    ya existe ("Omu" y "El Ombú") o una fecha dudosa ("el viernes 22" cuando el 22 es jueves).
+    ya existe ("Omu" y "El Ombú"), un campo o lote que no existe pero se parece a uno que sí
+    ("borrá el campo Lomu") o una fecha dudosa ("el viernes 22" cuando el 22 es jueves).
     En ese caso no queda nada hecho: lo que se había hecho del mensaje se deshace y los
     pedidos se guardan para después de la respuesta."""
     adjuntos = len(ctx.adjuntos)
@@ -191,6 +192,9 @@ def _ejecutar(ctx: Contexto, pedidos: list[dict[str, Any]], suyos: list[str]) ->
     except CampoParecido as p:
         del ctx.adjuntos[adjuntos:]
         return confirmar.preguntar_campo(ctx.cuaderno, p.nombre, p.existente, pedidos, ctx.ahora)
+    except NombreParecido as n:
+        del ctx.adjuntos[adjuntos:]
+        return confirmar.preguntar_parecido(ctx.cuaderno, n, pedidos, ctx.ahora)
     except FechaDudosa as f:
         del ctx.adjuntos[adjuntos:]
         return confirmar.preguntar_fecha(ctx.cuaderno, f.clave, f.opciones, pedidos, ctx.ahora)

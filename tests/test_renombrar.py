@@ -7,8 +7,10 @@ from sqlalchemy import select
 
 from app.ia import interprete
 from app.infra.modelos import Auditoria, Establecimiento, Evento, Lote, Pendiente, Sesion, Usuario
+from app.modulos.comun import conversacion
 from app.nucleo import pipeline, respuestas
 from app.nucleo.cuaderno import Cuaderno
+from app.salidas.whatsapp import SEPARADOR as LINEA
 from tests.ayudas import con_perfil
 
 HOY = date(2026, 10, 15)
@@ -353,7 +355,7 @@ def test_borrar_un_campo_sin_decir_cual_y_sin_campos(db, ia):
 
 
 def test_el_campo_se_encuentra_sin_el_articulo(db, ia):
-    """La IA a veces manda "el omu": es Omu. No busca parecidos."""
+    """La IA a veces manda "el omu": es Omu, sin preguntar."""
     dichas, _ = ia
     _cargar(db)
     dichas["el omu se llama la feliz"] = _renombrar("el omu", "La Feliz")
@@ -362,8 +364,8 @@ def test_el_campo_se_encuentra_sin_el_articulo(db, ia):
     assert _mandar(db, "borrá el campo ombú").startswith("🗑️ *¿Borro el campo El Ombú?*")
     dichas["borrá el campo la ombu"] = _borrar("la ombu")
     assert _mandar(db, "borrá el campo la ombu").startswith("🗑️ *¿Borro el campo El Ombú?*")
-    dichas["borrá el campo feli"] = _borrar("feli")
-    assert _mandar(db, "borrá el campo feli").startswith("🤔 No tenés ningún campo que se llame *Feli*")
+    dichas["borrá el campo pastora"] = _borrar("pastora")
+    assert _mandar(db, "borrá el campo pastora").startswith("🤔 No tenés ningún campo que se llame *Pastora*")
 
 
 def test_sin_el_articulo_con_dos_que_coinciden_no_elige(db):
@@ -401,3 +403,80 @@ def test_borrar_un_lote_que_vino_como_campo_de_otro_campo(db, ia):
     lotes = db.scalars(select(Lote.nombre).where(Lote.establecimiento_id == ombu.id)).all()
     assert lotes == ["3"]  # el potrero grande de Omu no se tocó
     assert len(db.scalars(select(Lote)).all()) == 3
+
+
+# --- Un nombre parecido (paso 8.7.4) -------------------------------------------------
+
+
+def test_borrar_un_campo_con_el_nombre_mal_transcripto_pregunta_si_es_el_parecido(db, ia):
+    """Por audio, "borrá el campo del Omu" llegó como "de Lomu"."""
+    dichas, _ = ia
+    _cargar(db)
+    dichas["borrá el campo de lomu"] = _borrar("Lomu")
+    r = _mandar(db, "borrá el campo de Lomu")
+    assert r == (
+        f"🤔 *¿Es Omu?*\n\nNo tenés ningún campo que se llame *Lomu*, pero sí *Omu*.\n\n{LINEA}\n"
+        "Respondé *sí* para seguir con Omu o *no* para cancelar."
+    )
+    # Con el sí, sigue como si lo hubiera nombrado bien: pregunta si borra.
+    assert _mandar(db, "sí").startswith("🗑️ *¿Borro el campo Omu?*\n\nSe borra con todo lo suyo:")
+    assert _mandar(db, "sí").startswith("🗑️ *CAMPO BORRADO*")
+    assert _campos(db) == ["El Ombú"]
+
+
+@pytest.mark.parametrize("texto", ["no", "cancelá"])
+def test_con_el_no_al_parecido_no_cambia_nada(db, ia, texto):
+    dichas, _ = ia
+    _cargar(db)
+    dichas["lomu se llama la feliz"] = _renombrar("Lomu", "La Feliz")
+    assert _mandar(db, "Lomu se llama La Feliz").startswith("🤔 *¿Es Omu?*")
+    assert _mandar(db, texto) == "👌 Listo, no cambié nada."
+    assert _campos(db) == ["Omu", "El Ombú"]
+
+
+def test_renombrar_y_unir_con_el_nombre_parecido(db, ia):
+    dichas, _ = ia
+    _cargar(db)
+    dichas["lomu se llama santa rosa"] = _renombrar("Lomu", "Santa Rosa")
+    _mandar(db, "Lomu se llama Santa Rosa")
+    assert _mandar(db, "dale").startswith("✏️ *CAMPO RENOMBRADO*\n\n*Omu* ahora se llama *Santa Rosa*")
+    dichas["uní santa rosas con el ombú"] = _renombrar("Santa Rosas", "El Ombú")
+    assert _mandar(db, "uní Santa Rosas con El Ombú").startswith("🤔 *¿Es Santa Rosa?*")
+    assert _mandar(db, "sí").startswith("🔗 *¿Uno Santa Rosa con El Ombú?*")
+
+
+def test_un_lote_parecido_en_el_mismo_campo(db, ia):
+    dichas, _ = ia
+    usuario, omu, _ = _cargar(db)
+    dichas["el potrero grando ya no va, sacalo"] = _borrar(None, lote="potrero grando")
+    r = _mandar(db, "el potrero grando ya no va, sacalo")  # sin campo: el de la sesión, Omu
+    assert r.startswith(
+        "🤔 *¿Es el potrero grande?*\n\nNo encontré el *potrero grando* en *Omu*, pero sí el *potrero grande*."
+    )
+    assert _mandar(db, "sí").startswith("🗑️ *¿Borro el potrero grande de Omu?*")
+    assert _mandar(db, "no") == "👌 Listo, no borré nada."
+    dichas["el potrero grando se llama los pinos"] = _renombrar(None, "Los Pinos", lote="potrero grando")
+    _mandar(db, "el potrero grando se llama los pinos")
+    assert _mandar(db, "sí") == "✏️ *LOTE RENOMBRADO*\n\nEl *potrero grande* de *Omu* ahora se llama *los pinos*."
+    assert Cuaderno(db, usuario).lote_existente("los pinos", omu) is not None
+
+
+def test_sin_parecido_o_si_el_parecido_es_el_nombre_nuevo_dice_que_no_esta(db, ia):
+    dichas, _ = ia
+    _cargar(db)
+    dichas["borrá el campo la pastora"] = _borrar("La Pastora")
+    assert _mandar(db, "borrá el campo La Pastora").startswith("🤔 No tenés ningún campo que se llame *La Pastora*")
+    # "Lomu" se parece a Omu, pero Omu es el nombre que queda: no es una unión de Omu con Omu.
+    dichas["uní lomu con omu"] = _renombrar("Lomu", "Omu")
+    assert _mandar(db, "uní Lomu con Omu").startswith("🤔 No tenés ningún campo que se llame *Lomu*")
+
+
+def test_otro_mensaje_descarta_la_pregunta_del_parecido(db, ia):
+    dichas, _ = ia
+    _cargar(db)
+    dichas["borrá el campo de lomu"] = _borrar("Lomu")
+    _mandar(db, "borrá el campo de Lomu")
+    assert _mandar(db, "mis campos, porfa").startswith("🏡 *MIS CAMPOS*")
+    dichas["sí"] = {"intencion": "saludo"}  # la pregunta ya no está: el sí va a la IA
+    assert _mandar(db, "sí") == conversacion.SALUDO
+    assert _campos(db) == ["Omu", "El Ombú"]

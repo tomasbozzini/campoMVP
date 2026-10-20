@@ -67,6 +67,18 @@ class CampoParecido(Exception):
         self.existente = existente
 
 
+class NombreParecido(Exception):
+    """Para renombrar, unir o borrar se nombró un campo o un lote que no existe, pero hay uno
+    con un nombre muy parecido ("Lomu" y Omu): se le pregunta a la persona si es ese (paso 8.7.4).
+    `donde`: con un lote, el nombre de su campo (None si es un lote sin campo)."""
+
+    def __init__(self, nombre: str, existente: Establecimiento | Lote, donde: str | None = None) -> None:
+        super().__init__(nombre)
+        self.nombre = nombre
+        self.existente = existente
+        self.donde = donde
+
+
 @dataclass(frozen=True)
 class Filtros:
     """Filtros de búsqueda en el cuaderno. Los vacíos no filtran."""
@@ -91,6 +103,8 @@ class Cuaderno:
         # un campo que ya existe (clave -> id) y cuáles son campos nuevos aunque se parezcan.
         self.alias: dict[str, int] = {}
         self.permitidos: set[str] = set()
+        # Y sobre lotes parecidos al renombrar, unir o borrar: qué lote es ese nombre (-> id).
+        self.alias_lotes: dict[str, int] = {}
         # Y sobre fechas dudosas ("el viernes 22" cuando el 22 es jueves): qué fecha eligió.
         self.fechas: dict[str, str] = {}
 
@@ -202,15 +216,25 @@ class Cuaderno:
 
     def establecimiento_nombrado(self, nombre: str | None) -> Establecimiento | None:
         """Para borrar o renombrar un campo: el que tiene ese nombre o, si no hay, el único que
-        coincide sin el artículo del principio ("el omu" -> Omu). No busca parecidos."""
+        coincide sin el artículo del principio ("el omu" -> Omu), o el que la persona ya dijo
+        que es (`alias`). No busca parecidos: eso es `establecimiento_parecido`."""
         if (exacto := self.establecimiento_existente(nombre)) is not None:
             return exacto
         clave = clave_establecimiento(nombre)
         if not clave:
             return None
+        if clave in self.alias:
+            elegido = self.db.get(Establecimiento, self.alias[clave])
+            if elegido is not None and elegido.cuenta_id == self.cuenta_id:
+                return elegido
         todos = self.db.scalars(select(Establecimiento).where(Establecimiento.cuenta_id == self.cuenta_id))
         iguales = [e for e in todos if sin_articulo(e.clave) == sin_articulo(clave)]
         return iguales[0] if len(iguales) == 1 else None
+
+    def establecimiento_parecido(self, nombre: str | None) -> Establecimiento | None:
+        """El campo con el nombre más parecido, si pasa el mínimo ("Lomu" -> Omu)."""
+        clave = clave_establecimiento(nombre)
+        return self._parecido(clave) if clave else None
 
     def renombrar_establecimiento(self, establecimiento: Establecimiento, nombre: str) -> None:
         """Le cambia el nombre (y la clave). Ningún otro de la cuenta puede tener esa clave."""
@@ -356,10 +380,27 @@ class Cuaderno:
         )
 
     def lote_existente(self, nombre: str | None, establecimiento: Establecimiento | None) -> Lote | None:
-        """El lote con ese nombre en ese campo (o suelto); None si no lo tiene (no lo crea)."""
+        """El lote con ese nombre en ese campo (o suelto), o el que la persona ya dijo que es
+        (`alias_lotes`); None si no lo tiene (no lo crea ni busca uno parecido)."""
         limpio = normalizar_lote(nombre)
+        if not limpio:
+            return None
         lotes = self._lotes_de(establecimiento.id if establecimiento else None)
-        return next((lote for lote in lotes if lote.nombre == limpio), None) if limpio else None
+        elegido = self.alias_lotes.get(limpio)
+        return next((lote for lote in lotes if lote.nombre == limpio), None) or next(
+            (lote for lote in lotes if lote.id == elegido), None
+        )
+
+    def lote_parecido(self, nombre: str | None, establecimiento: Establecimiento | None) -> Lote | None:
+        """El lote de ese campo con el nombre más parecido, si pasa el mínimo ("potrero grando")."""
+        limpio = normalizar_lote(nombre)
+        if not limpio:
+            return None
+        lotes = self._lotes_de(establecimiento.id if establecimiento else None)
+        puntaje, mejor = max(
+            ((parecido(limpio, lote.nombre), lote) for lote in lotes), default=(0.0, None), key=lambda x: x[0]
+        )
+        return mejor if puntaje >= PARECIDO_MINIMO else None
 
     def renombrar_lote(self, lote: Lote, nombre: str) -> None:
         """Le cambia el nombre. Ningún otro lote de su campo puede llamarse así."""

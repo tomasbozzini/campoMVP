@@ -5,8 +5,9 @@ Ombú", "el lote 3 de La Pastora se llama Los Pinos", "borrá el campo Prueba". 
 escrito: se pide hablando. Borrar es otra intención (`borrar_campo`), con el mismo dato.
 
 - El campo que cambia tiene que existir con ese nombre, o con el mismo sin el artículo del
-  principio ("el omu" es Omu); no se busca uno parecido. Si no lo dice, es el de la sesión
-  abierta o el actual. Los lotes, dentro de un mismo campo.
+  principio ("el omu" es Omu). Si no existe pero hay uno parecido ("Lomu" y Omu), pregunta si
+  es ese (paso 8.7.4). Si no lo dice, es el de la sesión abierta o el actual. Los lotes, dentro
+  de un mismo campo.
 - Si el nombre nuevo no existe, cambia el nombre y lo anotado queda igual.
 - Si existe, es una unión: pregunta antes (*sí* / *no*) y muestra qué pasa al que queda. La
   unión la hace `confirmar` con el *sí* (`Cuaderno.unir_establecimientos` / `unir_lotes`).
@@ -20,12 +21,14 @@ from pydantic import Field
 
 from app.ia.esquemas import Esquema, EsquemaAccion, SiNoVacio, texto
 from app.infra.modelos import Establecimiento
+from app.infra.modelos import Lote as LoteGuardado
 from app.infra.texto import prolijo
 from app.modulos.comun import confirmar
 from app.modulos.comun.confirmar import nombre_lote, resumen_union
 from app.modulos.comun.registros import Lote
 from app.nucleo.acciones import Accion
 from app.nucleo.contexto import Contexto
+from app.nucleo.cuaderno import NombreParecido
 from app.nucleo.normalizar import normalizar_lote
 
 SIN_NOMBRE = "🤔 No entendí cómo se tiene que llamar.\nProbá con algo como: _Omu en realidad es El Ombú_."
@@ -52,6 +55,30 @@ def _tus_campos(ctx: Contexto) -> list[str]:
     return [c.establecimiento.nombre for c in ctx.cuaderno.campos() if c.establecimiento is not None]
 
 
+def _nombrado(ctx: Contexto, nombre: str, nuevo: str | None = None) -> Establecimiento | None:
+    """El campo con ese nombre. Si no está pero hay uno parecido, se pregunta si es ese (salvo
+    que sea el del nombre nuevo: "Omu en realidad es El Ombú" sin Omu no es El Ombú)."""
+    cuaderno = ctx.cuaderno
+    campo = cuaderno.establecimiento_nombrado(nombre)
+    parecido = cuaderno.establecimiento_parecido(nombre) if campo is None else None
+    if parecido is not None and (nuevo is None or parecido != cuaderno.establecimiento_nombrado(nuevo)):
+        raise NombreParecido(prolijo(nombre), parecido)
+    return campo
+
+
+def _lote_nombrado(
+    ctx: Contexto, nombre: str | None, campo: Establecimiento | None, nuevo: str | None = None
+) -> LoteGuardado | None:
+    """El lote con ese nombre en ese campo. Si no está pero hay uno parecido, se pregunta (salvo
+    que sea el del nombre nuevo, como con los campos)."""
+    cuaderno = ctx.cuaderno
+    lote = cuaderno.lote_existente(nombre, campo)
+    parecido = cuaderno.lote_parecido(nombre, campo) if lote is None else None
+    if parecido is not None and (nuevo is None or parecido != cuaderno.lote_existente(nuevo, campo)):
+        raise NombreParecido(nombre_lote(normalizar_lote(nombre) or ""), parecido, campo.nombre if campo else None)
+    return lote
+
+
 def _no_esta(ctx: Contexto, nombre: str) -> str:
     nombres = _tus_campos(ctx)
     tuyos = f"\n\nTus campos: {', '.join(nombres)}." if nombres else ""
@@ -72,7 +99,7 @@ def _cual_borrar(ctx: Contexto) -> str:
 
 def _campo(ctx: Contexto, cambio: Cambio, nuevo: str) -> str:
     cuaderno = ctx.cuaderno
-    campo = cuaderno.establecimiento_nombrado(cambio.campo) if cambio.campo else _actual(ctx)
+    campo = _nombrado(ctx, cambio.campo, nuevo) if cambio.campo else _actual(ctx)
     if campo is None:
         return _no_esta(ctx, cambio.campo) if cambio.campo else CUAL_CAMPO
     otro = cuaderno.establecimiento_nombrado(nuevo)
@@ -98,13 +125,13 @@ def _campo(ctx: Contexto, cambio: Cambio, nuevo: str) -> str:
 def _lote(ctx: Contexto, cambio: Cambio, nuevo: str) -> str:
     cuaderno = ctx.cuaderno
     if cambio.campo:
-        campo = cuaderno.establecimiento_nombrado(cambio.campo)
+        campo = _nombrado(ctx, cambio.campo)
         if campo is None:
             return _no_esta(ctx, cambio.campo)
     else:
         campo = _actual(ctx)
     donde = f"*{campo.nombre}*" if campo else "tus lotes sin campo"
-    lote = cuaderno.lote_existente(cambio.lote, campo)
+    lote = _lote_nombrado(ctx, cambio.lote, campo, nuevo)
     if lote is None:
         return (
             f"🤔 No encontré el *{nombre_lote(cambio.lote or '')}* en {donde}.\nMandá *mis campos* para ver tus lotes."
@@ -172,7 +199,7 @@ def borrar(ctx: Contexto, datos: BorrarCampo) -> str:
         lote_nombre, campo_nombre = normalizar_lote(campo_nombre), None
     nombrado = campo_nombre or datos.establecimiento  # a veces la IA lo pone en "establecimiento"
     if nombrado:
-        campo = cuaderno.establecimiento_nombrado(nombrado)
+        campo = _nombrado(ctx, nombrado)
         if campo is None:
             return _no_esta(ctx, nombrado)
     elif lote_nombre:
@@ -195,7 +222,7 @@ def borrar(ctx: Contexto, datos: BorrarCampo) -> str:
 def _borrar_lote(ctx: Contexto, nombre: str, campo: Establecimiento | None) -> str:
     cuaderno = ctx.cuaderno
     donde = f"*{campo.nombre}*" if campo else "tus lotes sin campo"
-    lote = cuaderno.lote_existente(nombre, campo)
+    lote = _lote_nombrado(ctx, nombre, campo)
     if lote is None:
         return f"🤔 No encontré el *{nombre_lote(nombre)}* en {donde}.\nMandá *mis campos* para ver tus lotes."
     de = f" de {campo.nombre}" if campo else ""

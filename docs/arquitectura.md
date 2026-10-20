@@ -678,6 +678,26 @@ de 2b, 7 y 8b):
       Cómo quedó: la variable se lee en la configuración (`railway_git_commit_sha`). `/salud` es
       una ruta nueva (antes la salud estaba solo en `/`) y las dos responden lo mismo. El README
       dice que hay que mirar `/salud` antes de probar.
+- [x] 8.7.4 · Un nombre parecido al renombrar, unir o borrar. Por audio, "borrá el campo del
+      Omu" llegó como "de Lomu" y el bot respondió "No tenés ningún campo que se llame Lomu".
+      - Cuando `renombrar_campo` o `borrar_campo` nombra un campo o un lote que no existe y hay
+        uno parecido (el mismo parecido del 8.5, sin artículos: desde 0,84), el bot pregunta
+        "¿Es Omu?" en vez de decir que no existe. Los lotes se comparan con los del mismo campo.
+      - *Sí* sigue con ese (renombra, pregunta si une o pregunta si borra, como si lo hubiera
+        nombrado bien); *no* o *cancelá* cancela ("Listo, no cambié nada"). Otro mensaje la
+        descarta y va a la IA con la pregunta como contexto, como las demás. Lo del mensaje se
+        hace después de la respuesta, como con un campo parecido al anotar (10 minutos).
+      - Solo el nombre que tiene que existir (el que cambia, se une o se borra): el nombre nuevo
+        de un cambio de nombre sigue igual.
+      - El prompt no cambia: sin eval. Tests: campo y lote parecidos con *sí* y con *no*, al
+        renombrar, unir y borrar; sin parecido sigue diciendo que no existe.
+
+      Cómo quedó: `renombrar.py` levanta `NombreParecido` (en el cuaderno, como `CampoParecido`)
+      y el pipeline pregunta con `confirmar.preguntar_parecido` (la pregunta `parecido`, sin
+      migración). El *sí* deja el nombre como alias del que existe (`alias`, o `alias_lotes` para
+      los lotes) y rehace el pedido. Si el parecido es el mismo campo o lote que el nombre nuevo
+      ("uní Lomu con Omu"), no pregunta: dice que no existe. La pregunta suma su texto para la
+      IA cuando se descarta, como las demás (no es el prompt).
 - [ ] 9a · Modo prueba.
 - [ ] 9b · Set de evaluación armado con el modo prueba (`eval revisar`); el comando
       `python -m app eval` ya existe desde el 8.2.
