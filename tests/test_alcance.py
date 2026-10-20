@@ -11,6 +11,7 @@ from app.fuentes import senasa as fuentes_senasa
 from app.ia import interprete
 from app.ia.proveedor import ErrorIA, IASaturada
 from app.infra.config import config
+from app.infra.marca import NOMBRE
 from app.infra.modelos import Cotizacion
 from app.modulos.comun import conversacion, precios, senasa
 from app.nucleo import acceso, pipeline
@@ -68,7 +69,7 @@ def test_limite_diario(db, respuestas, monkeypatch):
     # al otro día se renueva
     assert pipeline.manejar_mensaje(db, u.telefono, "x", hoy=date(2026, 10, 10)) == pipeline.FUERA_DE_ALCANCE
     # los comandos no gastan cupo
-    assert "CAMPOBOT" in pipeline.manejar_mensaje(db, u.telefono, "ayuda", hoy=HOY)
+    assert NOMBRE.upper() in pipeline.manejar_mensaje(db, u.telefono, "ayuda", hoy=HOY)
 
 
 def test_si_la_ia_esta_saturada_o_falla_el_mensaje_no_gasta_cupo(db, monkeypatch):

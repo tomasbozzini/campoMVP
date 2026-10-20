@@ -14,7 +14,7 @@ from app.nucleo.cuaderno import Cuaderno
 class Adjunto:
     """Un archivo que va con la respuesta (un PDF, una planilla)."""
 
-    nombre: str  # como le llega a la persona: "CampoBot-registros-2026-10-16.pdf"
+    nombre: str  # como le llega a la persona: "Anotagro-registros-2026-10-16.pdf"
     contenido: bytes
     tipo: str  # "application/pdf"
 

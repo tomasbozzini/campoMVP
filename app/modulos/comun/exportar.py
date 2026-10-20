@@ -14,6 +14,7 @@ from pydantic import BeforeValidator, Field
 
 from app.ia.esquemas import Esquema, EsquemaAccion, SiNoVacio
 from app.infra.config import config
+from app.infra.marca import NOMBRE
 from app.infra.modelos import Evento, Usuario
 from app.modulos.comun.consultar import FiltrosConsulta, filtros
 from app.nucleo.acciones import Accion
@@ -178,7 +179,7 @@ def manejar(ctx: Contexto, datos: Exportar) -> str:
     eventos = ctx.cuaderno.buscar(filtros(datos.consulta))
     if not eventos:
         return SIN_RESULTADOS
-    nombre = f"CampoBot-registros-{ctx.hoy.isoformat()}"
+    nombre = f"{NOMBRE}-registros-{ctx.hoy.isoformat()}"
     que = datos.exportar.formato
     if que == "excel":
         ctx.adjuntos.append(Adjunto(f"{nombre}.xlsx", armar_excel(ctx, datos.consulta, eventos), XLSX))

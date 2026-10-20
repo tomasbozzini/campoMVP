@@ -15,6 +15,7 @@ from app.api import webhook
 from app.canales import whatsapp
 from app.ia import interprete
 from app.infra.config import config
+from app.infra.marca import NOMBRE
 from app.modulos.comun import exportar
 from app.nucleo import pipeline
 from app.salidas import pdf
@@ -72,11 +73,11 @@ def test_un_pdf_con_todo_lo_anotado(db, ia):
 
     assert r.texto.startswith("📄 *PDF LISTO*\nTodo lo anotado · 3 registros\n")
     [adjunto] = r.adjuntos
-    assert (adjunto.nombre, adjunto.tipo) == ("CampoBot-registros-2026-10-15.pdf", "application/pdf")
+    assert (adjunto.nombre, adjunto.tipo) == (f"{NOMBRE}-registros-2026-10-15.pdf", "application/pdf")
     assert adjunto.contenido.startswith(b"%PDF")
 
     texto = _texto(adjunto.contenido)
-    assert "CampoBot" in texto and "Generado el 15/10/2026 12:30" in texto  # hora de Argentina
+    assert NOMBRE in texto and "Generado el 15/10/2026 12:30" in texto  # hora de Argentina
     assert "Registro de trabajo Juana Gómez · Veterinario · Tandil · Matrícula MP 1234" in texto
     assert "Totales" in texto and "Vacunación: 30 animales" in texto and "Lluvia: 20 mm" in texto
     assert texto.index("14/10/2026") < texto.index("15/10/2026 La Pastora")  # del más viejo al más nuevo
@@ -134,7 +135,7 @@ def test_una_planilla_excel(db, ia):
 
     assert r.texto.startswith("📊 *PLANILLA LISTA*\nTodo lo anotado · 4 registros\n")
     [adjunto] = r.adjuntos
-    assert adjunto.nombre == "CampoBot-registros-2026-10-15.xlsx" and adjunto.tipo == exportar.XLSX
+    assert adjunto.nombre == f"{NOMBRE}-registros-2026-10-15.xlsx" and adjunto.tipo == exportar.XLSX
     libro = load_workbook(io.BytesIO(adjunto.contenido))
     assert libro.sheetnames == ["Registros", "Resumen"]
     filas = list(libro["Registros"].iter_rows(values_only=True))
@@ -155,7 +156,7 @@ def test_una_planilla_excel(db, ia):
     assert celda.data_type == "s"  # texto, no fórmula
 
     resumen = [f[0] for f in libro["Resumen"].iter_rows(values_only=True)]
-    assert resumen[:3] == ["CampoBot", "Registro de trabajo", "Juana Gómez · Veterinario · Tandil · Matrícula MP 1234"]
+    assert resumen[:3] == [NOMBRE, "Registro de trabajo", "Juana Gómez · Veterinario · Tandil · Matrícula MP 1234"]
     assert "Vacunación: 30 animales" in resumen and resumen[-1] == pdf.PIE
 
 
@@ -166,7 +167,7 @@ def test_un_csv_con_punto_y_coma_y_bom(db, ia):
 
     assert r.texto.startswith("📊 *CSV LISTO*\n")
     [adjunto] = r.adjuntos
-    assert adjunto.nombre == "CampoBot-registros-2026-10-15.csv" and adjunto.tipo == "text/plain"
+    assert adjunto.nombre == f"{NOMBRE}-registros-2026-10-15.csv" and adjunto.tipo == "text/plain"
     assert adjunto.contenido.startswith(b"\xef\xbb\xbf")  # BOM
     lineas = adjunto.contenido.decode("utf-8-sig").splitlines()
     assert lineas[0] == ";".join(exportar.COLUMNAS_PLANILLA)
@@ -200,8 +201,8 @@ def test_el_pdf_llega_despues_del_texto(servidor, motor, ia, monkeypatch):
             c.post("/webhook", json={"entry": [{"changes": [{"value": {"messages": [mensaje]}}]}]})
             assert webhook.fila.esperar(5)
 
-    assert documentos == [(TEL, "CampoBot-registros-2026-10-15.pdf", "application/pdf")]
-    assert servidor[-2][1].startswith("📄 *PDF LISTO*") and servidor[-1][1] == "[CampoBot-registros-2026-10-15.pdf]"
+    assert documentos == [(TEL, f"{NOMBRE}-registros-2026-10-15.pdf", "application/pdf")]
+    assert servidor[-2][1].startswith("📄 *PDF LISTO*") and servidor[-1][1] == f"[{NOMBRE}-registros-2026-10-15.pdf]"
 
 
 def test_si_el_archivo_no_sale_avisa(servidor, motor, ia, monkeypatch):

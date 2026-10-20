@@ -292,7 +292,8 @@ class Invitacion(Base):
     __tablename__ = "invitaciones"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    codigo: Mapped[str] = mapped_column(String(20), unique=True)  # CAMPO-XXXX-XXXX
+    # ANOTA-XXXX-XXXX (o CAMPO-XXXX-XXXX, los de antes del paso 8.6)
+    codigo: Mapped[str] = mapped_column(String(20), unique=True)
     creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_ahora)
     vence: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     # Id del administrador que la creó. Sin clave foránea, como en la auditoría.

@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 from sqlalchemy.orm import Session
 
 from app.infra.config import config
+from app.infra.marca import NOMBRE
 from app.infra.modelos import Usuario
 from app.infra.texto import sin_tildes
 from app.nucleo import auditoria, invitaciones, usuarios
@@ -20,7 +21,7 @@ from app.salidas.whatsapp import SEPARADOR as LINEA
 
 log = logging.getLogger(__name__)
 
-AYUDA = """🐄 *CAMPOBOT*
+AYUDA = f"""🐄 *{NOMBRE.upper()}*
 _Tu cuaderno de trabajo en el campo, por WhatsApp._
 
 _Hablame como siempre, por audio o por escrito: no hace falta ninguna palabra exacta._
@@ -87,7 +88,7 @@ AYUDA_ADMIN = """
 *autorizados* → lista de números con acceso
 *invitar* → crea un código de invitación
 *invitaciones* → códigos vigentes
-*anular CAMPO-XXXX-XXXX* → anula un código"""
+*anular ANOTA-XXXX-XXXX* → anula un código"""
 
 PEDIR_AYUDA = {"ayuda", "help", "menu", "menú"}
 DESHACER = {"borrar", "deshacer"}
@@ -150,7 +151,7 @@ def borrar_datos(db: Session, usuario: Usuario) -> str:
     return (
         "🗑️ *DATOS BORRADOS*\n\n"
         "Eliminé tu cuaderno, tus mensajes y tu número. No queda nada tuyo guardado.\n"
-        "Gracias por haber usado CampoBot 👋"
+        f"Gracias por haber usado {NOMBRE} 👋"
     )
 
 
@@ -179,7 +180,7 @@ def admin(db: Session, texto: str, actor: int) -> str | None:
         return "No entendí el número. Escribilo con código de país, ej: *autorizar 5492494123456*"
     if m.group(1).lower() == "autorizar":
         usuarios.autorizar(db, telefono, actor)
-        return f"✅ {telefono} ya puede usar CampoBot."
+        return f"✅ {telefono} ya puede usar {NOMBRE}."
     if not usuarios.quitar(db, telefono, actor):
         return f"{telefono} no tenía acceso."
     return f"🚫 Le saqué el acceso a {telefono}. Sus registros se conservan."

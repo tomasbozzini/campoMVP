@@ -36,6 +36,7 @@ from app.infra import migrar
 from app.infra.config import config
 from app.infra.db import SessionLocal, engine
 from app.infra.logs import configurar_logs
+from app.infra.marca import NOMBRE
 from app.modulos.comun import precios, senasa
 from app.nucleo import acciones, auditoria, pipeline, preguntas, usuarios
 
@@ -195,7 +196,7 @@ def _db(args: argparse.Namespace) -> None:
 
 
 def _argumentos() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="python -m app", description="CampoBot")
+    parser = argparse.ArgumentParser(prog="python -m app", description=NOMBRE)
     comandos = parser.add_subparsers(dest="comando", required=True)
 
     chat = comandos.add_parser("chat", help="chatear con el bot desde la terminal")

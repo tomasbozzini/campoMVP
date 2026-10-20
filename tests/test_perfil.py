@@ -7,6 +7,7 @@ from sqlalchemy import select
 
 from app.ia import interprete
 from app.infra.config import config
+from app.infra.marca import NOMBRE
 from app.infra.modelos import MensajeChat, Usuario
 from app.nucleo import perfil, pipeline, usuarios
 from tests.ayudas import con_perfil
@@ -36,7 +37,7 @@ def test_un_usuario_existente_responde_las_preguntas_y_despues_sigue(db, ia):
     usuarios.autorizar(db, TEL)  # como quedan los usuarios de antes del perfil
 
     r = _mandar(db, "vacuné 20 vacas")
-    assert "Soy CampoBot" in r and "3 datos tuyos" in r and perfil.PREGUNTAS["nombre"] in r
+    assert f"Soy {NOMBRE}" in r and "3 datos tuyos" in r and perfil.PREGUNTAS["nombre"] in r
     assert ia == []  # el mensaje no llega a la IA ni se anota
 
     assert perfil.PREGUNTAS["rubro"] in _mandar(db, "me llamo juana GÓMEZ")
@@ -104,10 +105,10 @@ def test_el_rubro_se_elige_entre_tres_opciones(db, ia):
 def test_ayuda_y_privacidad_se_responden_durante_el_alta(db, ia):
     usuarios.autorizar(db, TEL)
     r = _mandar(db, "ayuda")
-    assert "CAMPOBOT" in r and perfil.PREGUNTAS["nombre"] in r
+    assert NOMBRE.upper() in r and perfil.PREGUNTAS["nombre"] in r
     r = _mandar(db, "privacidad")
     assert "TUS DATOS" in r and perfil.PREGUNTAS["nombre"] in r
-    assert "Soy CampoBot" not in r  # la presentación va una sola vez
+    assert f"Soy {NOMBRE}" not in r  # la presentación va una sola vez
     assert perfil.PREGUNTAS["rubro"] in _mandar(db, "Juana Gómez")
 
 

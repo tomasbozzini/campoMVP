@@ -17,6 +17,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
 from openpyxl.utils import get_column_letter
 
+from app.infra.marca import NOMBRE
 from app.salidas.pdf import PIE, Membrete
 
 Valor = str | int | float | date | None
@@ -86,7 +87,7 @@ def excel_bytes(
 
     resumen_hoja = libro.create_sheet("Resumen")
     lineas: list[str] = [
-        "CampoBot",
+        NOMBRE,
         titulo,
         membrete.linea(),
         " · ".join(subtitulo),

@@ -20,7 +20,9 @@ from app.salidas.whatsapp import SEPARADOR as LINEA
 # Sin 0/O ni 1/I/L, que se confunden al copiarlos a mano.
 ALFABETO = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 DIAS_VIGENCIA = 7
-_CODIGO = re.compile(r"CAMPO[\s-]*([A-Z0-9]{4})[\s-]*([A-Z0-9]{4})", re.IGNORECASE)
+# Los nuevos son ANOTA-XXXX-XXXX; los CAMPO- que se dieron antes del paso 8.6 siguen sirviendo.
+PREFIJO = "ANOTA"
+_CODIGO = re.compile(r"\b(ANOTA|CAMPO)[\s-]*([A-Z0-9]{4})[\s-]*([A-Z0-9]{4})\b", re.IGNORECASE)
 
 
 def en_utc(momento: datetime) -> datetime:
@@ -32,13 +34,13 @@ def generar() -> str:
     def bloque() -> str:
         return "".join(secrets.choice(ALFABETO) for _ in range(4))
 
-    return f"CAMPO-{bloque()}-{bloque()}"
+    return f"{PREFIJO}-{bloque()}-{bloque()}"
 
 
 def buscar_codigo(texto: str) -> str | None:
-    """El código que trae el mensaje, escrito como sea ("campo 7k3p 9xq2"); None si no trae uno."""
+    """El código que trae el mensaje, escrito como sea ("anota 7k3p 9xq2"); None si no trae uno."""
     m = _CODIGO.search(texto)
-    return f"CAMPO-{m.group(1).upper()}-{m.group(2).upper()}" if m else None
+    return f"{m.group(1).upper()}-{m.group(2).upper()}-{m.group(3).upper()}" if m else None
 
 
 def es_solo_un_codigo(texto: str) -> bool:
@@ -105,7 +107,7 @@ def invitar(db: Session, actor: int, ahora: datetime) -> str:
     if enlace:
         return texto + f"Reenviale este link a quien quieras invitar (abre el chat con el código ya escrito):\n{enlace}"
     return (
-        texto + "Pasale el código: tiene que mandárselo a CampoBot por WhatsApp.\n"
+        texto + "Pasale el código: tiene que mandárselo a {NOMBRE} por WhatsApp.\n"
         "_Para tener un link, configurá WA_NUMERO_BOT._"
     )
 
@@ -119,14 +121,14 @@ def listar(db: Session, ahora: datetime) -> str:
     filas = "\n".join(f"      › {i.codigo} · vence el {_dia(i.vence)}" for i in lista)
     return (
         f"🎟️ *INVITACIONES VIGENTES* ({len(lista)})\n\n{filas}{sin_terminar}\n\n"
-        "_Para anular una: *anular CAMPO-XXXX-XXXX*_"
+        f"_Para anular una: *anular {PREFIJO}-XXXX-XXXX*_"
     )
 
 
 def anular(db: Session, texto: str, actor: int, ahora: datetime) -> str:
     codigo = buscar_codigo(texto)
     if codigo is None:
-        return "No entendí el código. Escribilo así: *anular CAMPO-XXXX-XXXX*"
+        return f"No entendí el código. Escribilo así: *anular {PREFIJO}-XXXX-XXXX*"
     invitacion = db.scalar(select(Invitacion).where(Invitacion.codigo == codigo))
     if invitacion is None:
         return f"No encontré el código {codigo}."

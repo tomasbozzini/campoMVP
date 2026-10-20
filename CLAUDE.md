@@ -1,4 +1,4 @@
-# CampoBot (campoMVP)
+# Anotagro (campoMVP)
 
 Asistente por WhatsApp para profesionales del campo (veterinarios, agrónomos, productores):
 anotan el trabajo por voz o texto y lo consultan después. La IA (Groq) solo interpreta el

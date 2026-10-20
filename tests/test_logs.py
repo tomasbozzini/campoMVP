@@ -18,6 +18,7 @@ from app.ia import proveedor
 from app.ia.proveedor_groq import ProveedorGroq
 from app.infra.config import config
 from app.infra.logs import configurar_logs, enmascarar
+from app.infra.marca import NOMBRE
 from app.infra.modelos import MensajeProcesado
 from app.nucleo import charla
 from tests.ayudas import con_perfil_en
@@ -151,5 +152,5 @@ def test_el_texto_del_mensaje_no_se_loguea_en_el_camino_normal(servidor, monkeyp
     with TestClient(main.app) as c:
         c.post("/webhook", json=_webhook("ayuda"))
         c.post("/webhook", json=_webhook("ayuda"))  # reintento de Meta
-    assert "CAMPOBOT" in servidor[0][1]
+    assert NOMBRE.upper() in servidor[0][1]
     _sin_datos_personales(logs())

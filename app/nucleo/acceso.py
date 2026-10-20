@@ -4,12 +4,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.infra.config import config
+from app.infra.marca import NOMBRE
 from app.infra.modelos import Usuario
 from app.nucleo import usuarios
 from app.nucleo.cuaderno import Cuaderno
 
 # Para quien escribe sin acceso y sin código de invitación (no se guarda nada).
-NO_AUTORIZADO = """👋 *¡Hola! Soy CampoBot.*
+NO_AUTORIZADO = f"""👋 *¡Hola! Soy {NOMBRE}.*
 
 Estoy en prueba privada: por ahora solo pueden usarme las personas invitadas.
 Si te pasaron un código de invitación, mandámelo por acá."""

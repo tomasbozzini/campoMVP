@@ -5,7 +5,7 @@ decisiones tomamos y en qué orden avanzamos. Cualquier cambio de rumbo se regis
 
 ## 1. Visión
 
-**CampoBot** (nombre provisorio): un **asistente por WhatsApp para profesionales del campo**,
+**Anotagro** (antes CampoBot; falta confirmar el nombre en el INPI): un **asistente por WhatsApp para profesionales del campo**,
 con dos módulos sobre una misma plataforma (especificación funcional "Bots AyT Tandil"):
 
 - **Módulo ganadero (veterinario de manga):** tacto y ecografía, raspaje de toros, sanidad
@@ -14,7 +14,7 @@ con dos módulos sobre una misma plataforma (especificación funcional "Bots AyT
   recorrida, pulverización (caldo, Delta T), cosecha (pérdidas de trilla INTA, silobolsas,
   carta de porte).
 
-Entrada principal por **voz** en el campo, salida por WhatsApp, PDF con la marca CampoBot
+Entrada principal por **voz** en el campo, salida por WhatsApp, PDF con la marca Anotagro
 y Excel/CSV. **Un solo bot**: el perfil de cada usuario define qué módulos usa.
 
 ## 2. Principios
@@ -81,8 +81,8 @@ del perfil del usuario (menos tokens, menos latencia, más precisión).
 | Base de datos | SQLAlchemy + **Alembic** | Los datos de producción sobreviven a cada cambio |
 | Configuración | `pydantic-settings`, validada al arrancar | Falla temprano y con mensaje claro |
 | Alertas | Se guardan como **pendientes** consultables ("¿qué tengo pendiente?") | Los avisos automáticos cuestan; se agregan después sobre los mismos datos |
-| Nombre | **CampoBot** (provisorio) | Decisión de producto |
-| PDF | Con logo y marca CampoBot | Decisión de producto |
+| Nombre | **Anotagro** desde el paso 8.6 (antes CampoBot); falta confirmarlo en el INPI. Está en una sola constante (`app/infra/marca.py`) | Decisión de producto |
+| PDF | Con logo y marca Anotagro | Decisión de producto |
 | Alta de usuarios | **Código de invitación** + alta guiada. La aprobación del administrador se suma después sobre el mismo flujo | Entran al instante, sin carga manual ni mensajes pagos; control de quién entra |
 | Producción | **Railway** desde la etapa 1: el bot, Postgres y el cron `actualizar-precios` (`30 21 * * 1-5`). Cada push a la rama despliega y migra al arrancar, sin esperar al CI | Se adelantó (el plan lo dejaba para la etapa 4): las pruebas desde el celular son contra Railway |
 | IA | Interpretar: `openai/gpt-oss-120b` por **OpenRouter** (con `OPENROUTER_API_KEY`), solo con proveedores de retención cero (`zdr`), que no guardan ni entrenan con los datos (`data_collection: deny`) y que aceptan todos los parámetros del pedido (`require_parameters`); entre ellos, primero Cerebras y después Groq (`order`), y si los dos fallan OpenRouter prueba otro (`allow_fallbacks`). Esfuerzo de razonamiento `low`. **Groq** de respaldo si OpenRouter falla o no responde en 6 s, o como único si no hay clave. Audios: Whisper en Groq | Groq no habilita el plan pago y con el gratuito el bot atiende un mensaje por minuto |
@@ -205,7 +205,7 @@ en cada punto, primero un test que reproduce el problema.
 **Alta de usuarios:**
 
 - **Invitar:** el administrador manda `invitar` y recibe un código (por ejemplo
-  `CAMPO-7K3P`) y un link `wa.me/<número del bot>?text=<código>` para reenviar. El link abre
+  `ANOTA-7K3P-9XQ2`) y un link `wa.me/<número del bot>?text=<código>` para reenviar. El link abre
   el chat con el código ya escrito.
 - **Reglas del código:**
   - Sirve para una sola persona y vence a los 7 días.
@@ -213,7 +213,7 @@ en cada punto, primero un test que reproduce el problema.
   - Tiene que ser difícil de adivinar, y hay un límite de intentos fallidos por número.
 - **Alta guiada:** quien manda un código válido completa nombre y apellido, rubro y localidad
   con preguntas fijas, sin IA. Al terminar queda habilitado y el rubro define su perfil.
-- **Sin código:** un mensaje fijo ("CampoBot está en prueba privada…"). No llega a la IA.
+- **Sin código:** un mensaje fijo ("Soy Anotagro. Estoy en prueba privada…"). No llega a la IA.
 - Los usuarios ya autorizados y el comando `autorizar <número>` siguen funcionando.
 - **Preparado para sumar la aprobación del administrador** sin rehacer nada:
   - El alta es una **solicitud** con estado (pendiente, aprobada, rechazada) y origen
@@ -507,7 +507,7 @@ de 2b, 7 y 8b):
       viene). Con el cambio, las 3 frases salieron bien. Con el mes, `_por_numero` filtra por
       el sentido (desde 4 años atrás, por el 29 de febrero); solo el pendiente sin "pasado" ni
       "próximo" toma la más cercana. Costo: USD 0,048.
-- [ ] 8.6 · El bot pasa a llamarse **Anotagro** (falta confirmarlo en el INPI):
+- [x] 8.6 · El bot pasa a llamarse **Anotagro** (falta confirmarlo en el INPI):
       - El nombre está en una sola constante (`app/infra/marca.py`): cambiarlo es una línea.
       - Lo usan todos los textos que ve la gente: la ayuda, el mensaje para quien no tiene
         acceso, la despedida de "borrar mis datos", los mensajes del administrador, el PDF
@@ -521,6 +521,13 @@ de 2b, 7 y 8b):
       - No cambian el repositorio, el paquete de Python, la base, los servicios de Railway, las
         variables de entorno ni las migraciones viejas. El prompt de la IA no nombra al bot: no
         se corre el eval.
+
+      Cómo quedó: `NOMBRE` en `app/infra/marca.py`; la ayuda lo muestra en mayúsculas en el
+      título. El resumen de privacidad no nombraba al bot y quedó igual. Siguen con el nombre
+      viejo, porque no los ve la gente: el `User-Agent` con que se descargan los precios y
+      SENASA (`campo-bot/1.0`) y la clave de desarrollo del HMAC de los intentos fallidos
+      (cambiarla cambiaría los hashes guardados). El código de invitación se reconoce como
+      palabra entera (`\b`): "anota vacunacion…" no se toma como un código `ANOTA-`.
 - [ ] 8.7 · Renombrar y unir campos, adelantado de "más adelante" (el detalle se anota antes de
       empezarlo).
 - [ ] 9a · Modo prueba.
@@ -540,7 +547,8 @@ de 2b, 7 y 8b):
 - **Localidad:** texto libre, prolijo (mayúscula inicial, sin espacios de más).
 - **Matrícula:** opcional y fuera del alta (que sigue siendo de 3 preguntas); se carga con
   `cambiar matrícula`. Si está, va en el membrete del PDF.
-- **Código de invitación:** 8 caracteres (`CAMPO-XXXX-XXXX`), precargado en el link. Al usarse
+- **Código de invitación:** 8 caracteres (`ANOTA-XXXX-XXXX`; los `CAMPO-XXXX-XXXX` de antes del
+  paso 8.6 siguen sirviendo hasta que vencen), precargado en el link. Al usarse
   queda atado a ese número, que puede retomar el alta durante 7 días; después se borra lo
   cargado y el código queda gastado.
 - **Intentos fallidos:** 5 cada 24 h por número (teléfono guardado con HMAC y `CLAVE_HASH`),
@@ -604,7 +612,7 @@ de 2b, 7 y 8b):
     frases largas, muletillas y como salen de un audio.
 - **Salidas:** "Excel" o "planilla" → .xlsx; CSV solo si lo pide, con `;` y BOM. El PDF lleva
   nombre, rubro y localidad (y matrícula, si está) y al pie: "Registro de lo informado por el
-  profesional. CampoBot es un auxiliar de cálculo y registro: no realiza recomendaciones ni
+  profesional. Anotagro es un auxiliar de cálculo y registro: no realiza recomendaciones ni
   reemplaza la prescripción profesional." En esta etapa el PDF le llega solo al profesional,
   que lo reenvía; el envío directo al productor va después de las alertas pagas.
 - **Modo prueba:** `modo prueba` / `fin modo prueba`, solo el administrador en su número.
@@ -656,7 +664,7 @@ cobros, fotos en recorridas (modelo de visión), Matba-Rofex y dólar exportador
 
 ## 7. Pendientes de definición
 
-- Logo de CampoBot (para el PDF). El nombre es provisorio.
+- Logo de Anotagro (para el PDF). El nombre falta confirmarlo en el INPI.
 - Cómo cobran los veterinarios (por hora, animal, km) para el cálculo de honorarios.
 - Fuente oficial de carencias por producto (el registro de SENASA descargado no las incluye).
 - Publicaciones oficiales de cada umbral: tolerancias de trilla INTA, humedades base,

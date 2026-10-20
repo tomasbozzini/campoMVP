@@ -11,7 +11,7 @@ pydantic-settings==2.15.0
 python-dotenv==1.2.3
 # La "exportación a CSV" de la consulta pública de SENASA es en realidad un Excel 97-2003.
 xlrd==2.0.2
-# PDF con la marca CampoBot (app/salidas/pdf.py)
+# PDF con la marca del producto (app/salidas/pdf.py)
 fpdf2==2.8.3
 # Planillas Excel (app/salidas/planilla.py)
 openpyxl==3.1.5

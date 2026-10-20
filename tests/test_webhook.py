@@ -6,6 +6,7 @@ from app.api import webhook
 from app.canales import whatsapp
 from app.ia import interprete
 from app.infra.config import config
+from app.infra.marca import NOMBRE
 
 
 @pytest.fixture
@@ -51,7 +52,7 @@ def test_mensaje_de_texto_y_reintento_duplicado(cliente, monkeypatch):
     cliente.post("/webhook", json=_payload("wamid.1", "ayuda"))  # reintento de Meta
     assert cliente.esperar()
     assert len(cliente.enviados) == 1
-    assert "CAMPOBOT" in cliente.enviados[0][1]
+    assert NOMBRE.upper() in cliente.enviados[0][1]
 
 
 def test_audio_de_numero_sin_acceso_no_se_transcribe(cliente, monkeypatch):

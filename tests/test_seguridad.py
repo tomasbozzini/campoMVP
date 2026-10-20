@@ -13,6 +13,7 @@ from app import main
 from app.infra import db
 from app.infra.config import Configuracion, config
 from app.infra.logs import FormateadorSinTelefonos, enmascarar
+from app.infra.marca import NOMBRE
 
 SECRETO = "secreto-de-meta"
 ADMIN = "5491100000001"
@@ -65,7 +66,7 @@ def test_produccion_acepta_la_firma_valida(servidor, monkeypatch):
     with TestClient(main.app) as c:
         r = c.post("/webhook", content=cuerpo, headers={"X-Hub-Signature-256": _firma(cuerpo)})
     assert r.status_code == 200
-    assert len(servidor) == 1 and "CAMPOBOT" in servidor[0][1]
+    assert len(servidor) == 1 and NOMBRE.upper() in servidor[0][1]
 
 
 @pytest.mark.parametrize(

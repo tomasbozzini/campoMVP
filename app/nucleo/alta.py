@@ -21,6 +21,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.infra.config import config
+from app.infra.marca import NOMBRE
 from app.infra.modelos import IntentoAlta, Solicitud, Usuario
 from app.nucleo import auditoria, invitaciones, perfil, usuarios
 from app.nucleo.acceso import NO_AUTORIZADO
@@ -35,15 +36,15 @@ DIAS_PARA_TERMINAR = 7
 CODIGO_INVALIDO = (
     "🤔 Ese código no sirve: puede estar mal escrito, vencido o ya usado.\nPedile uno nuevo a quien te invitó."
 )
-BIENVENIDA = "🎉 *¡Hola! Te doy la bienvenida a CampoBot.*"
+BIENVENIDA = f"🎉 *¡Hola! Te doy la bienvenida a {NOMBRE}.*"
 LISTA = (
-    "✅ *¡Listo, {nombre}! Ya podés usar CampoBot.*\n\n"
+    f"✅ *¡Listo, {{nombre}}! Ya podés usar {NOMBRE}.*\n\n"
     "Contame qué hiciste en el campo y lo anoto, o preguntame por lo que anotaste. "
     "También podés mandarme audios.\n\n"
     "Mandá *ayuda* para ver ejemplos."
 )
-DE_NUEVO = "✅ *¡Hola de nuevo, {nombre}!* Ya podés usar CampoBot otra vez.\n\nMandá *ayuda* para ver ejemplos."
-YA_TENES_ACCESO = "👍 Ya tenés acceso a CampoBot: ese código no hace falta.\nMandá *ayuda* para ver ejemplos."
+DE_NUEVO = f"✅ *¡Hola de nuevo, {{nombre}}!* Ya podés usar {NOMBRE} otra vez.\n\nMandá *ayuda* para ver ejemplos."
+YA_TENES_ACCESO = f"👍 Ya tenés acceso a {NOMBRE}: ese código no hace falta.\nMandá *ayuda* para ver ejemplos."
 POR_ESCRITO = "✍️ Para terminar el alta respondé por escrito, por favor."
 
 

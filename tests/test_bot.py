@@ -10,6 +10,7 @@ from sqlalchemy import select
 from app.canales import whatsapp
 from app.ia import interprete
 from app.infra.config import config
+from app.infra.marca import NOMBRE
 from app.infra.modelos import BorradoPendiente, Evento, MensajeChat, Usuario
 from app.modulos.comun import confirmar, conversacion
 from app.nucleo import acceso, charla, pipeline
@@ -53,7 +54,7 @@ def test_admin_autoriza_y_quita_por_whatsapp(db, fake_llm, monkeypatch):
     # Meta guarda los números argentinos sin el 9: igual tiene que reconocerlo.
     r = pipeline.manejar_mensaje(db, admin, "autorizar +54 249 412-3456", hoy=HOY)
     assert "5492494123456 ya puede usar" in r
-    assert "CAMPOBOT" in pipeline.manejar_mensaje(db, "5492494123456", "ayuda", hoy=HOY)
+    assert NOMBRE.upper() in pipeline.manejar_mensaje(db, "5492494123456", "ayuda", hoy=HOY)
     assert "autorizar" not in pipeline.manejar_mensaje(db, "5492494123456", "ayuda", hoy=HOY)
     assert "5492494123456" in pipeline.manejar_mensaje(db, admin, "autorizados", hoy=HOY)
 

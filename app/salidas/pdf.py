@@ -1,4 +1,4 @@
-"""PDF con la marca CampoBot: el membrete del profesional, lo que pidió y el pie legal.
+"""PDF con la marca del producto (`infra/marca.py`): el membrete del profesional, lo que pidió y el pie legal.
 
 Se arma con fpdf2 y la fuente estándar Helvetica. El texto que escribió la persona va
 siempre como texto: nunca se interpreta (sin markdown ni HTML). Lo que la fuente no tiene
@@ -14,9 +14,11 @@ from fpdf import FPDF
 from fpdf.enums import XPos, YPos
 from fpdf.fonts import FontFace
 
+from app.infra.marca import NOMBRE
+
 # Decisión de producto "Salidas" (docs/arquitectura.md), textual.
 PIE = (
-    "Registro de lo informado por el profesional. CampoBot es un auxiliar de cálculo y registro: "
+    f"Registro de lo informado por el profesional. {NOMBRE} es un auxiliar de cálculo y registro: "
     "no realiza recomendaciones ni reemplaza la prescripción profesional."
 )
 VERDE = (46, 125, 50)
@@ -64,13 +66,13 @@ class _Documento(FPDF):  # type: ignore[misc]  # fpdf2 no trae tipos
         self.generado = generado
         self.set_margins(15, 15, 15)
         self.set_auto_page_break(auto=True, margin=22)
-        self.set_author("CampoBot")
-        self.set_creator("CampoBot")
+        self.set_author(NOMBRE)
+        self.set_creator(NOMBRE)
 
     def header(self) -> None:
         self.set_font("Helvetica", "B", 16)
         self.set_text_color(*VERDE)
-        self.cell(ANCHO / 2, 8, "CampoBot", new_x=XPos.RIGHT, new_y=YPos.TOP)
+        self.cell(ANCHO / 2, 8, NOMBRE, new_x=XPos.RIGHT, new_y=YPos.TOP)
         self.set_font("Helvetica", "", 8.5)
         self.set_text_color(*GRIS)
         self.cell(ANCHO / 2, 8, f"Generado el {self.generado}", align="R", new_x=XPos.LMARGIN, new_y=YPos.NEXT)

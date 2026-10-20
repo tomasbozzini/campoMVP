@@ -16,6 +16,7 @@ from typing import Any
 import httpx
 
 from app.ia.proveedor import ErrorIA, IASaturada, Uso, anotar_uso
+from app.infra.marca import NOMBRE
 
 URL = "https://openrouter.ai/api/v1/chat/completions"
 # Para que WhatsApp no espere de más: si no responde, contesta el respaldo. Es el tope del
@@ -74,7 +75,7 @@ class ProveedorOpenRouter:
         partes: list[bytes] = []
         try:
             with self._cliente.stream(
-                "POST", URL, json=cuerpo, headers={"Authorization": f"Bearer {self._api_key}", "X-Title": "CampoBot"}
+                "POST", URL, json=cuerpo, headers={"Authorization": f"Bearer {self._api_key}", "X-Title": NOMBRE}
             ) as respuesta:
                 for parte in respuesta.iter_bytes():
                     partes.append(parte)

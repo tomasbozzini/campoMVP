@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from app import main
 from app.infra.config import config
+from app.infra.marca import NOMBRE
 from app.infra.orden import FilaPorClave
 from app.nucleo import pipeline
 
@@ -144,7 +145,7 @@ def test_el_webhook_procesa_en_el_orden_en_que_se_escribieron(servidor, monkeypa
     }
     with TestClient(main.app) as c:
         c.post("/webhook", json=payload)
-    assert ["CAMPOBOT" in t for _, t in servidor] == [True, False]
+    assert [NOMBRE.upper() in t for _, t in servidor] == [True, False]
     assert "TUS DATOS" in servidor[1][1]
 
 

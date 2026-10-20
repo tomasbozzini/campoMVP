@@ -12,6 +12,7 @@ necesita.
 
 import re
 
+from app.infra.marca import NOMBRE
 from app.infra.modelos import Usuario
 from app.infra.texto import prolijo, sin_tildes
 from app.nucleo import preguntas, respuestas
@@ -155,7 +156,7 @@ def falta(usuario: Usuario) -> str | None:
     return next((pregunta for pregunta, campo in ALTA.items() if not _tiene(usuario, campo)), None)
 
 
-def intro(usuario: Usuario, titulo: str = "👋 *¡Hola! Soy CampoBot.*") -> str:
+def intro(usuario: Usuario, titulo: str = f"👋 *¡Hola! Soy {NOMBRE}.*") -> str:
     """La presentación antes de la primera pregunta, con cuántos datos faltan."""
     faltan = sum(1 for campo in ALTA.values() if not _tiene(usuario, campo))
     if faltan == 1 and usuario.rubro:

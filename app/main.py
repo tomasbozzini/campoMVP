@@ -12,6 +12,7 @@ from app.ia import proveedor
 from app.infra import db, migrar
 from app.infra.config import config
 from app.infra.logs import configurar_logs
+from app.infra.marca import NOMBRE
 
 configurar_logs()
 log = logging.getLogger(__name__)
@@ -42,6 +43,6 @@ async def _ciclo_de_vida(_app: FastAPI) -> AsyncIterator[None]:
         log.warning("El servidor se apaga con %d personas con mensajes sin procesar", webhook.fila.en_curso())
 
 
-app = FastAPI(title="CampoBot", lifespan=_ciclo_de_vida)
+app = FastAPI(title=NOMBRE, lifespan=_ciclo_de_vida)
 app.include_router(paginas.rutas)
 app.include_router(webhook.rutas)

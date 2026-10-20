@@ -12,13 +12,14 @@ from app.api import webhook
 from app.canales import whatsapp
 from app.ia import interprete
 from app.infra.config import config
+from app.infra.marca import NOMBRE
 from app.infra.modelos import Auditoria, Cuenta, Evento, IntentoAlta, Invitacion, Solicitud, Usuario
 from app.nucleo import acceso, alta, auditoria, invitaciones, perfil, pipeline, usuarios
 from tests.ayudas import con_perfil, con_perfil_en
 
 HOY = date(2026, 10, 15)
 ADMIN, NUEVO, OTRO = "5492494000009", "5491100000001", "5491100000002"
-FORMATO = re.compile(r"^CAMPO-[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}-[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}$")
+FORMATO = re.compile(r"^ANOTA-[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}-[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}$")
 
 
 @pytest.fixture
@@ -102,8 +103,36 @@ def test_anular(db, admin):
     usado = _invitar(db)
     _mandar(db, usado, OTRO)
     assert "ya se usó" in _mandar(db, f"anular {usado}", ADMIN)
-    assert "No encontré" in _mandar(db, "anular CAMPO-AAAA-AAAA", ADMIN)
+    assert "No encontré" in _mandar(db, "anular ANOTA-AAAA-AAAA", ADMIN)
     assert "No entendí" in _mandar(db, "anular algo", ADMIN)
+
+
+def _codigo_viejo(db, admin, codigo: str) -> None:
+    """Un código CAMPO- de antes del paso 8.6, todavía vigente."""
+    ahora = datetime.now(UTC)
+    db.add(Invitacion(codigo=codigo, creado=ahora, vence=ahora + timedelta(days=3), creada_por=admin.id))
+    db.flush()
+
+
+def test_los_codigos_campo_que_ya_se_dieron_siguen_sirviendo(db, admin):
+    _codigo_viejo(db, admin, "CAMPO-7K3P-9XQ2")
+    assert f"bienvenida a {NOMBRE}" in _mandar(db, "campo 7k3p 9xq2")
+    _codigo_viejo(db, admin, "CAMPO-AB2C-DE3F")
+    assert "anulé" in _mandar(db, "anular CAMPO-AB2C-DE3F", ADMIN)
+
+
+@pytest.mark.parametrize(
+    ("texto", "codigo"),
+    [
+        ("ANOTA-7K3P-9XQ2", "ANOTA-7K3P-9XQ2"),
+        ("anota 7k3p 9xq2", "ANOTA-7K3P-9XQ2"),
+        ("hola, mi código es Campo-7K3P-9XQ2", "CAMPO-7K3P-9XQ2"),
+        ("anota vacunacion de 30 vacas", None),  # no es un código: la palabra sigue
+        ("anotá 20 vaquillonas", None),
+    ],
+)
+def test_que_es_un_codigo(texto, codigo):
+    assert invitaciones.buscar_codigo(texto) == codigo
 
 
 # --- Sin código -----------------------------------------------------------------
@@ -123,7 +152,7 @@ def test_sin_codigo_mensaje_fijo_sin_ia_y_sin_guardar_nada(db, ia):
 def test_alta_completa_con_el_codigo_del_link(db, admin, ia):
     codigo = _invitar(db)
     r = _mandar(db, codigo)
-    assert "bienvenida a CampoBot" in r and "3 datos tuyos" in r and perfil.PREGUNTAS["nombre"] in r
+    assert f"bienvenida a {NOMBRE}" in r and "3 datos tuyos" in r and perfil.PREGUNTAS["nombre"] in r
     u = db.scalar(select(Usuario).where(Usuario.telefono == NUEVO))
     assert not u.autorizado
     solicitud = db.scalar(select(Solicitud).where(Solicitud.usuario_id == u.id))
@@ -132,7 +161,7 @@ def test_alta_completa_con_el_codigo_del_link(db, admin, ia):
     _mandar(db, "Pedro Ramírez")
     _mandar(db, "3")
     r = _mandar(db, "azul")
-    assert "¡Listo, Pedro! Ya podés usar CampoBot." in r
+    assert f"¡Listo, Pedro! Ya podés usar {NOMBRE}." in r
     assert u.autorizado and u.rubro == "productor" and u.localidad == "Azul"
     assert (solicitud.estado, solicitud.resuelto is not None) == (usuarios.APROBADA, True)
     alta_registrada = db.scalar(select(Auditoria).where(Auditoria.accion == auditoria.ALTA))
@@ -166,7 +195,7 @@ def test_un_codigo_vencido_no_sirve(db, admin, monkeypatch):
 def test_durante_el_alta_funcionan_ayuda_y_borrar_mis_datos(db, admin, ia):
     _mandar(db, _invitar(db))
     r = _mandar(db, "ayuda")
-    assert "CAMPOBOT" in r and perfil.PREGUNTAS["nombre"] in r
+    assert NOMBRE.upper() in r and perfil.PREGUNTAS["nombre"] in r
     _mandar(db, "borrar mis datos")
     assert "DATOS BORRADOS" in _mandar(db, "confirmo borrar mis datos")
     assert db.scalar(select(Usuario).where(Usuario.telefono == NUEVO)) is None
@@ -195,7 +224,7 @@ def test_a_quien_le_sacaron_el_acceso_vuelve_con_un_codigo_y_conserva_lo_suyo(db
 
 def test_cinco_codigos_equivocados_bloquean_sin_avisar(db, admin, monkeypatch):
     for _ in range(alta.MAX_INTENTOS):
-        assert _mandar(db, "CAMPO-AAAA-AAAA") == alta.CODIGO_INVALIDO
+        assert _mandar(db, "ANOTA-AAAA-AAAA") == alta.CODIGO_INVALIDO
     codigo = _invitar(db)
     assert _mandar(db, codigo) == alta.CODIGO_INVALIDO  # bloqueado: la misma respuesta
     assert db.scalar(select(Invitacion).where(Invitacion.codigo == codigo)).usada is None  # no se gastó
@@ -211,7 +240,7 @@ def test_cinco_codigos_equivocados_bloquean_sin_avisar(db, admin, monkeypatch):
 
 def test_los_intentos_son_por_numero(db, admin):
     for _ in range(alta.MAX_INTENTOS):
-        _mandar(db, "CAMPO-AAAA-AAAA", OTRO)
+        _mandar(db, "ANOTA-AAAA-AAAA", OTRO)
     assert "bienvenida" in _mandar(db, _invitar(db), NUEVO)
 
 
