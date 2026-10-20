@@ -601,6 +601,50 @@ de 2b, 7 y 8b):
       La pregunta guarda `baja_campo` o `baja_lote`. El prompt del módulo común quedó en 23.988
       caracteres, al lado del tope de 24.000 (`LARGO_MAXIMO_PROMPT`): lo nuevo se escribió corto
       para entrar, y para sumar ganadería y agricultura hay que decidir antes qué se hace con el tope.
+- [ ] 8.7.2 · Error grave con borrar (prueba del 20/10 contra Railway, con los campos Omu y
+      Ombu, este el actual): "Borra el omu" mostró la lista de los 3 registros de Omu sin borrar;
+      "Borra el campo el omu" borró esos 3 sin preguntar; "Borrar campo" respondió "¿Qué querés
+      que anote?"; "Elimina el campo omu" borró sin preguntar la lluvia de 5 mm de Ombu. Nunca
+      salió `borrar_campo`.
+      - Causas. El bot no guarda el JSON de la IA (no se loguea el contenido), pero sale de las
+        respuestas: borrar 3 registros sin preguntar solo pasa con "borrar" y `"todos": true` (la
+        regla del prompt "si dice borralos después de una lista, los mismos filtros y todos") y
+        menos de 4; la lluvia de Ombu salió por "borrar" con "lo último" o con una referencia que
+        coincidía solo con ella; "Borrar campo" vino como "aclarar". Reproducido con la misma
+        charla contra OpenRouter, las 4 dieron `borrar_campo` (y la 3, "aclarar"): la IA no
+        siempre responde igual, y el set no tenía estos casos con la charla previa. Además, la IA
+        a veces manda "el omu" y el bot no lo encontraba ("No tenés ningún campo que se llame El
+        Omu").
+      - **Red de seguridad en el código** (decisión de producto, reemplaza la de "desde 4"): todo
+        borrado que llega por la IA pide confirmación (*sí* / *no*) mostrando qué se va a borrar,
+        sea 1 o 10: registros ("borrar", también "sacá lo último" dicho con otras palabras) y
+        pendientes ("borrar_pendiente"). El atajo escrito exacto `borrar` (deshacer lo último)
+        sigue sin preguntar. Marcar hechos no borra y sigue sin preguntar. Corregir 4 o más
+        pendientes sigue pidiendo confirmación como hasta ahora. Si un mismo mensaje pide borrar
+        registros y pendientes, una sola confirmación los abarca.
+      - **Prompt:**
+        - "borrá / eliminá / sacá el campo X" o "el lote X", sin datos de un registro, es siempre
+          `borrar_campo`, aunque antes se haya mostrado una lista. "Borrá El Ombú" (solo el
+          nombre de un campo) también; borrar lo anotado ahí ("borrá todo lo de El Ombú") sigue
+          siendo "borrar".
+        - "Borrar campo" sin nombre es `borrar_campo` con el campo en null, y el bot pregunta
+          cuál mostrando tus campos ("¿Qué campo querés borrar? Tus campos: Ombu, Omu."), no
+          "¿qué querés que anote?". La respuesta ("Omu") va a la IA con la charla, como siempre.
+        - El prompt del módulo común pasa de 23.988 caracteres: el tope (`LARGO_MAXIMO_PROMPT`)
+          sube de 24.000 a 24.500 (aprobado; la decisión para ganadería y agricultura sigue
+          pendiente).
+      - **Nombre con artículo** (aprobado): al borrar o renombrar un campo, si no hay uno con ese
+        nombre exacto, vale el único que coincide sin el artículo del principio ("el omu" → Omu).
+        No se buscan parecidos ("Ombu" no es "Omu").
+      - **Eval con charla:** el set ya acepta la charla previa por frase ("historial", desde el
+        8.5). Se suman los 4 casos con su charla, la respuesta "el omu" a "¿Qué campo querés
+        borrar?" y, para contrastar, "borralos todos" y "borrá todo lo de Omu" después de la
+        lista (siguen siendo "borrar"). Tope: USD 0,05, aparte de los USD 0,50 del 9.
+      - Tests: cada borrado por la IA (1 registro, lo último, 1 pendiente, varios) pregunta y no
+        borra hasta el *sí*; *no* cancela; el atajo `borrar` no pregunta; registros y pendientes
+        en el mismo mensaje, una sola confirmación; los 4 casos de la prueba armados con la
+        respuesta que dio la IA en Railway; `borrar_campo` sin nombre muestra los campos; "el
+        omu" encuentra a Omu.
 - [ ] 9a · Modo prueba.
 - [ ] 9b · Set de evaluación armado con el modo prueba (`eval revisar`); el comando
       `python -m app eval` ya existe desde el 8.2.
@@ -661,7 +705,9 @@ de 2b, 7 y 8b):
   - Para encontrar un pendiente, todas las palabras con las que se lo nombra tienen que
     estar en su texto, su lote o su campo, comparadas por el principio.
   - Borrar 4 o más pendientes de una vez pide confirmación (*sí* / *no*), igual que con los
-    registros. Marcar hechos con "todos" no la pide.
+    registros. Marcar hechos con "todos" no la pide. Desde el 8.7.2, todo borrado de registros
+    o pendientes que llega por la IA pide confirmación, sea 1 o 10; el atajo exacto `borrar`
+    (deshacer lo último) no la pide.
   - Los hechos se guardan con su fecha y salen de la lista; todavía no se consultan.
   - Borrar pendientes queda en la auditoría, como borrar registros.
 - **Todo se pide hablando normal** (principio 7). Vale para mis campos, mis datos, cambiar
