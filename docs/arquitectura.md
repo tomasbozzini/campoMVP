@@ -9,7 +9,7 @@ decisiones tomamos y en qué orden avanzamos. Cualquier cambio de rumbo se regis
 con dos módulos sobre una misma plataforma (especificación funcional "Bots AyT Tandil"):
 
 - **Módulo ganadero (veterinario de manga):** tacto y ecografía, raspaje de toros, sanidad
-  (planes oficiales, dosis, carencias), liquidación de visita y honorarios.
+  (planes oficiales, dosis, carencias). Liquidación de visita y honorarios, después del MVP.
 - **Módulo agrícola (agrónomo / asesor):** siembra y densidad, fertilización, nutrición,
   recorrida, pulverización (caldo, Delta T), cosecha (pérdidas de trilla INTA, silobolsas,
   carta de porte).
@@ -55,7 +55,7 @@ app/
                   perfil, esquemas estrictos de salida, glosario para la transcripción
   modulos/
     comun/          cuaderno, consultar, corregir, borrar, precios, SENASA
-    ganaderia/      tacto, raspaje, sanidad y carencias, visita y honorarios
+    ganaderia/      tacto, raspaje, sanidad y carencias
     agricultura/    siembra, fertilización, recorrida, pulverización, cosecha
   calculos/       fórmulas puras (sin base ni IA)
   parametros/     umbrales y tablas con fuente citada (INTA, humedades base, etc.)
@@ -528,8 +528,34 @@ de 2b, 7 y 8b):
       SENASA (`campo-bot/1.0`) y la clave de desarrollo del HMAC de los intentos fallidos
       (cambiarla cambiaría los hashes guardados). El código de invitación se reconoce como
       palabra entera (`\b`): "anota vacunacion…" no se toma como un código `ANOTA-`.
-- [ ] 8.7 · Renombrar y unir campos, adelantado de "más adelante" (el detalle se anota antes de
-      empezarlo).
+- [ ] 8.7 · Renombrar y unir campos y lotes, adelantado de "más adelante":
+      - Una intención nueva, `renombrar_campo`, sin comando escrito: "Omu en realidad es El
+        Ombú", "cambiale el nombre a Omu, se llama El Ombú", "uní Omu con El Ombú", "Omu y El
+        Ombú son el mismo campo". Lleva el campo que cambia, el nombre que queda y, para los
+        lotes, el lote (un dato más, no otra intención): "el lote 3 de La Pastora se llama
+        Los Pinos", "uní el lote 5 con el potrero grande".
+      - El campo que cambia tiene que existir con ese nombre (no se busca uno parecido); si no
+        lo dice ("este campo se llama El Ombú"), es el de la sesión abierta o el actual. Los
+        lotes, dentro de un mismo campo: el que nombra o, si no, el de la sesión o el actual.
+      - Si el nombre nuevo no existe, es un cambio de nombre: cambian el nombre y la clave, y
+        lo anotado queda igual.
+      - Si existe, es una unión y pregunta antes (*sí* / *no*, con las variantes de siempre y
+        10 minutos), mostrando qué pasa al que queda:
+        - campos: registros, pendientes, lotes (los de igual nombre se unen) y sesiones;
+        - lotes: registros (también como destino de un traslado), pendientes y sesiones.
+        Con el *sí*, todo junto en la misma transacción. El que desaparece se borra; si era el
+        campo actual, el actual pasa a ser el que queda. Queda en la auditoría, solo con ids.
+      - "¿El Ombú es Omu?" suma la respuesta *cambiale el nombre*: Omu pasa a llamarse El Ombú
+        y lo del mensaje se anota ahí. Se reconoce sin IA con la misma regla que *sí* / *no*:
+        todas las palabras tienen que ser de esa respuesta, de los nombres de los dos campos o
+        del relleno de siempre, y si hay un "no" no es esa respuesta ("no, no le cambies el
+        nombre, El Ombú es otro campo"). "Sí, cambiá el nombre al Ombú" vale. Lo que no sea
+        claro va a la IA, como hasta ahora.
+      - "Mis campos" muestra también cuántos pendientes tiene cada campo (cuando tiene).
+      - La ayuda suma un ejemplo. Sin migración: son cambios de datos que pide la persona.
+      - Set: al menos 5 frases para renombrar campos, 5 para unirlos y 5 para lotes. Una sola
+        corrida del eval (`--tope-usd 0.10`) con esas y las parecidas (corregir, borrar,
+        mis campos).
 - [ ] 9a · Modo prueba.
 - [ ] 9b · Set de evaluación armado con el modo prueba (`eval revisar`); el comando
       `python -m app eval` ya existe desde el 8.2.
@@ -558,8 +584,8 @@ de 2b, 7 y 8b):
 - **Establecimientos y lotes:** `mis campos` los lista (atajo sin IA, o pidiéndolo con
   cualquier frase: "che, ¿qué campos tengo cargados?"). El nombre
   de un establecimiento es el de la primera vez que se nombró, guardado prolijo como la
-  localidad ("Estancia de la Sierra", "El Ombú"); la `0008` ordena los que ya existían. Unir
-  duplicados y un comando `renombrar campo` quedan para más adelante.
+  localidad ("Estancia de la Sierra", "El Ombú"); la `0008` ordena los que ya existían.
+  Renombrar y unir campos y lotes, hablando normal, desde el paso 8.7.
 - **Campo actual:** un registro que no nombra campo va al último establecimiento que la
   persona nombró, con "estoy en La Pastora" (aunque no anote nada) o con un registro que
   nombra un campo. Las consultas, las correcciones y los borrados que nombran un campo no
@@ -629,7 +655,8 @@ de 2b, 7 y 8b):
 
 Tacto y cierre (preñez por cabeza/cuerpo/cola, % y CC promedio, PDF), raspaje (RP, muestreos,
 resultado de laboratorio, pendiente de repetición), sanidad (planes oficiales, dosis, consumo,
-carencia), visita y honorarios (tarifas del profesional).
+carencia). La visita ya queda registrada con las sesiones (campo, horario, duración y lo
+anotado); la liquidación de visita y honorarios pasó a "Después del MVP".
 
 **Glosario:** pasan del glosario del módulo común al de ganadería ivermectina, aftosa,
 brucelosis, tacto, manga y destete, así el común queda corto y el rubro tiene lugar para
@@ -662,10 +689,13 @@ transcripciones, anonimizadas, se sumen al set de evaluación.
 Alertas automáticas (mensajes pagos de Meta), cuentas con varios profesionales, panel web,
 cobros, fotos en recorridas (modelo de visión), Matba-Rofex y dólar exportador.
 
+Visita y honorarios (tarifas del profesional), que estaba en la etapa 2: para el MVP no hace
+falta y no aporta al objetivo. Antes hay que definir cómo cobran los veterinarios (por hora,
+animal, km), que estaba en "Pendientes de definición".
+
 ## 7. Pendientes de definición
 
 - Logo de Anotagro (para el PDF). El nombre falta confirmarlo en el INPI.
-- Cómo cobran los veterinarios (por hora, animal, km) para el cálculo de honorarios.
 - Fuente oficial de carencias por producto (el registro de SENASA descargado no las incluye).
 - Publicaciones oficiales de cada umbral: tolerancias de trilla INTA, humedades base,
   densidades para silobolsas, índice salino.
