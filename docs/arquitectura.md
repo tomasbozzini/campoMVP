@@ -601,7 +601,7 @@ de 2b, 7 y 8b):
       La pregunta guarda `baja_campo` o `baja_lote`. El prompt del módulo común quedó en 23.988
       caracteres, al lado del tope de 24.000 (`LARGO_MAXIMO_PROMPT`): lo nuevo se escribió corto
       para entrar, y para sumar ganadería y agricultura hay que decidir antes qué se hace con el tope.
-- [ ] 8.7.2 · Error grave con borrar (prueba del 20/10 contra Railway, con los campos Omu y
+- [x] 8.7.2 · Error grave con borrar (prueba del 20/10 contra Railway, con los campos Omu y
       Ombu, este el actual): "Borra el omu" mostró la lista de los 3 registros de Omu sin borrar;
       "Borra el campo el omu" borró esos 3 sin preguntar; "Borrar campo" respondió "¿Qué querés
       que anote?"; "Elimina el campo omu" borró sin preguntar la lluvia de 5 mm de Ombu. Nunca
@@ -645,6 +645,20 @@ de 2b, 7 y 8b):
         en el mismo mensaje, una sola confirmación; los 4 casos de la prueba armados con la
         respuesta que dio la IA en Railway; `borrar_campo` sin nombre muestra los campos; "el
         omu" encuentra a Omu.
+
+      Cómo quedó: `confirmar.pedir` recibe todo borrado de la IA (registros y pendientes, también
+      "lo último" dicho con otras palabras) y, si el mismo mensaje ya dejó uno esperando, lo suma
+      (los pendientes van en `datos` de la confirmación de registros: sin migración); los títulos
+      van en singular con 1 ("VOY A BORRAR 1 REGISTRO"). El atajo `borrar` sigue en
+      `borrar.borrar_ultimo`. `Cuaderno.establecimiento_nombrado` busca sin el artículo y lo usan
+      borrar y renombrar campos. El test del principio 7 que comparaba el atajo `borrar` con la
+      frase pasó a un test propio: la frase pregunta y, con el *sí*, borra lo mismo. El prompt
+      del módulo común quedó en 24.229 caracteres. Eval: las 7 frases nuevas (con la charla de
+      la prueba) y las 5 de `borrar_campo`, 12/12; las 7 de deshacer lo último, 6/7 ("ehh no no
+      cancelá eso que anoté recién" vino "cancelar", la misma falla del 8.7, que el código ya
+      responde desde el 8.7.1). Costo: USD 0,056 entre reproducir la prueba (USD 0,016) y el eval
+      (USD 0,040): se pasó USD 0,006 del tope, porque el tope del eval se mira después de cada
+      frase.
 - [ ] 9a · Modo prueba.
 - [ ] 9b · Set de evaluación armado con el modo prueba (`eval revisar`); el comando
       `python -m app eval` ya existe desde el 8.2.

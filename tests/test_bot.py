@@ -539,7 +539,9 @@ def test_borrar_registros_puntuales(db, fake_llm):
         },
     }
     r = pipeline.manejar_mensaje(db, u.telefono, texto, hoy=HOY)
-    assert "BORRADO" in r and "*Vacunación*\n      5 vaquillonas" in r and "Cosecha" in r
+    assert r.startswith("⚠️ *VOY A BORRAR 2 REGISTROS*\n\n      › 💉 Vacunación · 5 vaquillonas")
+    assert "Cosecha" in r and len(db.scalars(select(Evento)).all()) == 4  # todavía no borró nada
+    assert pipeline.manejar_mensaje(db, u.telefono, "sí", hoy=HOY) == "🗑️ *BORRADO*\n\nListo, borré 2 registros."
     assert sorted(e.valor for e in db.scalars(select(Evento)).all()) == [12, 30]  # quedan las lluvias
 
 
@@ -552,7 +554,9 @@ def test_borrar_la_lluvia_de_la_pastora(db, fake_llm):
         "borrado": {"registros": [{"tipo": "lluvia", "establecimiento": "La Pastora"}]},
     }
     r = pipeline.manejar_mensaje(db, u.telefono, "borrá la lluvia de la pastora", hoy=HOY)
-    assert "BORRADO" in r and "La Pastora" in r
+    assert r.startswith("⚠️ *VOY A BORRAR 1 REGISTRO*\n\n      › 🌧️ Lluvia · 30 mm · 📍 La Pastora")
+    assert "Respondé *sí* para borrarlo o *no* para cancelar." in r
+    assert pipeline.manejar_mensaje(db, u.telefono, "dale", hoy=HOY) == "🗑️ *BORRADO*\n\nListo, borré 1 registro."
     lluvias = db.scalars(select(Evento).where(Evento.tipo == "lluvia")).all()
     assert [e.nombre_establecimiento for e in lluvias] == ["El Ombú"]
 
@@ -571,6 +575,7 @@ def test_borrar_ambiguo_no_borra_y_muestra_opciones(db, fake_llm):
         "borrado": {"registros": [{"tipo": "lluvia", "todos": True}]},
     }
     pipeline.manejar_mensaje(db, u.telefono, "borrá todas las lluvias", hoy=HOY)
+    pipeline.manejar_mensaje(db, u.telefono, "sí", hoy=HOY)
     assert db.scalar(select(Evento).where(Evento.tipo == "lluvia")) is None
 
 
@@ -796,7 +801,8 @@ def test_anotar_borrar_y_corregir_en_un_mismo_mensaje(db, fake_llm):
         ]
     }
     r = pipeline.manejar_mensaje(db, u.telefono, texto, hoy=HOY)
-    assert r.index("BORRADO") < r.index("CORREGIDO") < r.index("ANOTADO")
+    assert r.index("VOY A BORRAR 1 REGISTRO") < r.index("CORREGIDO") < r.index("ANOTADO")
+    assert pipeline.manejar_mensaje(db, u.telefono, "sí", hoy=HOY) == "🗑️ *BORRADO*\n\nListo, borré 1 registro."
     tipos = sorted(e.tipo for e in db.scalars(select(Evento)).all())
     assert tipos == ["lluvia", "lluvia", "nacimiento", "vacunacion"]
     assert db.scalar(select(Evento).where(Evento.tipo == "vacunacion")).producto == "ivermectina"

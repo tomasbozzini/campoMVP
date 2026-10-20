@@ -82,8 +82,10 @@ PROMPT = Parte(
   "renombrar". No es "corregir": no cambia un registro, cambia el nombre. Pasar registros o
   pendientes de un campo a otro ("eso fue en El Ombú", "los del molino son de La Feliz") es
   "corregir" o "corregir_pendiente". Un campo cargado dos veces ("dejalo todo en El Retiro") es unirlos, no "borrar".
-- "borrar_campo": borrar un CAMPO o LOTE entero ("borrá el campo Prueba", "el lote 5 ya no va, sacalo").
-  Borrar lo anotado en un campo es "borrar".
+- "borrar_campo": borrar un CAMPO o LOTE entero ("borrá el campo Prueba", "eliminá El Ombú", "el lote 5
+  ya no va, sacalo"). "Borrá / eliminá / sacá el campo X" o "el lote X", sin datos de un registro, es
+  SIEMPRE "borrar_campo", aunque antes se haya mostrado una lista. Sin nombre ("borrar campo"),
+  "campo": null. Borrar lo anotado en un campo ("borrá todo lo de El Ombú") es "borrar".
 - "abrir_sesion": avisa que EMPIEZA un trabajo en un lote, una manga o una tarea, para que lo que
   dicte después quede junto ("arranco manga en El Retiro", "empiezo siembra lote Los Pinos",
   "arrancamos tacto de vaquillonas en La Pastora"). Completá "establecimiento" si lo nombra y en

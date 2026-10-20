@@ -340,7 +340,41 @@ def test_borrar_un_campo_sin_decir_cual_pregunta(db, ia):
     dichas, _ = ia
     _cargar(db)
     dichas["borrá este campo"] = _borrar(None)
-    assert _mandar(db, "borrá este campo").startswith("🤔 ¿Qué campo querés borrar?")
+    assert _mandar(db, "borrá este campo") == (
+        "🤔 *¿Qué campo querés borrar?*\n\nTus campos: El Ombú, Omu.\n\nDecímelo así: _borrá el campo El Ombú_."
+    )
+
+
+def test_borrar_un_campo_sin_decir_cual_y_sin_campos(db, ia):
+    dichas, _ = ia
+    con_perfil(db, TEL)
+    dichas["borrar campo"] = _borrar(None)
+    assert _mandar(db, "borrar campo") == "📭 No tenés campos cargados."
+
+
+def test_el_campo_se_encuentra_sin_el_articulo(db, ia):
+    """La IA a veces manda "el omu": es Omu. No busca parecidos."""
+    dichas, _ = ia
+    _cargar(db)
+    dichas["el omu se llama la feliz"] = _renombrar("el omu", "La Feliz")
+    assert _mandar(db, "el omu se llama la feliz").startswith("✏️ *CAMPO RENOMBRADO*\n\n*Omu* ahora se llama *La Feliz*")
+    dichas["borrá el campo ombú"] = _borrar("ombú")
+    assert _mandar(db, "borrá el campo ombú").startswith("🗑️ *¿Borro el campo El Ombú?*")
+    dichas["borrá el campo la ombu"] = _borrar("la ombu")
+    assert _mandar(db, "borrá el campo la ombu").startswith("🗑️ *¿Borro el campo El Ombú?*")
+    dichas["borrá el campo feli"] = _borrar("feli")
+    assert _mandar(db, "borrá el campo feli").startswith("🤔 No tenés ningún campo que se llame *Feli*")
+
+
+def test_sin_el_articulo_con_dos_que_coinciden_no_elige(db):
+    u = con_perfil(db, TEL)
+    cuaderno = Cuaderno(db, u)
+    cuaderno.permitidos = {"el ombu", "ombu"}
+    cuaderno.establecimiento("El Ombú")
+    cuaderno.establecimiento("Ombú")
+    exacto = cuaderno.establecimiento_nombrado("el ombu")
+    assert exacto is not None and exacto.nombre == "El Ombú"  # el exacto, primero
+    assert cuaderno.establecimiento_nombrado("la ombu") is None
 
 
 def test_cancelar_sin_una_pregunta_no_dice_listo(db, ia):

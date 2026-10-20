@@ -34,7 +34,8 @@ _ARTICULOS = ("el ", "la ", "los ", "las ")
 PARECIDO_MINIMO = 0.84
 
 
-def _sin_articulo(clave: str) -> str:
+def sin_articulo(clave: str) -> str:
+    """ "el ombu" -> "ombu"."""
     for articulo in _ARTICULOS:
         if clave.startswith(articulo):
             return clave[len(articulo) :]
@@ -43,5 +44,5 @@ def _sin_articulo(clave: str) -> str:
 
 def parecido(clave: str, otra: str) -> float:
     """Qué tan parecidas son dos claves de establecimiento, de 0 a 1, sin los artículos."""
-    a, b = _sin_articulo(clave), _sin_articulo(otra)
+    a, b = sin_articulo(clave), sin_articulo(otra)
     return 1.0 if a == b else SequenceMatcher(None, a, b).ratio()

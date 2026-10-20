@@ -325,15 +325,12 @@ def hecho(ctx: Contexto, datos: SobrePendientes) -> str:
 def borrar(ctx: Contexto, datos: SobrePendientes) -> str:
     if not datos.pendientes:
         return _sin_elegir(ctx)
+    """Pregunta antes de borrar, sea 1 pendiente o 10: llega por la IA (paso 8.7.2)."""
     elegidos, avisos = _elegir(ctx, datos.pendientes, "borré")
     partes = []
-    if len(elegidos) >= confirmar.CONFIRMAR_DESDE:
+    if elegidos:
         ids, lineas = [p.id for p in elegidos], [linea(p) for p in _ordenar(elegidos, ctx.hoy)]
         partes.append(confirmar.pedir(ctx.cuaderno, confirmar.PENDIENTES, ids, lineas, ctx.ahora))
-    elif elegidos:
-        borrados = "\n\n".join(tarjeta(p, ctx.hoy, icono="🗑️") for p in elegidos)
-        ctx.cuaderno.borrar_pendientes([p.id for p in elegidos])
-        partes.append(f"🗑️ *PENDIENTE BORRADO*\n\n{borrados}")
     return "\n\n".join(partes + avisos)
 
 

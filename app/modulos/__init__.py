@@ -33,10 +33,10 @@ MODULOS_POR_RUBRO: dict[str, tuple[str, ...]] = {
 LARGO_MAXIMO_GLOSARIO = 500
 
 # Largo máximo del prompt de cada rubro (en caracteres; en castellano son unos 3,5 por
-# token). En la etapa 1 tiene unos 16.600 (solo el módulo común): quedan unos 7.400 para
-# ganadería y agricultura juntas, que es lo que recibe un productor. Más prompt es más
-# costo y más demora en cada mensaje. Un test lo verifica para cada rubro.
-LARGO_MAXIMO_PROMPT = 24_000
+# token). En el paso 8.7.2 el módulo común solo llega a unos 24.230: subió de 24.000 a 24.500,
+# y para sumar ganadería y agricultura hay que decidir qué se hace con el tope. Más prompt es
+# más costo y más demora en cada mensaje. Un test lo verifica para cada rubro.
+LARGO_MAXIMO_PROMPT = 24_500
 
 _candado = threading.Lock()
 _cargados = False

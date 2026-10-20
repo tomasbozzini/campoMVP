@@ -14,7 +14,7 @@ import pytest
 from sqlalchemy import select
 
 from app.ia import interprete
-from app.infra.modelos import MensajeChat, Usuario
+from app.infra.modelos import Evento, MensajeChat, Usuario
 from app.modulos.comun import conversacion
 from app.nucleo import acciones, pipeline, preguntas
 from tests.ayudas import con_perfil
@@ -137,7 +137,6 @@ ATAJOS = [
     ("mis datos", {"intencion": "mis_datos"}),
     ("cambiar rubro", {"intencion": "cambiar_rubro"}),
     ("cambiar matrícula", {"intencion": "cambiar_matricula"}),
-    ("borrar", {"intencion": "borrar", "borrado": {"registros": []}}),
     ("cerrar sesión", {"intencion": "cerrar_sesion"}),
     ("borrar mis datos", {"intencion": "borrar_mis_datos"}),
 ]
@@ -157,6 +156,28 @@ def test_pedido_con_otras_palabras_responde_igual_que_el_atajo(db, ia, atajo, in
     por_frase = _mandar(db, "che, una frase cualquiera", OTRO)
     assert len(llamadas) == antes + 1
     assert por_frase == por_atajo
+
+
+def test_borrar_lo_ultimo_hablando_pregunta_antes_y_el_atajo_no(db, ia):
+    """La excepción del paso 8.7.2: todo borrado de la IA pide confirmación. Con el *sí* se
+    borra lo mismo que con el atajo."""
+    respuestas, llamadas = ia
+    _con_cosas(db, TEL)
+    _con_cosas(db, OTRO)
+    antes = len(llamadas)
+    por_atajo = _mandar(db, "borrar", TEL)
+    assert len(llamadas) == antes and por_atajo.startswith("🗑️ *BORRADO*")
+
+    respuestas["che, sacá lo último que anoté"] = {"intencion": "borrar", "borrado": {"registros": []}}
+    pregunta = _mandar(db, "che, sacá lo último que anoté", OTRO)
+    assert pregunta.startswith("⚠️ *VOY A BORRAR") and "¿Confirmás?" in pregunta
+    assert _mandar(db, "sí", OTRO).startswith("🗑️ *BORRADO*\n\nListo, borré")
+
+    def tipos(telefono: str) -> list[str | None]:
+        usuario = db.scalars(select(Usuario).where(Usuario.telefono == telefono)).one()
+        return [e.tipo for e in db.scalars(select(Evento).where(Evento.usuario_id == usuario.id))]
+
+    assert tipos(TEL) == tipos(OTRO) == ["vacunacion"]
 
 
 def test_los_atajos_aceptan_signos_tildes_y_mayusculas(db, ia):

@@ -29,7 +29,7 @@ from app.infra.modelos import (
 )
 from app.infra.texto import prolijo
 from app.nucleo import auditoria
-from app.nucleo.normalizar import PARECIDO_MINIMO, clave_establecimiento, normalizar_lote, parecido
+from app.nucleo.normalizar import PARECIDO_MINIMO, clave_establecimiento, normalizar_lote, parecido, sin_articulo
 
 # Tope de registros que devuelve una búsqueda.
 MAX_EVENTOS = 5000
@@ -199,6 +199,18 @@ class Cuaderno:
         return self.db.scalar(
             select(Establecimiento).where(Establecimiento.cuenta_id == self.cuenta_id, Establecimiento.clave == clave)
         )
+
+    def establecimiento_nombrado(self, nombre: str | None) -> Establecimiento | None:
+        """Para borrar o renombrar un campo: el que tiene ese nombre o, si no hay, el único que
+        coincide sin el artículo del principio ("el omu" -> Omu). No busca parecidos."""
+        if (exacto := self.establecimiento_existente(nombre)) is not None:
+            return exacto
+        clave = clave_establecimiento(nombre)
+        if not clave:
+            return None
+        todos = self.db.scalars(select(Establecimiento).where(Establecimiento.cuenta_id == self.cuenta_id))
+        iguales = [e for e in todos if sin_articulo(e.clave) == sin_articulo(clave)]
+        return iguales[0] if len(iguales) == 1 else None
 
     def renombrar_establecimiento(self, establecimiento: Establecimiento, nombre: str) -> None:
         """Le cambia el nombre (y la clave). Ningún otro de la cuenta puede tener esa clave."""
@@ -632,6 +644,10 @@ class Cuaderno:
         """Una pregunta esperando el *sí* (ver `modulos/comun/confirmar.py`). `que`: "registros"
         o "pendientes" (borrar), "corregir" (pendientes) o "campo"."""
         self.db.merge(BorradoPendiente(usuario_id=self.usuario_id, que=que, ids=ids, datos=datos, creado=creado))
+
+    def borrado_esperando(self) -> BorradoPendiente | None:
+        """La pregunta esperando el *sí*, sin tomarla."""
+        return self.db.get(BorradoPendiente, self.usuario_id)
 
     def tomar_borrado_pendiente(self) -> BorradoPendiente | None:
         """El borrado pendiente, si hay uno. Se descarta al tomarlo: se usa una sola vez."""

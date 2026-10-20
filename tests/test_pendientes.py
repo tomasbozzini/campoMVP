@@ -250,7 +250,9 @@ def test_borrar_un_pendiente(db, ia):
     _anotar(ia, db, "llamar al veterinario", texto="llamar al veterinario")
     _anotar(ia, db, "comprar ivermectina", texto="comprar ivermectina")
     r = _sobre(ia, db, "borrar_pendiente", "borrá el pendiente de la ivermectina", {"texto": "ivermectina"})
-    assert r == "🗑️ *PENDIENTE BORRADO*\n\n🗑️ *Comprar ivermectina*"
+    assert r.startswith("⚠️ *VOY A BORRAR 1 PENDIENTE*\n\n      › 📌 Comprar ivermectina")
+    assert "Respondé *sí* para borrarlo" in r and len(_abiertos(db)) == 2  # pregunta antes, aunque sea uno
+    assert _mandar(db, "sí") == "🗑️ *PENDIENTE BORRADO*\n\nListo, borré 1 pendiente."
     assert db.scalars(select(Pendiente.texto)).all() == ["llamar al veterinario"]
 
 

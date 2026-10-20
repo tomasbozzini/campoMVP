@@ -1,7 +1,9 @@
 """Preguntas que esperan una respuesta: borrados grandes, correcciones de muchos pendientes,
 campos parecidos a otro y fechas dudosas.
 
-- Desde 4 registros o 4 pendientes de una vez, borrar o corregir pide confirmación.
+- Todo borrado de registros o pendientes que llega por la IA pide confirmación, sea de 1 o de
+  10 (paso 8.7.2): un error de la IA nunca borra nada solo. El atajo exacto `borrar` no
+  pregunta. Corregir 4 o más pendientes de una vez, también.
 - Antes de crear un campo con un nombre muy parecido a uno que ya existe ("Omu" y "El
   Ombú"), se pregunta si es el mismo. Lo del mensaje se hace después de la respuesta: *sí*
   lo anota en el que ya existe, *no* crea el nuevo, *cambiale el nombre* le pone al que ya
@@ -50,12 +52,43 @@ def _lista(titulo: str, lineas: list[str]) -> list[str]:
     return texto
 
 
+def _cuantos(n: int, uno: str, varios: str) -> str:
+    return f"{n} {uno if n == 1 else varios}"
+
+
+def _a_borrar(pendiente: BorradoPendiente) -> tuple[list[int], list[int]]:
+    """Los registros y los pendientes de un borrado esperando el *sí*. Si son registros, los
+    pendientes del mismo mensaje van en `datos`."""
+    if pendiente.que == PENDIENTES:
+        return [], list(pendiente.ids)
+    return list(pendiente.ids), [int(i) for i in (pendiente.datos or {}).get("pendientes", [])]
+
+
 def pedir(cuaderno: Cuaderno, que: str, ids: list[int], lineas: list[str], ahora: datetime) -> str:
-    """Deja el borrado esperando el *sí* y muestra qué se va a borrar (`lineas`, una por cosa)."""
-    cuaderno.guardar_borrado_pendiente(ids, ahora, que)
-    texto = _lista(f"⚠️ *VOY A BORRAR {len(ids)} {que.upper()}*", lineas)
+    """Deja el borrado de esos registros (`REGISTROS`) o pendientes (`PENDIENTES`) esperando el
+    *sí* y muestra qué se va a borrar (`lineas`, una por cosa). Todo borrado que llega por la IA
+    pasa por acá, sea de 1 o de 10 (paso 8.7.2). Si el mismo mensaje ya dejó otro borrado
+    esperando ("borrá la lluvia y el pendiente de Juan"), lo suma: una sola confirmación."""
+    registros, pendientes = (list(ids), []) if que == REGISTROS else ([], list(ids))
+    previo = cuaderno.borrado_esperando()
+    if previo is not None and previo.que in (REGISTROS, PENDIENTES):
+        antes_registros, antes_pendientes = _a_borrar(previo)
+        registros, pendientes = antes_registros + registros, antes_pendientes + pendientes
+    if registros:
+        cuaderno.guardar_borrado_pendiente(
+            registros, ahora, REGISTROS, {"pendientes": pendientes} if pendientes else None
+        )
+    else:
+        cuaderno.guardar_borrado_pendiente(pendientes, ahora, PENDIENTES)
+    cosa = (
+        _cuantos(len(ids), "registro", "registros")
+        if que == REGISTROS
+        else _cuantos(len(ids), "pendiente", "pendientes")
+    )
+    texto = _lista(f"⚠️ *VOY A BORRAR {cosa.upper()}*", lineas)
+    borrarlo = "borrarlo" if len(registros) + len(pendientes) == 1 else "borrarlos"
     texto.append(
-        f"\n{LINEA}\n¿Confirmás? Respondé *sí* para borrarlos o *no* para cancelar.\n_Esto no se puede deshacer._"
+        f"\n{LINEA}\n¿Confirmás? Respondé *sí* para {borrarlo} o *no* para cancelar.\n_Esto no se puede deshacer._"
     )
     return "\n".join(texto)
 
@@ -165,9 +198,21 @@ def resolver(ctx: Contexto, rehacer: Callable[[list[dict[str, Any]]], str]) -> s
         return _dar_de_baja(ctx, pendiente)
     if pendiente.que == CORREGIR:
         return _corregir(cuaderno, pendiente)
-    if pendiente.que == PENDIENTES:
-        return f"🗑️ *PENDIENTES BORRADOS*\n\nListo, borré {cuaderno.borrar_pendientes(pendiente.ids)} pendientes."
-    return f"🗑️ *BORRADO*\n\nListo, borré {cuaderno.borrar(pendiente.ids)} registros."
+    return _borrar(cuaderno, pendiente)
+
+
+def _borrar(cuaderno: Cuaderno, pendiente: BorradoPendiente) -> str:
+    registros, pendientes = _a_borrar(pendiente)
+    hechos = []
+    if registros:
+        hechos.append(_cuantos(cuaderno.borrar(registros), "registro", "registros"))
+    if pendientes:
+        borrados = cuaderno.borrar_pendientes(pendientes)
+        hechos.append(_cuantos(borrados, "pendiente", "pendientes"))
+        if not registros:
+            titulo = "🗑️ *PENDIENTE BORRADO*" if borrados == 1 else "🗑️ *PENDIENTES BORRADOS*"
+            return f"{titulo}\n\nListo, borré {hechos[0]}."
+    return f"🗑️ *BORRADO*\n\nListo, borré {' y '.join(hechos)}."
 
 
 def _corregir(cuaderno: Cuaderno, pendiente: BorradoPendiente) -> str:

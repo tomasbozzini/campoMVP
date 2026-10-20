@@ -4,8 +4,9 @@
 Ombú", "el lote 3 de La Pastora se llama Los Pinos", "borrá el campo Prueba". Sin comando
 escrito: se pide hablando. Borrar es otra intención (`borrar_campo`), con el mismo dato.
 
-- El campo que cambia tiene que existir con ese nombre (no se busca uno parecido); si no lo
-  dice, es el de la sesión abierta o el actual. Los lotes, dentro de un mismo campo.
+- El campo que cambia tiene que existir con ese nombre, o con el mismo sin el artículo del
+  principio ("el omu" es Omu); no se busca uno parecido. Si no lo dice, es el de la sesión
+  abierta o el actual. Los lotes, dentro de un mismo campo.
 - Si el nombre nuevo no existe, cambia el nombre y lo anotado queda igual.
 - Si existe, es una unión: pregunta antes (*sí* / *no*) y muestra qué pasa al que queda. La
   unión la hace `confirmar` con el *sí* (`Cuaderno.unir_establecimientos` / `unir_lotes`).
@@ -29,7 +30,7 @@ from app.nucleo.normalizar import normalizar_lote
 
 SIN_NOMBRE = "🤔 No entendí cómo se tiene que llamar.\nProbá con algo como: _Omu en realidad es El Ombú_."
 CUAL_CAMPO = "🤔 ¿A qué campo le cambio el nombre?\nDecímelo así: _Omu en realidad es El Ombú_."
-CUAL_BORRAR = "🤔 ¿Qué campo querés borrar?\nDecímelo así: _borrá el campo Prueba_."
+SIN_CAMPOS = "📭 No tenés campos cargados."
 
 
 class Cambio(Esquema):
@@ -47,18 +48,34 @@ def _actual(ctx: Contexto) -> Establecimiento | None:
     return sesion.establecimiento if sesion is not None else ctx.usuario.establecimiento_actual
 
 
+def _tus_campos(ctx: Contexto) -> list[str]:
+    return [c.establecimiento.nombre for c in ctx.cuaderno.campos() if c.establecimiento is not None]
+
+
 def _no_esta(ctx: Contexto, nombre: str) -> str:
-    nombres = [c.establecimiento.nombre for c in ctx.cuaderno.campos() if c.establecimiento is not None]
+    nombres = _tus_campos(ctx)
     tuyos = f"\n\nTus campos: {', '.join(nombres)}." if nombres else ""
     return f"🤔 No tenés ningún campo que se llame *{prolijo(nombre)}*.{tuyos}"
 
 
+def _cual_borrar(ctx: Contexto) -> str:
+    """ "Borrar campo" sin decir cuál: pregunta cuál, con sus campos. La respuesta va a la IA
+    con la charla, como cualquier respuesta corta."""
+    nombres = _tus_campos(ctx)
+    if not nombres:
+        return SIN_CAMPOS
+    return (
+        f"🤔 *¿Qué campo querés borrar?*\n\nTus campos: {', '.join(nombres)}.\n\n"
+        f"Decímelo así: _borrá el campo {nombres[0]}_."
+    )
+
+
 def _campo(ctx: Contexto, cambio: Cambio, nuevo: str) -> str:
     cuaderno = ctx.cuaderno
-    campo = cuaderno.establecimiento_existente(cambio.campo) if cambio.campo else _actual(ctx)
+    campo = cuaderno.establecimiento_nombrado(cambio.campo) if cambio.campo else _actual(ctx)
     if campo is None:
         return _no_esta(ctx, cambio.campo) if cambio.campo else CUAL_CAMPO
-    otro = cuaderno.establecimiento_existente(nuevo)
+    otro = cuaderno.establecimiento_nombrado(nuevo)
     if otro is None or otro.id == campo.id:
         if campo.nombre == prolijo(nuevo):
             return f"👍 Tu campo ya se llama *{campo.nombre}*."
@@ -81,7 +98,7 @@ def _campo(ctx: Contexto, cambio: Cambio, nuevo: str) -> str:
 def _lote(ctx: Contexto, cambio: Cambio, nuevo: str) -> str:
     cuaderno = ctx.cuaderno
     if cambio.campo:
-        campo = cuaderno.establecimiento_existente(cambio.campo)
+        campo = cuaderno.establecimiento_nombrado(cambio.campo)
         if campo is None:
             return _no_esta(ctx, cambio.campo)
     else:
@@ -115,9 +132,9 @@ def _es_un_lote(ctx: Contexto, nombre: str, establecimiento: str | None) -> bool
     la IA lo puso como campo. El lote se busca en el campo que nombra la acción
     ("establecimiento", como en "el potrero grande de El Ombú") o, si no, en el actual."""
     cuaderno = ctx.cuaderno
-    if cuaderno.establecimiento_existente(nombre) is not None:
+    if cuaderno.establecimiento_nombrado(nombre) is not None:
         return False
-    donde = cuaderno.establecimiento_existente(establecimiento) if establecimiento else _actual(ctx)
+    donde = cuaderno.establecimiento_nombrado(establecimiento) if establecimiento else _actual(ctx)
     return cuaderno.lote_existente(nombre, donde) is not None
 
 
@@ -155,13 +172,13 @@ def borrar(ctx: Contexto, datos: BorrarCampo) -> str:
         lote_nombre, campo_nombre = normalizar_lote(campo_nombre), None
     nombrado = campo_nombre or datos.establecimiento  # a veces la IA lo pone en "establecimiento"
     if nombrado:
-        campo = cuaderno.establecimiento_existente(nombrado)
+        campo = cuaderno.establecimiento_nombrado(nombrado)
         if campo is None:
             return _no_esta(ctx, nombrado)
     elif lote_nombre:
         campo = _actual(ctx)
     else:
-        return CUAL_BORRAR
+        return _cual_borrar(ctx)
     if lote_nombre:
         return _borrar_lote(ctx, lote_nombre, campo)
     assert campo is not None
