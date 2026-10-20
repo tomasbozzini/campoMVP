@@ -13,11 +13,13 @@ queda registrada con su módulo, y solo se ejecuta para quien tiene ese módulo.
 
 from collections.abc import Callable
 from dataclasses import dataclass, replace
+from datetime import date
 from typing import Any
 
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from app.ia.esquemas import EsquemaAccion
+from app.ia.fechas import FechaDudosa
 from app.nucleo.contexto import Contexto
 
 
@@ -49,13 +51,43 @@ def buscar(intencion: object) -> Accion | None:
     return _registro.get(intencion) if isinstance(intencion, str) else None
 
 
-def validar(accion: Accion, datos: dict[str, Any]) -> EsquemaAccion | None:
-    """Los datos de la IA validados con el esquema de la acción; None si no validan."""
+def validar(
+    accion: Accion, datos: dict[str, Any], hoy: date, fechas: dict[str, str] | None = None
+) -> EsquemaAccion | None:
+    """Los datos de la IA validados con el esquema de la acción; None si no validan. Las
+    fechas se calculan con `hoy` y con las que la persona eligió (`fechas`); si una es dudosa,
+    se levanta `FechaDudosa`."""
     try:
-        return accion.esquema.model_validate(datos)
+        return accion.esquema.model_validate(datos, context={"hoy": hoy, "fechas": fechas or {}})
     except ValidationError:
         return None
 
 
 def intenciones() -> list[str]:
     return list(_registro)
+
+
+def _fechas_de(valor: object) -> list[date]:
+    if isinstance(valor, BaseModel):
+        return [f for campo in type(valor).model_fields for f in _fechas_de(getattr(valor, campo))]
+    if isinstance(valor, list):
+        return [f for v in valor for f in _fechas_de(v)]
+    return [valor] if isinstance(valor, date) else []
+
+
+def fechas(interpretado: object, hoy: date) -> tuple[str, ...]:
+    """Las fechas que quedan de la respuesta de la IA, en orden, como las calcula el bot, y
+    "dudosa" si el bot pregunta cuál es (para el set de evaluación)."""
+    crudas = interpretado.get("acciones") if isinstance(interpretado, dict) else None
+    lista = crudas if isinstance(crudas, list) else [interpretado]
+    encontradas: list[str] = []
+    for pedido in lista:
+        if not isinstance(pedido, dict) or (accion := buscar(pedido.get("intencion"))) is None:
+            continue
+        try:
+            datos = validar(accion, pedido, hoy)
+        except FechaDudosa:
+            encontradas.append("dudosa")  # el bot pregunta
+            continue
+        encontradas += [f.isoformat() for f in _fechas_de(datos)]
+    return tuple(encontradas)

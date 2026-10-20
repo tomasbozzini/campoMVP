@@ -6,10 +6,13 @@ el valor (recortan, convierten) o lo dejan en None si no sirve. Lo que no entra 
 esquema de su acción se descarta y el mensaje se trata como fuera de alcance.
 """
 
-from datetime import date
-from typing import Annotated, Literal
+from datetime import date, datetime
+from typing import Annotated, Literal, Self
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict
+from pydantic import BaseModel, BeforeValidator, ConfigDict, ValidationInfo, model_validator
+
+from app.ia import fechas
+from app.infra.config import config
 
 
 def limpiar_texto(valor: object, largo: int) -> str | None:
@@ -39,11 +42,25 @@ def _a_decimal(valor: object) -> float | None:
         return None
 
 
-def _a_fecha(valor: object) -> date | None:
-    try:
-        return date.fromisoformat(str(valor)) if valor is not None else None
-    except ValueError:
-        return None
+def hoy_de(info: ValidationInfo) -> date:
+    """La fecha de hoy con la que se calculan las fechas: la que pasa el núcleo al validar
+    (`acciones.validar`) o, si no, la de hoy en hora argentina."""
+    contexto = info.context if isinstance(info.context, dict) else {}
+    hoy = contexto.get("hoy")
+    return hoy if isinstance(hoy, date) else datetime.now(config.zona_horaria).date()
+
+
+def _a_fecha(sentido: str) -> BeforeValidator:
+    """Una FECHA como la dijo la persona, calculada por el código (`ia/fechas.py`)."""
+
+    def convertir(valor: object, info: ValidationInfo) -> date | None:
+        dicha = fechas.leer(valor)
+        if dicha is None:
+            return None
+        elegidas = info.context.get("fechas") if isinstance(info.context, dict) else None
+        return fechas.calcular(dicha, hoy_de(info), sentido, elegidas)
+
+    return BeforeValidator(convertir)
 
 
 def texto(largo: int, minuscula: bool = False) -> BeforeValidator:
@@ -58,8 +75,12 @@ def texto(largo: int, minuscula: bool = False) -> BeforeValidator:
 
 Entero = Annotated[int | None, BeforeValidator(_a_entero)]
 Decimal = Annotated[float | None, BeforeValidator(_a_decimal)]
-# Una fecha que no es YYYY-MM-DD ("ayer" sin convertir) queda en None.
-Fecha = Annotated[date | None, BeforeValidator(_a_fecha)]
+# La IA devuelve la fecha como la dijo la persona (FECHA, ver `ia/fechas.py`) y el código la
+# calcula. Un texto ("ayer", "2026-10-20") no es una FECHA y queda en None. Sin decir "pasado"
+# ni "próximo", `Fecha` mira para atrás (registros, consultas) y `FechaProxima` para adelante
+# (pendientes). Si la fecha es dudosa, se levanta `fechas.FechaDudosa`.
+Fecha = Annotated[date | None, _a_fecha(fechas.PASADO)]
+FechaProxima = Annotated[date | None, _a_fecha(fechas.PROXIMO)]
 # Solo True si la IA dijo exactamente true: "sí", 1 o "true" no alcanzan.
 Bandera = Annotated[bool, BeforeValidator(lambda v: v is True)]
 
@@ -88,6 +109,32 @@ class Esquema(BaseModel):
     """Base de todo lo que devuelve la IA: los campos que no están declarados se ignoran."""
 
     model_config = ConfigDict(extra="ignore")
+
+
+Periodo = Annotated[str | None, BeforeValidator(lambda v: v if v in fechas.PERIODOS else None)]
+Mes = Annotated[int | None, BeforeValidator(lambda v: fechas.entero(v, 1, 12))]
+
+
+class ConPeriodo(Esquema):
+    """Filtros por fecha de una consulta: un período con nombre ("la semana pasada"), un mes
+    ("en septiembre") o desde / hasta como FECHA. El código arma el rango: `desde` y `hasta`
+    quedan calculados (lo que dice desde / hasta gana sobre el período)."""
+
+    periodo: Periodo = None
+    mes: Mes = None
+    desde: Fecha = None
+    hasta: Fecha = None
+
+    @model_validator(mode="after")
+    def _rango(self, info: ValidationInfo) -> Self:
+        hoy = hoy_de(info)
+        rango = fechas.periodo(self.periodo, hoy) if self.periodo else None
+        if rango is None and self.mes:
+            rango = fechas.mes_entero(self.mes, hoy)
+        if rango:
+            self.desde = self.desde or rango[0]
+            self.hasta = self.hasta or rango[1]
+        return self
 
 
 class EsquemaAccion(Esquema):

@@ -21,7 +21,7 @@ def ia(monkeypatch):
     respuestas: dict[str, dict] = {}
     llamadas: list[str] = []
 
-    def interpretar(texto, hoy, historial=None, partes=(), pregunta=None):
+    def interpretar(texto, historial=None, partes=(), pregunta=None):
         llamadas.append(texto)
         return respuestas[texto]
 

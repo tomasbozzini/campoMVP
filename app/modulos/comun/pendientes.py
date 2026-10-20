@@ -20,7 +20,7 @@ from typing import Annotated
 
 from pydantic import BeforeValidator, Field
 
-from app.ia.esquemas import Bandera, Esquema, EsquemaAccion, Fecha, SiNoVacio, limpiar_texto, texto
+from app.ia.esquemas import Bandera, Esquema, EsquemaAccion, FechaProxima, SiNoVacio, limpiar_texto, texto
 from app.infra.modelos import Establecimiento, Pendiente
 from app.infra.texto import sin_tildes
 from app.modulos.comun import confirmar
@@ -73,7 +73,7 @@ Campo = Annotated[str | None, texto(120)]
 class DatosPendiente(Esquema):
     texto: Texto = None  # qué hay que hacer, con las palabras de la persona
     lote: Lote = None
-    vence: Fecha = None  # para cuándo
+    vence: FechaProxima = None  # para cuándo
 
 
 class AnotarPendiente(EsquemaAccion):
@@ -115,7 +115,7 @@ class CambiosPendiente(Esquema):
     texto: Texto = None
     lote: Lote = None
     establecimiento: Campo = None
-    vence: Fecha = None
+    vence: FechaProxima = None
 
     def hay(self) -> bool:
         return any(getattr(self, campo) is not None for campo in CambiosPendiente.model_fields)

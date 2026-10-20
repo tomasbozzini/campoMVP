@@ -9,6 +9,8 @@ plan): si cancela, se cancela; si no, el mensaje sigue su camino normal.
 """
 
 import re
+from collections.abc import Sequence
+from datetime import date
 
 from app.infra.texto import sin_tildes
 
@@ -64,3 +66,33 @@ def es_no(texto: str) -> bool:
 def es_cancelar(texto: str) -> bool:
     """Un *no* que cancela la pregunta entera ("no, dejá", "cancelá", "olvidate")."""
     return es_no(texto) and any(p in _CANCELAR for p in _palabras(texto))
+
+
+_DIAS_SEMANA = ("lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo")
+_MESES = (
+    "enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre",
+    "noviembre", "diciembre",
+)  # fmt: skip
+_RELLENO_FECHA = {"el", "la", "de", "del", "para", "es", "era", "opcion", "numero", "dia", "si", "dale", "ok", "mejor"}
+
+
+def cual_fecha(texto: str, opciones: Sequence[date]) -> int | None:
+    """Cuál de las fechas que se le mostraron eligió ("1", "la 2", "el jueves", "el 23", "vie
+    23/10"); None si no es una respuesta o no señala una sola."""
+    palabras = re.findall(r"[a-z]+|\d+", sin_tildes(texto.lower()))
+    decisivas = [p for p in palabras if p not in _RELLENO_FECHA | _RELLENO]
+    if len(decisivas) == 1 and decisivas[0] in ("1", "2") and len(opciones) == 2:
+        return int(decisivas[0]) - 1
+
+    def coincide(f: date, palabra: str) -> bool:
+        if palabra.isdigit():
+            return int(palabra) in (f.day, f.month, f.year)
+        if palabra in _DIAS_SEMANA:
+            return _DIAS_SEMANA.index(palabra) == f.weekday()
+        if palabra in _MESES:
+            return _MESES.index(palabra) + 1 == f.month
+        # "vie", "jue": el día abreviado, como se muestra en las opciones
+        return palabra == _DIAS_SEMANA[f.weekday()][:3]
+
+    elegidas = [i for i, f in enumerate(opciones) if decisivas and all(coincide(f, p) for p in decisivas)]
+    return elegidas[0] if len(elegidas) == 1 else None

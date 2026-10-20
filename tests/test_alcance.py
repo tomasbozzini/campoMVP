@@ -76,7 +76,7 @@ def test_si_la_ia_esta_saturada_o_falla_el_mensaje_no_gasta_cupo(db, monkeypatch
     u = _usuario(db)
     errores = {"saturada": IASaturada("OpenRouter 429"), "falla": ErrorIA("OpenRouter 400")}
 
-    def interpretar(texto, hoy, historial=None, partes=(), pregunta=None):
+    def interpretar(texto, historial=None, partes=(), pregunta=None):
         if texto in errores:
             raise errores[texto]
         return {"intencion": "fuera_de_alcance"}

@@ -5,7 +5,7 @@ Las cuentas las hace el código: la IA solo arma los filtros y nunca ve los dato
 
 from typing import Annotated
 
-from app.ia.esquemas import Esquema, EsquemaAccion, Fecha, texto
+from app.ia.esquemas import ConPeriodo, EsquemaAccion, texto
 from app.modulos.comun.registros import Lote
 from app.nucleo.acciones import Accion
 from app.nucleo.contexto import Contexto
@@ -18,8 +18,8 @@ MAX_LINEAS_CONSULTA = 15
 SIN_RESULTADOS = "🔍 No encontré registros para esa consulta."
 
 
-class FiltrosConsulta(Esquema):
-    """Si pide "todo lo anotado", vienen todos vacíos."""
+class FiltrosConsulta(ConPeriodo):
+    """Si pide "todo lo anotado", vienen todos vacíos. El período, en `ConPeriodo`."""
 
     categoria: Annotated[str | None, texto(20)] = None
     tipo: Annotated[str | None, texto(30)] = None
@@ -28,8 +28,6 @@ class FiltrosConsulta(Esquema):
     categoria_animal: Annotated[str | None, texto(40)] = None
     producto: Annotated[str | None, texto(120)] = None
     establecimiento: Annotated[str | None, texto(120)] = None
-    desde: Fecha = None
-    hasta: Fecha = None
 
 
 class Consultar(EsquemaAccion):

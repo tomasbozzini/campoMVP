@@ -61,6 +61,11 @@ def fecha_corta(d: date) -> str:
     return f"{_DIAS[d.weekday()]} {d.strftime('%d/%m/%Y')}"
 
 
+def dia_semana(d: date) -> str:
+    """ "jueves", "sábado" """
+    return ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")[d.weekday()]
+
+
 def singular(palabra: str) -> str:
     """ "vacas" -> "vaca", "animales" -> "animal". Alcanza para las categorías que usamos."""
     if palabra.endswith("es") and len(palabra) > 3:

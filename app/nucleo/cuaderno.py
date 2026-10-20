@@ -79,6 +79,8 @@ class Cuaderno:
         # un campo que ya existe (clave -> id) y cuáles son campos nuevos aunque se parezcan.
         self.alias: dict[str, int] = {}
         self.permitidos: set[str] = set()
+        # Y sobre fechas dudosas ("el viernes 22" cuando el 22 es jueves): qué fecha eligió.
+        self.fechas: dict[str, str] = {}
 
     # --- Registros ------------------------------------------------------------
 

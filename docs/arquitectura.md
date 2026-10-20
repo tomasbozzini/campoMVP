@@ -429,7 +429,7 @@ de 2b, 7 y 8b):
       respuesta. Set: 20 frases nuevas (116 en total). Corrida de cancelar, corregir,
       corregir_pendiente, anotar_pendiente (también en pasado) y pendiente_hecho (34 frases):
       34/34, mediana 1,4 s, p95 1,8 s, USD 0,079.
-- [ ] 8.5.1 · Fechas calculadas por el código. Al probar el 8.5 (hoy martes 20/10/2026), con el
+- [x] 8.5.1 · Fechas calculadas por el código. Al probar el 8.5 (hoy martes 20/10/2026), con el
       calendario de ±7 días el modelo igual erraba el día y si era pasado o futuro: "Tenía que
       pagarle al contratista el sábado" dio Vie 23/10 (era Sáb 17/10, vencido) y "el sábado que
       viene" dio Jue 22/10 (era Sáb 24/10).
@@ -469,6 +469,19 @@ de 2b, 7 y 8b):
         tres frases de la prueba y hoy 2026-10-20. Set: frases con cada día de la semana, "que
         viene", "pasado", "tenía que", "ayer" y "en N días". Se corre el eval de las intenciones
         con fecha, con tope de costo.
+
+      Cómo quedó: `app/ia/fechas.py` lee la FECHA y la calcula; en los esquemas, `Fecha` mira
+      para atrás y `FechaProxima` (pendientes) para adelante, con el hoy que pasa
+      `acciones.validar`. Las consultas y las referencias de borrar heredan `ConPeriodo`
+      ("periodo", "mes", "desde", "hasta"). La fecha dudosa levanta `FechaDudosa` y se pregunta
+      como un campo parecido (`confirmar.preguntar_fecha`, la pregunta "fecha"); lo ya respondido
+      de campos y fechas viaja junto con el pedido guardado. En el prompt, "cual" es obligatorio
+      con un día de la semana (sin eso, la IA lo dejaba en null en "Tenía que… el sábado"), y
+      "exportar" completa siempre los filtros, también el período. El eval muestra lo que
+      devolvió la IA cuando una fecha no coincide. Set: 44 frases con fecha y hoy fijo (160 en
+      total). Antes del arreglo, 38/53 (10 fechas mal, entre ellas las de la prueba); después,
+      pendientes 21/23 y registros, consultas y correcciones 19/21, con las fallas corregidas
+      en el prompt y probadas de a una. Costo de la tanda: USD 0,247.
 - [ ] 8.6 · El bot pasa a llamarse **Anotagro** (el detalle se anota antes de empezarlo).
 - [ ] 8.7 · Renombrar y unir campos, adelantado de "más adelante" (el detalle se anota antes de
       empezarlo).

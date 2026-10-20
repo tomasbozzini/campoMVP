@@ -6,7 +6,7 @@ from typing import Annotated
 
 from pydantic import BeforeValidator
 
-from app.ia.esquemas import Decimal, Entero, Esquema, Fecha, texto
+from app.ia.esquemas import ConPeriodo, Decimal, Entero, Esquema, Fecha, texto
 from app.infra.modelos import Evento
 from app.nucleo.normalizar import clave_establecimiento, normalizar_lote
 from app.salidas import whatsapp as formato
@@ -41,9 +41,9 @@ def fecha_valida(fecha: date | None, hoy: date) -> date:
     return min(fecha, hoy) if fecha else hoy
 
 
-class Referencia(Esquema):
+class Referencia(ConPeriodo):
     """Los datos con los que la persona identifica un registro que ya anotó
-    ("esas 5 vaquillonas", "la lluvia de La Pastora")."""
+    ("esas 5 vaquillonas", "la lluvia de La Pastora"), o el período de una lista que vio."""
 
     categoria: Annotated[str | None, texto(20)] = None
     tipo: Annotated[str | None, texto(30)] = None
@@ -60,8 +60,6 @@ class Referencia(Esquema):
     fecha_evento: Fecha = None
     confianza: Annotated[str | None, texto(10)] = None
     establecimiento: Annotated[str | None, texto(120)] = None
-    desde: Fecha = None
-    hasta: Fecha = None
 
     def tiene_datos(self) -> bool:
         return any(getattr(self, campo) is not None for campo in Referencia.model_fields)

@@ -1,5 +1,6 @@
 """El prompt y el glosario de los audios se arman con los módulos del rubro de cada persona."""
 
+import re
 from datetime import date
 
 import pytest
@@ -82,7 +83,7 @@ def test_cada_rubro_suma_los_modulos_que_le_tocan(monkeypatch):
 
 
 def test_cada_modulo_suma_su_parte_en_su_lugar(ganaderia):
-    sistema = prompt.sistema(HOY, modulos.partes(["comun", "ganaderia"]))
+    sistema = prompt.sistema(modulos.partes(["comun", "ganaderia"]))
 
     def antes(*textos: str) -> bool:
         posiciones = [sistema.index(t) for t in textos]
@@ -97,7 +98,7 @@ def test_cada_modulo_suma_su_parte_en_su_lugar(ganaderia):
 
 
 def test_sin_el_modulo_su_parte_no_esta_en_el_prompt(ganaderia):
-    sistema = prompt.sistema(HOY, modulos.partes(["comun"]))
+    sistema = prompt.sistema(modulos.partes(["comun"]))
     for texto in ('"tacto"', "TACTO", "Cada rodeo", "porcentajes de preñez"):
         assert texto not in sistema, texto
 
@@ -108,8 +109,8 @@ def test_cada_persona_recibe_el_prompt_de_su_rubro(db, ganaderia, ia):
     pipeline.manejar_mensaje(db, veterinaria.telefono, "tacto 30 vacas", hoy=HOY)
     pipeline.manejar_mensaje(db, agronoma.telefono, "tacto 30 vacas", hoy=HOY)
     assert ia.sistemas == [
-        prompt.sistema(HOY, modulos.partes(["comun", "ganaderia"])),
-        prompt.sistema(HOY, modulos.partes(["comun"])),
+        prompt.sistema(modulos.partes(["comun", "ganaderia"])),
+        prompt.sistema(modulos.partes(["comun"])),
     ]
 
 
@@ -161,8 +162,8 @@ def test_el_glosario_de_cada_rubro_entra_en_whisper(rubro):
 
 @pytest.mark.parametrize("rubro", list(RUBROS))
 def test_el_prompt_de_cada_rubro_no_pasa_el_tope(rubro):
-    """Cada carácter de más se paga y se espera en cada mensaje (con la fecha más larga)."""
-    sistema = prompt.sistema(date(2026, 9, 30), modulos.partes(modulos.del_rubro(rubro)))
+    """Cada carácter de más se paga y se espera en cada mensaje."""
+    sistema = prompt.sistema(modulos.partes(modulos.del_rubro(rubro)))
     assert len(sistema) <= modulos.LARGO_MAXIMO_PROMPT
 
 
@@ -184,15 +185,12 @@ def test_cada_audio_se_transcribe_con_el_glosario_de_su_rubro(servidor, motor, g
     assert servidor[0] == ("5491100000001", f"🎤 _tacto 30 vacas_\n\n{TACTO_ANOTADO}")
 
 
-def test_el_prompt_trae_el_calendario_de_la_semana_anterior_y_la_siguiente():
-    """El modelo calcula mal los días de la semana: "el martes" le daba el lunes."""
-    sistema = prompt.sistema(date(2026, 10, 17), modulos.partes(["comun"]))  # sábado
-    assert "- Los 7 días anteriores: sábado 2026-10-10, domingo 2026-10-11, lunes 2026-10-12," in sistema
-    assert (
-        "viernes 2026-10-16.\n- Los 7 días siguientes: domingo 2026-10-18, lunes 2026-10-19, martes 2026-10-20,"
-        in sistema
-    )
-    assert "sábado 2026-10-24.\n" in sistema
+def test_el_prompt_no_lleva_la_fecha_de_hoy():
+    """La IA no calcula fechas (paso 8.5.1): devuelve lo que dijo la persona como FECHA y el
+    código la calcula. El prompt es el mismo todos los días."""
+    sistema = prompt.sistema(modulos.partes(["comun"]))
+    assert '"fecha_evento": FECHA | null' in sistema and '"vence": FECHA | null' in sistema
+    assert re.search(r"20\d\d-\d\d-\d\d", sistema) is None
 
 
 def test_el_glosario_suma_los_nombres_propios_que_entran():

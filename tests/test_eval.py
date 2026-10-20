@@ -9,6 +9,7 @@ from app.ia import evaluacion, proveedor
 from app.ia.evaluacion import Frase
 from app.ia.proveedor import IASaturada, Uso
 from app.infra.config import config
+from app.nucleo import acciones
 
 HOY = date(2026, 10, 16)
 FRASES = [
@@ -145,3 +146,33 @@ def test_eval_sin_clave_avisa(monkeypatch):
     monkeypatch.setattr(config, "openrouter_api_key", "")
     with pytest.raises(SystemExit, match="OPENROUTER_API_KEY"):
         terminal.main(["eval", "--proveedor", "openrouter"])
+
+
+def test_controla_las_fechas_que_quedan_con_el_hoy_de_la_frase():
+    """La fecha que queda la calcula el código con el "hoy" de la frase, como en el bot."""
+    modulos.cargar()
+    martes = date(2026, 10, 20)
+    frases = [
+        Frase("fecha", "tenía que pagar el sábado", ("anotar_pendiente",), hoy=martes, fechas=("2026-10-17",)),
+        Frase("fecha", "tengo que pagar el sábado", ("anotar_pendiente",), hoy=martes, fechas=("2026-10-17",)),
+        Frase("fecha", "el viernes 22 pago", ("anotar_pendiente",), hoy=martes, fechas=("dudosa",)),
+    ]
+
+    def pendiente(vence: dict) -> dict:
+        return {"intencion": "anotar_pendiente", "pendiente": {"texto": "pagar", "vence": vence}}
+
+    ia = IAFalsa(
+        {
+            "tenía que pagar el sábado": pendiente({"dia_semana": "sabado", "cual": "pasado"}),
+            "tengo que pagar el sábado": pendiente({"dia_semana": "sabado"}),
+            "el viernes 22 pago": pendiente({"dia_semana": "viernes", "dia": 22}),
+        }
+    )
+    resultados, _ = evaluacion.correr(frases, ia, [], HOY, tope_usd=1.0, fechas=acciones.fechas)
+    assert [r.fechas for r in resultados] == [("2026-10-17",), ("2026-10-24",), ("dudosa",)]
+    assert [r.bien for r in resultados] == [True, False, True]
+
+
+def test_las_frases_con_fechas_del_set_tienen_hoy():
+    frases = [f for f in evaluacion.cargar() if f.fechas is not None]
+    assert frases and all(f.hoy is not None for f in frases)

@@ -2,8 +2,9 @@
 
 Cada frase de `evaluacion/set.json` va al modelo con el prompt de un rubro y se compara la
 lista de intenciones que devuelve, en orden, con la esperada. Una frase puede traer la charla
-reciente ("historial", como la ve la IA) y la pregunta del bot que quedó sin contestar
-("pregunta", una clave de `nucleo/preguntas.py`). Se mide lo que cuesta: tokens,
+reciente ("historial", como la ve la IA), la pregunta del bot que quedó sin contestar
+("pregunta", una clave de `nucleo/preguntas.py`) y, si nombra fechas, el día de hoy ("hoy")
+y las fechas que tienen que quedar ("fechas", calculadas como en el bot). Se mide lo que cuesta: tokens,
 costo (si el proveedor lo informa) y demora. Frena si el costo acumulado llega al tope.
 """
 
@@ -29,6 +30,8 @@ class Frase:
     intenciones: tuple[str, ...]
     historial: tuple[tuple[str, str], ...] = ()  # (rol, texto): "usuario" o "bot"
     pregunta: str | None = None
+    hoy: date | None = None  # si no, el de la corrida
+    fechas: tuple[str, ...] | None = None  # YYYY-MM-DD, en orden; None: no se controlan
 
 
 @dataclass
@@ -38,10 +41,13 @@ class Resultado:
     error: str | None = None
     usos: list[Uso] = field(default_factory=list)
     segundos: float = 0.0
+    fechas: tuple[str, ...] = ()
+    respuesta: object = None  # lo que devolvió el modelo, para ver por qué falló
 
     @property
     def bien(self) -> bool:
-        return self.error is None and self.obtenidas == self.frase.intenciones
+        fechas_bien = self.frase.fechas is None or self.fechas == self.frase.fechas
+        return self.error is None and self.obtenidas == self.frase.intenciones and fechas_bien
 
     @property
     def costo_usd(self) -> float:
@@ -74,6 +80,8 @@ def cargar(ruta: Path = SET) -> list[Frase]:
             tuple(f["intenciones"]),
             tuple((rol, texto) for rol, texto in f.get("historial", [])),
             f.get("pregunta"),
+            date.fromisoformat(f["hoy"]) if "hoy" in f else None,
+            tuple(f["fechas"]) if "fechas" in f else None,
         )
         for f in datos["frases"]
     ]
@@ -106,10 +114,12 @@ def correr(
     pausa: float = 0.0,
     al_terminar: Callable[[Resultado], None] = lambda _r: None,
     preguntas: Mapping[str, str] | None = None,
+    fechas: Callable[[object, date], tuple[str, ...]] = lambda _i, _h: (),
 ) -> tuple[list[Resultado], bool]:
     """Corre las frases de a una. Devuelve los resultados y si frenó por el tope de costo.
-    `preguntas`: el texto que ve la IA para cada clave de pregunta pendiente."""
-    sistema = prompt.sistema(hoy, partes)
+    `preguntas`: el texto que ve la IA para cada clave de pregunta pendiente. `fechas`: las
+    fechas que quedan de una respuesta, como las calcula el bot."""
+    sistema = prompt.sistema(partes)
     resultados: list[Resultado] = []
     gastado = 0.0
     for i, frase in enumerate(frases):
@@ -121,7 +131,9 @@ def correr(
             try:
                 pregunta = (preguntas or {}).get(frase.pregunta or "")
                 mensaje = prompt.mensaje(frase.frase, frase.historial, pregunta)
-                resultado.obtenidas = intenciones(proveedor.completar_json(sistema, mensaje))
+                interpretado = resultado.respuesta = proveedor.completar_json(sistema, mensaje)
+                resultado.obtenidas = intenciones(interpretado)
+                resultado.fechas = fechas(interpretado, frase.hoy or hoy)
             except ErrorIA as e:
                 resultado.error = str(e)
         resultado.segundos = time.perf_counter() - inicio

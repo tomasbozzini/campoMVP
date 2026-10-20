@@ -64,8 +64,8 @@ PROMPT = Parte(
   preguntar por lo anotado, es "mis_campos".
 - "exportar": pide lo que anotó en un ARCHIVO para guardar o reenviar: PDF, Excel, planilla o CSV
   ("mandame un PDF de lo que hice en La Pastora este mes", "pasame la planilla de las
-  vacunaciones", "quiero el informe de la semana para mandárselo al dueño"). Completá "consulta"
-  con los filtros, como en "consultar". "formato": "excel" si dice Excel o planilla, "csv" solo
+  vacunaciones", "quiero el informe de la semana para mandárselo al dueño"). Completá SIEMPRE
+  "consulta" con los filtros, como en "consultar", también el período ("este año" -> "periodo": "este_anio"). "formato": "excel" si dice Excel o planilla, "csv" solo
   si dice CSV; si no dice, "pdf". Muchos mensajes vienen de un audio transcripto: el formato
   puede llegar deletreado o escrito como suena ("c s v", "ce ese ve", "pe de efe", "ecsel"). Es
   el mismo formato, y pedir que le saquen, pasen o manden eso es "exportar", no "fuera_de_alcance".
@@ -154,7 +154,7 @@ EVENTO:
   "lote_destino": string | null,// solo para traslados: a dónde fueron
   "valor": number | null,       // número asociado: kg de una pesada, mm de lluvia, hectáreas, precio
   "unidad": string | null,      // "kg", "mm", "ha", "$"...
-  "fecha_evento": "YYYY-MM-DD" | null,
+  "fecha_evento": FECHA | null,  // cuándo pasó, si lo dice; null si no dice (es hoy)
   "confianza": "alta" | "media" | "baja"
 }
 
@@ -182,8 +182,8 @@ REFERENCIA: mismas claves que EVENTO (solo las que menciona para identificarlo) 
   "establecimiento" y "todos": true SOLO si pide explícitamente borrar todos los que coincidan.
   Si una frase aplica a varias cosas ("ambos del campo La Pastora"), repetí ese dato en cada una.
   Si dice "todo lo de la lista", "todo eso", "borralos" después de que el sistema le mostró una
-  lista, usá UNA referencia con los mismos filtros de esa consulta (establecimiento, tipo, fechas
-  como "desde"/"hasta"...) y "todos": true.
+  lista, usá UNA referencia con los mismos filtros de esa consulta (establecimiento, tipo, y las
+  fechas como "periodo", "mes", "desde"/"hasta", igual que en CONSULTA) y "todos": true.
   Si pide borrar TODO lo que tiene anotado ("borrá todo", "todo de todos los campos", "de todos
   lados", "vaciá el cuaderno"), aunque antes haya visto una lista filtrada: [{"todos": true}],
   sin establecimiento ni otros filtros.
@@ -201,17 +201,17 @@ anotado", dejá todos los filtros en null):
   "categoria_animal": string | null,
   "producto": string | null,
   "establecimiento": string | null,   // si pregunta por un establecimiento puntual
-  "desde": "YYYY-MM-DD" | null,
-  "hasta": "YYYY-MM-DD" | null
+  "periodo": "hoy" | "ayer" | "esta_semana" | "semana_pasada" | "este_mes" | "mes_pasado" | "este_anio" | "anio_pasado" | null,
+  "mes": int | null,                  // 1 a 12, si pide un mes por su nombre ("en septiembre" -> 9)
+  "desde": FECHA | null,              // para otros rangos: "desde el lunes", "los últimos 10 días" (desde {"dias": -10})
+  "hasta": FECHA | null
 }
 
 PENDIENTE:
 {
   "texto": string,              // qué tiene que hacer, corto (hasta 120 letras) y con sus palabras (ej: "revisar las vaquillonas"), sin la fecha ni el campo
   "lote": string | null,        // como en EVENTO
-  "vence": "YYYY-MM-DD" | null  // para cuándo, si lo dice. Si dice lo que TIENE que hacer, futura ("el martes" =
-                                // el de "Los 7 días siguientes"); si dice lo que TENÍA que hacer o se olvidó,
-                                // pasada ("tenía que… el lunes" = el de "Los 7 días anteriores")
+  "vence": FECHA | null         // para cuándo, si lo dice
 }
 
 REF_PENDIENTE (uno por cada pendiente que nombra):
@@ -231,11 +231,27 @@ CORRECCION_PENDIENTE:
                                          // corrige el último que anotó sin decir cuál
   "cambios": {                           // SOLO lo nuevo que dice el mensaje
     "texto": string | null,              // qué hay que hacer, si lo cambia
-    "vence": "YYYY-MM-DD" | null,        // la fecha nueva
+    "vence": FECHA | null,               // la fecha nueva
     "establecimiento": string | null,    // el campo nuevo
     "lote": string | null                // el lote nuevo, como en EVENTO
   }
 }
+
+FECHA (lo que DIJO la persona, sin calcular nada: el sistema calcula la fecha):
+{
+  "dias": int | null,          // días desde hoy: "hoy" 0, "ayer" -1, "anteayer" -2, "mañana" 1, "pasado mañana" 2,
+                               // "hace 3 días" -3, "en 21 días" 21, "dentro de una semana" o "la semana que viene" 7
+  "dia_semana": "lunes" | "martes" | "miercoles" | "jueves" | "viernes" | "sabado" | "domingo" | null,
+  "cual": "pasado" | "proximo" | null,  // OBLIGATORIO con dia_semana (nunca null): "pasado" si ya pasó o si lo
+                               // TENÍA que hacer ("tenía que", "había que", "me olvidé"); "proximo" si todavía no llegó
+  "dia": int | null,           // el número de día, si lo dice ("el jueves 22" -> 22, "el 5 de noviembre" -> 5)
+  "mes": int | null,           // 1 a 12, solo si dice el mes ("de noviembre" -> 11)
+  "anio": int | null           // solo si dice el año
+}
+  Ej: "el sábado pasado" -> {"dia_semana": "sabado", "cual": "pasado"}; "tenía que llamarlo el jueves" ->
+  {"dia_semana": "jueves", "cual": "pasado"}; "el sábado que viene" o "tengo que ir el sábado" ->
+  {"dia_semana": "sabado", "cual": "proximo"}; "el jueves 22" -> {"dia_semana": "jueves", "dia": 22};
+  "ayer" -> {"dias": -1}; "en 21 días" -> {"dias": 21}; "el 5 de noviembre" -> {"dia": 5, "mes": 11}.
 
 PRECIO:
 {
@@ -243,13 +259,15 @@ PRECIO:
   "producto": string | null     // en singular y minúscula, sin tildes: "soja", "maiz", "novillo"...
 }""",
     reglas="""\
-- Fechas relativas ("ayer", "el lunes", "la semana pasada") convertilas a YYYY-MM-DD usando la fecha de hoy.
-  Si no se menciona fecha en un registro, usá la de hoy. En un pendiente la fecha suele ser futura
-  ("el martes" es el próximo martes), pero si lo cuenta en pasado ("tenía que vacunar los terneros
-  el lunes", "había que arreglar el alambrado ayer", "me olvidé de pedir los rollos el sábado") es
-  esa fecha PASADA, la más reciente con ese día: el pendiente quedó vencido. Si no dice la fecha,
-  "vence" es null.
-- En consultas como "este mes" o "este año", completá "desde" y "hasta".
+- Las fechas van SIEMPRE como FECHA, con lo que dijo la persona. NUNCA calcules una fecha ni
+  escribas "YYYY-MM-DD": no sabés qué día es hoy, lo sabe el sistema. Si no dice cuándo, null.
+- "cual" sale de cómo lo dice: "pasado" si ya pasó ("el sábado pasado", "vacuné el lunes",
+  "tenía que pagarle el sábado", "me olvidé de pedir los rollos el jueves"); "proximo" si viene
+  ("el sábado que viene", "el próximo martes", "tengo que vacunar el lunes", "acordate del
+  jueves"). Lo que TENÍA que hacer o se olvidó es "pasado" aunque siga pendiente. Si no se
+  puede saber, null.
+- En consultas, "esta semana", "el mes pasado", "este año"... van en "periodo"; un mes por su
+  nombre, en "mes"; otros rangos, en "desde" / "hasta".
 - NUNCA inventes datos. Si falta algo, null. Si el mensaje es ambiguo, confianza "baja".
 - Las preguntas ("¿cuántas...?", "¿cuándo...?", "¿qué se le dio...?") son "consultar", no "registrar".
 - El lote o potrero NO es el establecimiento: "lote 3" va en "lote"; "La Esperanza" en "establecimiento".""",

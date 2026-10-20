@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from app import modulos
 from app.ia import interprete
 from app.ia.esquemas import EsquemaAccion
+from app.ia.fechas import FechaDudosa
 from app.ia.proveedor import IASaturada
 from app.infra.config import config
 from app.modulos.comun import borrar, campos, confirmar
@@ -151,7 +152,6 @@ def _responder(ctx: Contexto, telefono: str) -> str:
     try:
         interpretado = interprete.interpretar(
             texto,
-            ctx.hoy,
             charla.historial(ctx.cuaderno),
             partes=modulos.partes(suyos),
             pregunta=preguntas.para_la_ia(ctx.pregunta_abierta),
@@ -181,18 +181,19 @@ def _pedidos(interpretado: object) -> list[dict[str, Any]]:
 
 def _ejecutar(ctx: Contexto, pedidos: list[dict[str, Any]], suyos: list[str]) -> str:
     """Ejecuta los pedidos, o pregunta antes si nombran un campo nuevo muy parecido a uno que
-    ya existe ("Omu" y "El Ombú"). En ese caso no queda nada hecho: lo que se había hecho del
-    mensaje se deshace y los pedidos se guardan para después de la respuesta."""
+    ya existe ("Omu" y "El Ombú") o una fecha dudosa ("el viernes 22" cuando el 22 es jueves).
+    En ese caso no queda nada hecho: lo que se había hecho del mensaje se deshace y los
+    pedidos se guardan para después de la respuesta."""
     adjuntos = len(ctx.adjuntos)
     try:
         with ctx.db.begin_nested():
             return _hacer(ctx, pedidos, suyos)
     except CampoParecido as p:
         del ctx.adjuntos[adjuntos:]
-        cuaderno = ctx.cuaderno
-        return confirmar.preguntar_campo(
-            cuaderno, p.nombre, p.existente, pedidos, cuaderno.alias, sorted(cuaderno.permitidos), ctx.ahora
-        )
+        return confirmar.preguntar_campo(ctx.cuaderno, p.nombre, p.existente, pedidos, ctx.ahora)
+    except FechaDudosa as f:
+        del ctx.adjuntos[adjuntos:]
+        return confirmar.preguntar_fecha(ctx.cuaderno, f.clave, f.opciones, pedidos, ctx.ahora)
 
 
 def _hacer(ctx: Contexto, pedidos: list[dict[str, Any]], suyos: list[str]) -> str:
@@ -209,7 +210,7 @@ def _hacer(ctx: Contexto, pedidos: list[dict[str, Any]], suyos: list[str]) -> st
         accion = acciones.buscar(pedido.get("intencion"))
         if accion is not None and accion.modulo not in suyos:
             accion = None
-        datos = acciones.validar(accion, pedido) if accion else None
+        datos = acciones.validar(accion, pedido, ctx.hoy, ctx.cuaderno.fechas) if accion else None
         if accion is None or datos is None:
             hubo_fuera = True
             continue

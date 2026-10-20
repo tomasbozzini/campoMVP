@@ -2,7 +2,6 @@
 
 import re
 from collections.abc import Sequence
-from datetime import date
 
 from app.ia import prompt, proveedor
 from app.infra.texto import sin_tildes
@@ -10,7 +9,6 @@ from app.infra.texto import sin_tildes
 
 def interpretar(
     texto: str,
-    hoy: date,
     historial: list[tuple[str, str]] | None = None,
     *,
     partes: Sequence[prompt.Parte],
@@ -20,7 +18,7 @@ def interpretar(
     los módulos de la persona. La validación la hace el núcleo con los esquemas de cada
     acción: lo que no valida se descarta. `pregunta`: la que el bot hizo y el mensaje no
     contestó con una respuesta fija, para que la IA reconozca si la cancela."""
-    return proveedor.obtener().completar_json(prompt.sistema(hoy, partes), prompt.mensaje(texto, historial, pregunta))
+    return proveedor.obtener().completar_json(prompt.sistema(partes), prompt.mensaje(texto, historial, pregunta))
 
 
 def transcribir(audio: bytes, nombre_archivo: str = "audio.ogg", *, glosario: str, propios: Sequence[str] = ()) -> str:

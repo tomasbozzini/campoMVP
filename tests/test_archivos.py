@@ -36,7 +36,7 @@ def ia(monkeypatch):
         "vacuné 30 vaquillonas": _evento(
             "vacunacion", producto="aftosa", cantidad_animales=30, categoria_animal="vaquillonas", lote="3"
         ),
-        "llovieron 20 mm": _evento("lluvia", valor=20, unidad="mm", fecha_evento="2026-10-14"),
+        "llovieron 20 mm": _evento("lluvia", valor=20, unidad="mm", fecha_evento={"dias": -1}),
         "en el ombú desparasité 10 terneros": {
             **_evento("desparasitacion", producto="ivermectina", cantidad_animales=10, categoria_animal="terneros"),
             "establecimiento": "El Ombú",

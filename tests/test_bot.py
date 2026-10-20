@@ -25,7 +25,7 @@ def fake_llm(monkeypatch):
     respuestas: dict[str, dict] = {}
     llamadas: list[str] = []
 
-    def interpretar(texto, hoy, historial=None, partes=(), pregunta=None):
+    def interpretar(texto, historial=None, partes=(), pregunta=None):
         llamadas.append(texto)
         return respuestas[texto]
 
@@ -83,7 +83,7 @@ def test_registrar_vacunacion(db, fake_llm):
                 "cantidad_animales": 20,
                 "categoria_animal": "Vacas",
                 "lote": "Lote 3",
-                "fecha_evento": "2026-10-09",
+                "fecha_evento": {"dias": 0},
                 "confianza": "alta",
             }
         ],
@@ -103,8 +103,9 @@ def test_fecha_futura_o_invalida_usa_hoy(db, fake_llm):
     respuestas["llovio"] = {
         "intencion": "registrar",
         "eventos": [
-            {"categoria": "campo", "tipo": "lluvia", "valor": 30, "unidad": "mm", "fecha_evento": "2027-01-01"},
-            {"categoria": "campo", "tipo": "lluvia", "valor": 5, "unidad": "mm", "fecha_evento": "ayer"},
+            {"categoria": "campo", "tipo": "lluvia", "valor": 30, "unidad": "mm", "fecha_evento": {"dias": 30}},
+            # Un texto no es una FECHA: la IA no calcula fechas.
+            {"categoria": "campo", "tipo": "lluvia", "valor": 5, "unidad": "mm", "fecha_evento": "2026-10-08"},
             {"categoria": "inventada", "tipo": "x"},
         ],
     }
@@ -152,7 +153,7 @@ def test_consulta_solo_ve_lo_propio_y_suma(db, fake_llm):
                     "cantidad_animales": cant,
                     "categoria_animal": "vacas",
                     "lote": lote,
-                    "fecha_evento": "2026-10-01",
+                    "fecha_evento": {"dia": 1, "mes": 10},
                 }
             ],
         }
@@ -171,8 +172,7 @@ def test_consulta_solo_ve_lo_propio_y_suma(db, fake_llm):
             "tipo": "vacunacion",
             "lote": "Lote 3",
             "categoria_animal": "vaca",
-            "desde": "2026-10-01",
-            "hasta": "2026-10-31",
+            "periodo": "este_mes",
         },
     }
     r = pipeline.manejar_mensaje(db, u1.telefono, pregunta, hoy=HOY)
@@ -210,13 +210,13 @@ def test_eventos_del_mismo_mensaje_heredan_lote_y_categoria(db, fake_llm):
                 "cantidad_animales": 4,
                 "categoria_animal": "terneros",
                 "lote": "5",
-                "fecha_evento": "2026-10-08",
+                "fecha_evento": {"dias": -1},
             },
             {
                 "categoria": "movimiento",
                 "tipo": "muerte",
                 "cantidad_animales": 1,
-                "fecha_evento": "2026-10-08",
+                "fecha_evento": {"dias": -1},
                 "confianza": "baja",
             },
         ],
@@ -488,7 +488,10 @@ def test_corregir_no_acepta_fechas_futuras_ni_campos_raros(db, fake_llm):
     _vacunar_vaquillonas(respuestas, db, u)
     respuestas["x"] = {
         "intencion": "corregir",
-        "correccion": {"referencia": {}, "cambios": {"fecha_evento": "2030-01-01", "usuario_id": 999}},
+        "correccion": {
+            "referencia": {},
+            "cambios": {"fecha_evento": {"dia": 1, "mes": 1, "anio": 2030}, "usuario_id": 999},
+        },
     }
     pipeline.manejar_mensaje(db, u.telefono, "x", hoy=HOY)
     e = db.scalar(select(Evento))
@@ -638,7 +641,7 @@ def test_la_ia_recibe_la_charla_reciente_solo_del_mismo_usuario(db, monkeypatch)
         "hola": {"intencion": "saludo"},
     }
 
-    def interpretar(texto, hoy, historial=None, partes=(), pregunta=None):
+    def interpretar(texto, historial=None, partes=(), pregunta=None):
         vistos[texto] = historial
         return respuestas[texto]
 

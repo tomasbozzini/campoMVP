@@ -51,8 +51,8 @@ def test_eventos_que_no_son_objetos_se_descartan_y_si_no_hay_lista_no_valida():
     modulos.cargar()
     accion = acciones.buscar("registrar")
     assert accion is not None
-    assert acciones.validar(accion, {"intencion": "registrar", "eventos": "no es una lista"}) is None
-    assert acciones.validar(accion, {"intencion": "registrar"}) is None
+    assert acciones.validar(accion, {"intencion": "registrar", "eventos": "no es una lista"}, HOY) is None
+    assert acciones.validar(accion, {"intencion": "registrar"}, HOY) is None
 
 
 def test_solo_true_es_true():
@@ -89,7 +89,7 @@ def test_todas_las_intenciones_del_prompt_estan_registradas():
     from app.ia import prompt
 
     modulos.cargar()
-    sistema = prompt.sistema(date(2026, 10, 13), modulos.partes(modulos.MODULOS))
+    sistema = prompt.sistema(modulos.partes(modulos.MODULOS))
     linea = next(li for li in sistema.splitlines() if li.strip().startswith('"intencion":'))
     ofrecidas = {p.strip().strip('"') for p in linea.split(":", 1)[1].split(",")[0].split("|")}
     assert ofrecidas - {"fuera_de_alcance"} == set(acciones.intenciones())
