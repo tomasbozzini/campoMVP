@@ -507,7 +507,20 @@ de 2b, 7 y 8b):
       viene). Con el cambio, las 3 frases salieron bien. Con el mes, `_por_numero` filtra por
       el sentido (desde 4 años atrás, por el 29 de febrero); solo el pendiente sin "pasado" ni
       "próximo" toma la más cercana. Costo: USD 0,048.
-- [ ] 8.6 · El bot pasa a llamarse **Anotagro** (el detalle se anota antes de empezarlo).
+- [ ] 8.6 · El bot pasa a llamarse **Anotagro** (falta confirmarlo en el INPI):
+      - El nombre está en una sola constante (`app/infra/marca.py`): cambiarlo es una línea.
+      - Lo usan todos los textos que ve la gente: la ayuda, el mensaje para quien no tiene
+        acceso, la despedida de "borrar mis datos", los mensajes del administrador, el PDF
+        (membrete y pie legal), el Excel, `/privacidad` y el resumen de privacidad, y los
+        nombres de los archivos (`Anotagro-registros-AAAA-MM-DD.pdf`). También el `X-Title`
+        con que OpenRouter identifica la app.
+      - Los códigos de invitación nuevos son `ANOTA-XXXX-XXXX`. Los `CAMPO-` que ya se dieron
+        siguen sirviendo hasta que vencen (al usarlos y al anularlos). Sin migración: el código
+        se guarda entero.
+      - README, este plan y CLAUDE.md.
+      - No cambian el repositorio, el paquete de Python, la base, los servicios de Railway, las
+        variables de entorno ni las migraciones viejas. El prompt de la IA no nombra al bot: no
+        se corre el eval.
 - [ ] 8.7 · Renombrar y unir campos, adelantado de "más adelante" (el detalle se anota antes de
       empezarlo).
 - [ ] 9a · Modo prueba.
