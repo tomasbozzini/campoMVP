@@ -46,6 +46,8 @@
     {"funcion": "borrar_ultimo", "frase": "che, eso no va, sacalo", "intenciones": ["borrar"]},
     {"funcion": "borrar_ultimo", "frase": "borrá lo último que te mandé", "intenciones": ["borrar"]},
     {"funcion": "borrar_ultimo", "frase": "ehh no no cancelá eso que anoté recién", "intenciones": ["borrar"]},
+    {"funcion": "borrar_ultimo", "frase": "cancelá lo que te anoté recién, me equivoqué", "intenciones": ["borrar"]},
+    {"funcion": "borrar_ultimo", "frase": "no, pará, anulá eso último que anoté", "intenciones": ["borrar"]},
 
     {"funcion": "cerrar_sesion", "frase": "terminamos", "intenciones": ["cerrar_sesion"]},
     {"funcion": "cerrar_sesion", "frase": "listo, cerrá la sesión", "intenciones": ["cerrar_sesion"]},
@@ -196,6 +198,11 @@
     {"funcion": "renombrar_lote", "frase": "cambiale el nombre al potrero grande, ahora es el lote 8", "intenciones": ["renombrar_campo"]},
     {"funcion": "renombrar_lote", "frase": "uní el lote 5 con el potrero grande que son el mismo", "intenciones": ["renombrar_campo"]},
     {"funcion": "renombrar_lote", "frase": "che el lote 2 y el lote dos bis son el mismo lote, juntalos en el 2", "intenciones": ["renombrar_campo"]},
-    {"funcion": "renombrar_lote", "frase": "al lote del molino ponele de nombre lote 4", "intenciones": ["renombrar_campo"]}
+    {"funcion": "renombrar_lote", "frase": "al lote del molino ponele de nombre lote 4", "intenciones": ["renombrar_campo"]},
+    {"funcion": "borrar_campo", "frase": "borrá el campo Prueba Nueva", "intenciones": ["borrar_campo"]},
+    {"funcion": "borrar_campo", "frase": "el lote 5 ya no va, sacalo", "intenciones": ["borrar_campo"]},
+    {"funcion": "borrar_campo", "frase": "che, sacá La Feliz de mis campos que ya no trabajo ahí", "intenciones": ["borrar_campo"]},
+    {"funcion": "borrar_campo", "frase": "ehh eliminá el campo de prueba que armé, Prueba Dos, con todo lo que tiene", "intenciones": ["borrar_campo"]},
+    {"funcion": "borrar_campo", "frase": "el potrero grande de El Ombú ya no existe, borralo", "intenciones": ["borrar_campo"]}
   ]
 }

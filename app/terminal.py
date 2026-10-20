@@ -155,6 +155,8 @@ def _eval(args: argparse.Namespace) -> None:
             linea += f"\n      esperaba {list(r.frase.intenciones)} y vino {list(r.obtenidas)}"
         elif not r.bien:
             linea += f"\n      esperaba las fechas {list(r.frase.fechas or ())} y quedaron {list(r.fechas)}"
+        if not r.bien and not r.error:
+            # Para saber qué devolvió sin repetir la corrida.
             linea += f"\n      la IA devolvió: {json.dumps(r.respuesta, ensure_ascii=False)}"
         print(linea, flush=True)
 

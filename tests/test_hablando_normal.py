@@ -46,6 +46,7 @@ FUNCIONES = {
     "renombrar_campo": "renombrar_campo",
     "unir_campos": "renombrar_campo",
     "renombrar_lote": "renombrar_campo",
+    "borrar_campo": "borrar_campo",
 }
 ADMINISTRADOR = {"invitar", "invitaciones", "anular", "autorizar", "quitar", "autorizados"}
 

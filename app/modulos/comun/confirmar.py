@@ -7,7 +7,7 @@ campos parecidos a otro y fechas dudosas.
   lo anota en el que ya existe, *no* crea el nuevo, *cambiale el nombre* le pone al que ya
   existe el nombre nuevo y lo anota ahí, y "cancelá" o "dejá" no anota nada.
 - Unir dos campos o dos lotes ("Omu y El Ombú son el mismo campo") pide confirmación y
-  muestra qué pasa al que queda.
+  muestra qué pasa al que queda. Borrar un campo o un lote, también, mostrando lo que se borra.
 - Si el día de la semana y el número no coinciden ("el viernes 22" cuando el 22 es jueves),
   se pregunta para cuándo, con las dos fechas: *1* o *2*, o el día ("el jueves", "el 23").
   Lo del mensaje se hace después, como con un campo parecido.
@@ -37,6 +37,7 @@ MAX_EN_LISTA = 10
 # Qué espera confirmación.
 REGISTROS, PENDIENTES, CORREGIR, CAMPO, FECHA = "registros", "pendientes", "corregir", "campo", "fecha"
 UNIR_CAMPOS, UNIR_LOTES = "unir_campo", "unir_lote"  # `que` tiene hasta 10 letras
+BORRAR_CAMPO, BORRAR_LOTE = "baja_campo", "baja_lote"
 
 PASO_EL_TIEMPO = "⏱️ Pasó mucho tiempo desde que lo pediste y no {hice}.\nSi querés, pedilo de nuevo."
 
@@ -104,6 +105,16 @@ def pedir_union(cuaderno: Cuaderno, que: str, origen: int, destino: int, texto: 
     return f"{texto}\n\n{LINEA}\n¿Confirmás? Respondé *sí* para unirlos o *no* para cancelar."
 
 
+def pedir_baja(cuaderno: Cuaderno, que: str, id_: int, texto: str, ahora: datetime) -> str:
+    """Deja el borrado de un campo (`BORRAR_CAMPO`) o un lote (`BORRAR_LOTE`) esperando el
+    *sí*. `texto`: la pregunta, con lo que se borra."""
+    cuaderno.guardar_borrado_pendiente([id_], ahora, que)
+    return (
+        f"{texto}\n\n{LINEA}\n¿Confirmás? Respondé *sí* para borrarlo o *no* para cancelar.\n"
+        "_Esto no se puede deshacer._"
+    )
+
+
 def preguntar_fecha(
     cuaderno: Cuaderno, clave: str, opciones: tuple[date, date], pedidos: list[dict[str, Any]], ahora: datetime
 ) -> str:
@@ -150,6 +161,8 @@ def resolver(ctx: Contexto, rehacer: Callable[[list[dict[str, Any]]], str]) -> s
         return PASO_EL_TIEMPO.format(hice="borré nada" if pregunta == preguntas.BORRAR else "cambié nada")
     if pregunta == preguntas.UNIR:
         return _unir(ctx, pendiente)
+    if pendiente.que in (BORRAR_CAMPO, BORRAR_LOTE):
+        return _dar_de_baja(ctx, pendiente)
     if pendiente.que == CORREGIR:
         return _corregir(cuaderno, pendiente)
     if pendiente.que == PENDIENTES:
@@ -181,6 +194,21 @@ def resumen_union(contenido: Contenido, de_campo: bool) -> str:
     ]
     lineas = [f"{SANGRIA}› {n} {uno if n == 1 else varios}" for n, uno, varios in cosas if n]
     return "\n".join(lineas) or f"{SANGRIA}› nada anotado, solo el nombre"
+
+
+def _dar_de_baja(ctx: Contexto, pendiente: BorradoPendiente) -> str:
+    cuaderno = ctx.cuaderno
+    if pendiente.que == BORRAR_CAMPO:
+        campo = cuaderno.db.get(Establecimiento, pendiente.ids[0])
+        nombre, de_campo, titulo = (campo.nombre if campo else None), True, "🗑️ *CAMPO BORRADO*"
+        contenido = cuaderno.borrar_establecimiento(pendiente.ids[0])
+    else:
+        lote = cuaderno.db.get(Lote, pendiente.ids[0])
+        nombre, de_campo, titulo = (nombre_lote(lote.nombre) if lote else None), False, "🗑️ *LOTE BORRADO*"
+        contenido = cuaderno.borrar_lote(pendiente.ids[0])
+    if contenido is None or nombre is None:
+        return "🤔 No pude borrarlo: ya no está.\nMandá *mis campos* para ver cómo quedaron."
+    return f"{titulo}\n\nListo, borré *{nombre}* con todo lo suyo:\n\n{resumen_union(contenido, de_campo)}"
 
 
 def _unir(ctx: Contexto, pendiente: BorradoPendiente) -> str:

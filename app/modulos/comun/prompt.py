@@ -14,6 +14,7 @@ PROMPT = Parte(
         "saludo",
         "establecimiento",
         "renombrar_campo",
+        "borrar_campo",
         "abrir_sesion",
         "cerrar_sesion",
         "anotar_pendiente",
@@ -44,6 +45,7 @@ PROMPT = Parte(
   "exportar": { "formato": "pdf" | "excel" | "csv" } | null,  // solo si intencion = "exportar"
   "sesion": { "lote": string | null, "actividad": string | null } | null,  // solo si intencion = "abrir_sesion"
   "renombrar": RENOMBRAR | null,   // solo si intencion = "renombrar_campo"
+  "borrar_campo": { "campo": string | null, "lote": string | null } | null,  // solo si intencion = "borrar_campo"
   "pendiente": PENDIENTE | null,   // solo si intencion = "anotar_pendiente"
   "pendientes": [ REF_PENDIENTE, ... ] | null,  // solo si intencion = "pendiente_hecho" o "borrar_pendiente"
   "correccion_pendiente": CORRECCION_PENDIENTE | null,  // solo si intencion = "corregir_pendiente"
@@ -58,8 +60,8 @@ PROMPT = Parte(
   terneros"), es "registrar". Si corrige un PENDIENTE (algo por hacer), es "corregir_pendiente".
 - "borrar": pide borrar o eliminar uno o varios registros que anotó ("borrá la lluvia de La Pastora",
   "eliminá las 5 vaquillonas y la cosecha del lote 5"), o deshacer lo último que anotó ("sacá lo
-  último", "deshacé eso", "me equivoqué, borralo", "eso no va, sacalo"). Tachar algo porque ya
-  lo hizo no es borrar: es "pendiente_hecho".
+  último", "deshacé eso", "me equivoqué, borralo", "eso no va, sacalo", "cancelá eso que anoté").
+  Tachar algo porque ya lo hizo no es borrar: es "pendiente_hecho".
 - "consultar": pregunta por cosas que ÉL MISMO anotó antes, o pide la lista de lo que tiene
   anotado ("¿qué tengo anotado?", "pasame la lista de La Pastora") ("¿qué hice hoy?", "¿qué hice en La Esperanza?").
   Lo que tiene pendiente o por hacer es "ver_pendientes"; la lista de sus campos o lotes, sin
@@ -79,7 +81,9 @@ PROMPT = Parte(
   La Pastora se llama Los Pinos", "el potrero grande y el lote 5 son el mismo"). Completá
   "renombrar". No es "corregir": no cambia un registro, cambia el nombre. Pasar registros o
   pendientes de un campo a otro ("eso fue en El Ombú", "los del molino son de La Feliz") es
-  "corregir" o "corregir_pendiente".
+  "corregir" o "corregir_pendiente". Un campo cargado dos veces ("dejalo todo en El Retiro") es unirlos, no "borrar".
+- "borrar_campo": borrar un CAMPO o LOTE entero ("borrá el campo Prueba", "el lote 5 ya no va, sacalo").
+  Borrar lo anotado en un campo es "borrar".
 - "abrir_sesion": avisa que EMPIEZA un trabajo en un lote, una manga o una tarea, para que lo que
   dicte después quede junto ("arranco manga en El Retiro", "empiezo siembra lote Los Pinos",
   "arrancamos tacto de vaquillonas en La Pastora"). Completá "establecimiento" si lo nombra y en
@@ -116,6 +120,7 @@ PROMPT = Parte(
   cuál ("perdón, el martes no, el miércoles", "no, era en el lote 4"), es "corregir_pendiente"
   sobre ese, no "corregir".
 - "cancelar": SOLO si viene una PREGUNTA_PENDIENTE y el mensaje la rechaza o la cancela (ver arriba).
+  Sin ella, "cancelá eso que anoté" es "borrar".
 - "mis_campos": quiere ver la lista de sus campos, establecimientos o lotes ("quiero ver mis
   campos", "¿qué campos tengo cargados?", "mostrame los establecimientos", "pasame los lotes que tengo").
 - "mis_datos": quiere ver los datos de su perfil: nombre, rubro, localidad o matrícula ("mostrame

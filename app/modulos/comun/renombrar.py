@@ -1,13 +1,16 @@
-"""Renombrar y unir campos y lotes (paso 8.7 del plan).
+"""Renombrar, unir y borrar campos y lotes (pasos 8.7 y 8.7.1 del plan).
 
 "Omu en realidad es El Ombú", "cambiale el nombre a Omu, se llama El Ombú", "uní Omu con El
-Ombú", "el lote 3 de La Pastora se llama Los Pinos". Sin comando escrito: se pide hablando.
+Ombú", "el lote 3 de La Pastora se llama Los Pinos", "borrá el campo Prueba". Sin comando
+escrito: se pide hablando. Borrar es otra intención (`borrar_campo`), con el mismo dato.
 
 - El campo que cambia tiene que existir con ese nombre (no se busca uno parecido); si no lo
   dice, es el de la sesión abierta o el actual. Los lotes, dentro de un mismo campo.
 - Si el nombre nuevo no existe, cambia el nombre y lo anotado queda igual.
 - Si existe, es una unión: pregunta antes (*sí* / *no*) y muestra qué pasa al que queda. La
   unión la hace `confirmar` con el *sí* (`Cuaderno.unir_establecimientos` / `unir_lotes`).
+- Borrar pregunta siempre, mostrando lo que se borra. Un campo tiene que nombrarse; un lote
+  sin campo es del de la sesión abierta o el actual.
 """
 
 from typing import Annotated
@@ -26,6 +29,7 @@ from app.nucleo.normalizar import normalizar_lote
 
 SIN_NOMBRE = "🤔 No entendí cómo se tiene que llamar.\nProbá con algo como: _Omu en realidad es El Ombú_."
 CUAL_CAMPO = "🤔 ¿A qué campo le cambio el nombre?\nDecímelo así: _Omu en realidad es El Ombú_."
+CUAL_BORRAR = "🤔 ¿Qué campo querés borrar?\nDecímelo así: _borrá el campo Prueba_."
 
 
 class Cambio(Esquema):
@@ -106,20 +110,22 @@ def _lote(ctx: Contexto, cambio: Cambio, nuevo: str) -> str:
     return confirmar.pedir_union(cuaderno, confirmar.UNIR_LOTES, lote.id, otro.id, pregunta, ctx.ahora)
 
 
-def _es_un_lote(ctx: Contexto, nombre: str) -> bool:
-    """No hay un campo con ese nombre pero sí un lote, en el campo actual ("cambiale el nombre
-    al potrero grande"): la IA lo puso como campo."""
+def _es_un_lote(ctx: Contexto, nombre: str, establecimiento: str | None) -> bool:
+    """No hay un campo con ese nombre pero sí un lote ("cambiale el nombre al potrero grande"):
+    la IA lo puso como campo. El lote se busca en el campo que nombra la acción
+    ("establecimiento", como en "el potrero grande de El Ombú") o, si no, en el actual."""
     cuaderno = ctx.cuaderno
-    return (
-        cuaderno.establecimiento_existente(nombre) is None and cuaderno.lote_existente(nombre, _actual(ctx)) is not None
-    )
+    if cuaderno.establecimiento_existente(nombre) is not None:
+        return False
+    donde = cuaderno.establecimiento_existente(establecimiento) if establecimiento else _actual(ctx)
+    return cuaderno.lote_existente(nombre, donde) is not None
 
 
 def manejar(ctx: Contexto, datos: Renombrar) -> str:
     cambio, nuevo = datos.renombrar, datos.renombrar.nuevo
     if not nuevo:
         return SIN_NOMBRE
-    if not cambio.lote and cambio.campo and _es_un_lote(ctx, cambio.campo):
+    if not cambio.lote and cambio.campo and _es_un_lote(ctx, cambio.campo, datos.establecimiento):
         cambio = Cambio(lote=normalizar_lote(cambio.campo), nuevo=nuevo)
     if cambio.lote:
         # El campo del lote: a veces la IA lo pone en "establecimiento" ("el lote 3 de La Pastora").
@@ -128,4 +134,59 @@ def manejar(ctx: Contexto, datos: Renombrar) -> str:
     return _campo(ctx, cambio, nuevo)
 
 
-ACCION = Accion("renombrar_campo", Renombrar, manejar)
+# --- Borrar un campo o un lote (paso 8.7.1) ----------------------------------------------
+
+
+class Cual(Esquema):
+    campo: Annotated[str | None, texto(120)] = None  # el que se borra; con lote, el campo del lote
+    lote: Lote = None  # solo si se borra un lote
+
+
+class BorrarCampo(EsquemaAccion):
+    borrar_campo: Annotated[Cual, SiNoVacio] = Field(default_factory=Cual)
+
+
+def borrar(ctx: Contexto, datos: BorrarCampo) -> str:
+    """Siempre pregunta, mostrando lo que se borra; lo borra `confirmar` con el *sí*."""
+    cuaderno = ctx.cuaderno
+    cual = datos.borrar_campo
+    campo_nombre, lote_nombre = cual.campo, cual.lote
+    if not lote_nombre and campo_nombre and _es_un_lote(ctx, campo_nombre, datos.establecimiento):
+        lote_nombre, campo_nombre = normalizar_lote(campo_nombre), None
+    nombrado = campo_nombre or datos.establecimiento  # a veces la IA lo pone en "establecimiento"
+    if nombrado:
+        campo = cuaderno.establecimiento_existente(nombrado)
+        if campo is None:
+            return _no_esta(ctx, nombrado)
+    elif lote_nombre:
+        campo = _actual(ctx)
+    else:
+        return CUAL_BORRAR
+    if lote_nombre:
+        return _borrar_lote(ctx, lote_nombre, campo)
+    assert campo is not None
+    aca = ""
+    if ctx.usuario.establecimiento_actual_id == campo.id:
+        aca = "\n\n_Es el campo donde estás: vas a quedar sin campo actual._"
+    pregunta = (
+        f"🗑️ *¿Borro el campo {campo.nombre}?*\n\nSe borra con todo lo suyo:\n\n"
+        f"{resumen_union(cuaderno.contenido_establecimiento(campo), de_campo=True)}{aca}"
+    )
+    return confirmar.pedir_baja(cuaderno, confirmar.BORRAR_CAMPO, campo.id, pregunta, ctx.ahora)
+
+
+def _borrar_lote(ctx: Contexto, nombre: str, campo: Establecimiento | None) -> str:
+    cuaderno = ctx.cuaderno
+    donde = f"*{campo.nombre}*" if campo else "tus lotes sin campo"
+    lote = cuaderno.lote_existente(nombre, campo)
+    if lote is None:
+        return f"🤔 No encontré el *{nombre_lote(nombre)}* en {donde}.\nMandá *mis campos* para ver tus lotes."
+    de = f" de {campo.nombre}" if campo else ""
+    pregunta = (
+        f"🗑️ *¿Borro el {nombre_lote(lote.nombre)}{de}?*\n\nSe borra con sus registros y pendientes:\n\n"
+        f"{resumen_union(cuaderno.contenido_lote(lote, para_borrar=True), de_campo=False)}"
+    )
+    return confirmar.pedir_baja(cuaderno, confirmar.BORRAR_LOTE, lote.id, pregunta, ctx.ahora)
+
+
+ACCIONES = [Accion("renombrar_campo", Renombrar, manejar), Accion("borrar_campo", BorrarCampo, borrar)]

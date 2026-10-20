@@ -50,7 +50,8 @@ def _campos(db) -> list[str]:
 
 
 def _evento(campo: Establecimiento | None, lote: Lote | None = None, **datos) -> Evento:
-    return Evento(establecimiento=campo, lote=lote, categoria="campo", tipo="lluvia", fecha_evento=HOY, **datos)
+    datos = {"categoria": "campo", "tipo": "lluvia", **datos}
+    return Evento(establecimiento=campo, lote=lote, fecha_evento=HOY, **datos)
 
 
 def _cargar(db) -> tuple[Usuario, Establecimiento, Establecimiento]:
@@ -272,3 +273,97 @@ def test_mis_campos_muestra_los_pendientes_de_cada_campo(db, ia):
     r = _mandar(db, "mis campos")
     assert "📍 *Omu* · 1 registro · 1 pendiente · _estás acá_" in r
     assert "📍 *El Ombú* · 1 registro\n" in r  # sin pendientes no los nombra
+
+
+# --- Borrar un campo o un lote (paso 8.7.1) ------------------------------------------
+
+
+def _borrar(campo: str | None, lote: str | None = None) -> dict:
+    return {"intencion": "borrar_campo", "borrar_campo": {"campo": campo, "lote": lote}}
+
+
+def test_borrar_un_campo_pregunta_y_borra_todo_lo_suyo(db, ia):
+    dichas, _ = ia
+    usuario, omu, ombu = _cargar(db)
+    omu_id, ombu_id = omu.id, ombu.id
+    cuaderno = Cuaderno(db, usuario)
+    lote_omu = cuaderno.lote_existente("3", omu)
+    # Un traslado de El Ombú al lote 3 de Omu: queda, sin el destino.
+    cuaderno.agregar([_evento(ombu, cuaderno.lote_existente("3", ombu), lote_destino=lote_omu, tipo="traslado")])
+    dichas["borrá el campo omu"] = _borrar("Omu")
+    r = _mandar(db, "borrá el campo Omu")
+    assert r.startswith("🗑️ *¿Borro el campo Omu?*\n\nSe borra con todo lo suyo:")
+    for linea in ("› 1 registro", "› 1 pendiente", "› 2 lotes", "› 1 sesión de trabajo"):
+        assert linea in r
+    assert "_Es el campo donde estás: vas a quedar sin campo actual._" in r
+    assert "_Esto no se puede deshacer._" in r and _campos(db) == ["Omu", "El Ombú"]
+
+    assert _mandar(db, "sí").startswith("🗑️ *CAMPO BORRADO*\n\nListo, borré *Omu* con todo lo suyo:")
+    assert _campos(db) == ["El Ombú"]
+    assert {e.establecimiento_id for e in db.scalars(select(Evento))} == {ombu_id}
+    assert db.scalar(select(Evento).where(Evento.tipo == "traslado")).lote_destino_id is None
+    assert db.scalars(select(Pendiente)).all() == [] and db.scalars(select(Sesion)).all() == []
+    assert [lote.establecimiento_id for lote in db.scalars(select(Lote))] == [ombu_id]
+    assert db.get(Usuario, usuario.id).establecimiento_actual_id is None
+    fila = db.scalar(select(Auditoria).where(Auditoria.accion == "borrar_campo"))
+    assert fila.detalle == {"cuenta": usuario.cuenta_id, "campo": omu_id, "registros": 1, "pendientes": 1}
+    assert "Omu" not in Cuaderno(db, usuario).nombres_propios()  # sale del glosario de los audios
+
+
+@pytest.mark.parametrize("texto", ["no", "no, dejá", "cancelá"])
+def test_cancelar_el_borrado_de_un_campo(db, ia, texto):
+    dichas, _ = ia
+    _cargar(db)
+    dichas["borrá el campo omu"] = _borrar("Omu")
+    _mandar(db, "borrá el campo Omu")
+    assert _mandar(db, texto) == "👌 Listo, no borré nada."
+    assert _campos(db) == ["Omu", "El Ombú"] and len(db.scalars(select(Evento)).all()) == 2
+
+
+def test_borrar_un_lote_deja_las_sesiones_sin_lote(db, ia):
+    dichas, _ = ia
+    usuario, omu, _ = _cargar(db)
+    lote = Cuaderno(db, usuario).lote_existente("3", omu)
+    assert lote is not None
+    lote_id = lote.id
+    dichas["el lote 3 ya no va, sacalo"] = _borrar(None, lote="3")
+    r = _mandar(db, "el lote 3 ya no va, sacalo")  # sin campo: el de la sesión, Omu
+    assert r.startswith("🗑️ *¿Borro el lote 3 de Omu?*\n\nSe borra con sus registros y pendientes:")
+    assert "› 1 registro" in r and "sesión" not in r
+    assert _mandar(db, "dale").startswith("🗑️ *LOTE BORRADO*\n\nListo, borré *lote 3* con todo lo suyo:")
+    assert db.get(Lote, lote_id) is None
+    assert len(db.scalars(select(Evento)).all()) == 1  # queda el de El Ombú
+    assert db.scalar(select(Sesion.lote_id)) is None and db.scalar(select(Sesion.establecimiento_id)) == omu.id
+
+
+def test_borrar_un_campo_sin_decir_cual_pregunta(db, ia):
+    dichas, _ = ia
+    _cargar(db)
+    dichas["borrá este campo"] = _borrar(None)
+    assert _mandar(db, "borrá este campo").startswith("🤔 ¿Qué campo querés borrar?")
+
+
+def test_cancelar_sin_una_pregunta_no_dice_listo(db, ia):
+    """La IA puede devolver "cancelar" para "cancelá eso que anoté": no se deshizo nada."""
+    dichas, _ = ia
+    con_perfil(db, TEL)
+    dichas["ehh no no cancelá eso que anoté recién"] = {"intencion": "cancelar"}
+    r = _mandar(db, "ehh no no cancelá eso que anoté recién")
+    assert r == "🤔 No había nada para cancelar.\nSi querés deshacer lo último que anotaste, mandá *borrar*."
+
+
+def test_borrar_un_lote_que_vino_como_campo_de_otro_campo(db, ia):
+    """Lo que devolvió la IA en el eval para "el potrero grande de El Ombú ya no existe, borralo"."""
+    dichas, _ = ia
+    usuario, _, ombu = _cargar(db)  # el campo actual es Omu
+    Cuaderno(db, usuario).lote("potrero grande", ombu)
+    dichas["el potrero grande de el ombú ya no existe, borralo"] = {
+        **_borrar("potrero grande"),
+        "establecimiento": "El Ombú",
+    }
+    r = _mandar(db, "el potrero grande de El Ombú ya no existe, borralo")
+    assert r.startswith("🗑️ *¿Borro el potrero grande de El Ombú?*")
+    _mandar(db, "sí")
+    lotes = db.scalars(select(Lote.nombre).where(Lote.establecimiento_id == ombu.id)).all()
+    assert lotes == ["3"]  # el potrero grande de Omu no se tocó
+    assert len(db.scalars(select(Lote)).all()) == 3

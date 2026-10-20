@@ -567,7 +567,7 @@ de 2b, 7 y 8b):
       Fallaron: "tengo El Retiro cargado dos veces, uno como Retiro, dejalo todo en El Retiro"
       (vino "borrar"; borrar pide confirmación solo desde 4 registros) y "ehh no no cancelá eso
       que anoté recién", del 7.2 (vino "cancelar": responde "Listo" y no borra).
-- [ ] 8.7.1 · Lo que dejó el eval del 8.7, y borrar campos y lotes:
+- [x] 8.7.1 · Lo que dejó el eval del 8.7, y borrar campos y lotes:
       - "Tengo El Retiro cargado dos veces… dejalo todo en El Retiro" venía como "borrar": el
         prompt dice que un campo cargado dos veces o con dos nombres es unirlos, no borrar. El
         eval muestra siempre el JSON de la IA cuando falla una frase (no solo con las fechas).
@@ -592,6 +592,15 @@ de 2b, 7 y 8b):
       - Set: 5 frases de borrar campos y lotes, y 2 variantes de "cancelá eso que anoté".
         Verificación: solo las 5 de unir campos, las 5 nuevas y las 3 de "cancelá eso".
         Tope: USD 0,05.
+
+      Cómo quedó: las 13 frases bien (USD 0,029). "uní Omu con El Ombú" se cortó dos veces por
+      demora de OpenRouter (más de 6 s; en el bot pasa a Groq) y a la tercera salió en 1,6 s. Con
+      lo que devolvió la IA ("el potrero grande de El Ombú ya no existe, borralo" vino con el potrero
+      como campo y El Ombú en "establecimiento"), el ajuste del 8.7 que toma un "campo" que no
+      existe como lote busca el lote también en el campo que nombra la acción, no solo en el actual.
+      La pregunta guarda `baja_campo` o `baja_lote`. El prompt del módulo común quedó en 23.988
+      caracteres, al lado del tope de 24.000 (`LARGO_MAXIMO_PROMPT`): lo nuevo se escribió corto
+      para entrar, y para sumar ganadería y agricultura hay que decidir antes qué se hace con el tope.
 - [ ] 9a · Modo prueba.
 - [ ] 9b · Set de evaluación armado con el modo prueba (`eval revisar`); el comando
       `python -m app eval` ya existe desde el 8.2.

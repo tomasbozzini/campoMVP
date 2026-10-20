@@ -211,10 +211,10 @@ class Cuaderno:
             self.db, auditoria.RENOMBRAR_CAMPO, actor=self.usuario_id, cuenta=self.cuenta_id, campo=establecimiento.id
         )
 
-    def contenido_establecimiento(self, origen: Establecimiento, destino: Establecimiento) -> Contenido:
-        """Lo que pasaría de `origen` a `destino` si se unen."""
+    def contenido_establecimiento(self, origen: Establecimiento, destino: Establecimiento | None = None) -> Contenido:
+        """Lo que tiene `origen`: lo que pasaría a `destino` si se unen, o lo que se borraría."""
         lotes = self._lotes_de(origen.id)
-        del_destino = {lote.nombre for lote in self._lotes_de(destino.id)}
+        del_destino = {lote.nombre for lote in self._lotes_de(destino.id)} if destino else set()
         return Contenido(
             registros=self._contar(Evento, Evento.establecimiento_id == origen.id),
             pendientes=self._contar(Pendiente, Pendiente.establecimiento_id == origen.id),
@@ -268,6 +268,81 @@ class Cuaderno:
         )
         return contenido
 
+    def borrar_establecimiento(self, establecimiento_id: int) -> Contenido | None:
+        """Borra el campo con todo lo suyo: registros, pendientes, sesiones y lotes. Quien lo
+        tenía como campo actual queda sin campo actual. None si ya no está."""
+        campo = self.db.get(Establecimiento, establecimiento_id)
+        if campo is None or campo.cuenta_id != self.cuenta_id:
+            return None
+        contenido = self.contenido_establecimiento(campo)
+        lotes = [lote.id for lote in self._lotes_de(campo.id)]
+        sesiones = select(Sesion.id).where(Sesion.cuenta_id == self.cuenta_id, Sesion.establecimiento_id == campo.id)
+        # Lo de otros campos que apunta a lo que se borra (un traslado a uno de sus lotes) queda sin eso.
+        self._sin(Evento, "lote_id", Evento.lote_id.in_(lotes))
+        self._sin(Evento, "lote_destino_id", Evento.lote_destino_id.in_(lotes))
+        self._sin(Evento, "sesion_id", Evento.sesion_id.in_(sesiones))
+        self._sin(Pendiente, "lote_id", Pendiente.lote_id.in_(lotes))
+        self._sin(Sesion, "lote_id", Sesion.lote_id.in_(lotes))
+        for modelo in (Evento, Pendiente, Sesion):
+            self.db.execute(
+                delete(modelo)
+                .where(modelo.cuenta_id == self.cuenta_id, modelo.establecimiento_id == campo.id)
+                .execution_options(synchronize_session="fetch")
+            )
+        self._sin(Usuario, "establecimiento_actual_id", Usuario.establecimiento_actual_id == campo.id)
+        self.db.execute(delete(Lote).where(Lote.cuenta_id == self.cuenta_id, Lote.id.in_(lotes)))
+        self.db.delete(campo)
+        self.db.flush()
+        self.db.expire_all()  # lo cargado (el campo actual, la sesión) puede apuntar a lo borrado
+        auditoria.registrar(
+            self.db,
+            auditoria.BORRAR_CAMPO,
+            actor=self.usuario_id,
+            cuenta=self.cuenta_id,
+            campo=establecimiento_id,
+            registros=contenido.registros,
+            pendientes=contenido.pendientes,
+        )
+        return contenido
+
+    def borrar_lote(self, lote_id: int) -> Contenido | None:
+        """Borra el lote con sus registros y pendientes. Los traslados que lo tenían de destino
+        y las sesiones en ese lote quedan, sin lote. None si ya no está."""
+        lote = self.db.get(Lote, lote_id)
+        if lote is None or lote.cuenta_id != self.cuenta_id:
+            return None
+        contenido = self.contenido_lote(lote, para_borrar=True)
+        self._sin(Evento, "lote_destino_id", Evento.lote_destino_id == lote.id)
+        self._sin(Sesion, "lote_id", Sesion.lote_id == lote.id)
+        for modelo in (Evento, Pendiente):
+            self.db.execute(
+                delete(modelo)
+                .where(modelo.cuenta_id == self.cuenta_id, modelo.lote_id == lote.id)
+                .execution_options(synchronize_session="fetch")
+            )
+        self.db.delete(lote)
+        self.db.flush()
+        self.db.expire_all()
+        auditoria.registrar(
+            self.db,
+            auditoria.BORRAR_LOTE,
+            actor=self.usuario_id,
+            cuenta=self.cuenta_id,
+            lote=lote_id,
+            registros=contenido.registros,
+            pendientes=contenido.pendientes,
+        )
+        return contenido
+
+    def _sin(self, modelo: Any, columna: str, condicion: Any) -> None:
+        """Pone en vacío esa columna en las filas de esta cuenta que cumplen la condición."""
+        self.db.execute(
+            update(modelo)
+            .where(modelo.cuenta_id == self.cuenta_id, condicion)
+            .values({columna: None})
+            .execution_options(synchronize_session="fetch")
+        )
+
     def lote_existente(self, nombre: str | None, establecimiento: Establecimiento | None) -> Lote | None:
         """El lote con ese nombre en ese campo (o suelto); None si no lo tiene (no lo crea)."""
         limpio = normalizar_lote(nombre)
@@ -284,12 +359,14 @@ class Cuaderno:
             self.db, auditoria.RENOMBRAR_LOTE, actor=self.usuario_id, cuenta=self.cuenta_id, lote=lote.id
         )
 
-    def contenido_lote(self, lote: Lote) -> Contenido:
-        """Lo que pasaría de ese lote a otro si se unen."""
+    def contenido_lote(self, lote: Lote, para_borrar: bool = False) -> Contenido:
+        """Lo que pasaría de ese lote a otro si se unen o, `para_borrar`, lo que se borraría
+        con él (sus registros y pendientes: los traslados hacia él y las sesiones quedan)."""
+        suyos = Evento.lote_id == lote.id
         return Contenido(
-            registros=self._contar(Evento, (Evento.lote_id == lote.id) | (Evento.lote_destino_id == lote.id)),
+            registros=self._contar(Evento, suyos if para_borrar else suyos | (Evento.lote_destino_id == lote.id)),
             pendientes=self._contar(Pendiente, Pendiente.lote_id == lote.id),
-            sesiones=self._contar(Sesion, Sesion.lote_id == lote.id),
+            sesiones=0 if para_borrar else self._contar(Sesion, Sesion.lote_id == lote.id),
             lotes=[],
             lotes_iguales=[],
         )

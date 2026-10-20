@@ -26,7 +26,7 @@ ACCIONES = [
     consultar.ACCION,
     exportar.ACCION,
     establecimiento.ACCION,
-    renombrar.ACCION,
+    *renombrar.ACCIONES,
     precios.ACCION,
     senasa.ACCION,
     *sesion.ACCIONES,

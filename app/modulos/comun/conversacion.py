@@ -16,6 +16,7 @@ SALUDO = (
     "Mandá *ayuda* para ver ejemplos."
 )
 GRACIAS = "¡De nada! 👍"
+NADA_QUE_CANCELAR = "🤔 No había nada para cancelar.\nSi querés deshacer lo último que anotaste, mandá *borrar*."
 
 # Preguntas fijas para cuando falta un dato. La IA elige cuáles faltan; el texto es del código.
 PREGUNTAS = {
@@ -65,7 +66,10 @@ def saludar(ctx: Contexto, datos: Saludo) -> str:
 
 def cancelar(ctx: Contexto, _datos: Cancelar) -> str:
     """La persona cancela la pregunta que el bot le acababa de hacer ("no, dejá, no quiero
-    cambiar nada"). La pregunta ya se descartó: solo falta decírselo."""
+    cambiar nada"). La pregunta ya se descartó: solo falta decírselo. Sin una pregunta, no
+    hay nada que cancelar: decir "Listo" le haría creer que se deshizo algo (paso 8.7.1)."""
+    if ctx.pregunta_abierta is None:
+        return NADA_QUE_CANCELAR
     return preguntas.al_cancelar(ctx.pregunta_abierta)
 
 

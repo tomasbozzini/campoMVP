@@ -105,4 +105,4 @@ def test_cancelar_sin_pregunta_pendiente_no_hace_nada(db, ia):
     respuestas, _ = ia
     con_perfil(db, TEL)
     respuestas["cancelá"] = {"intencion": "cancelar"}
-    assert _mandar(db, "cancelá") == "👌 Listo."
+    assert _mandar(db, "cancelá") == conversacion.NADA_QUE_CANCELAR  # no dice "Listo": no se deshizo nada
