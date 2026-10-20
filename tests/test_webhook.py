@@ -90,6 +90,15 @@ def test_politica_de_privacidad(cliente, monkeypatch):
     assert "Ley 25.326" in r.text and "borrar mis datos" in r.text
 
 
+def test_salud_dice_que_commit_corre(cliente, monkeypatch):
+    # Paso 8.7.3: para comprobar que Railway desplegó el último push.
+    monkeypatch.setattr(config, "railway_git_commit_sha", "73d55df0123456789abcdef0123456789abcdef0")
+    assert cliente.get("/salud").json() == {"ok": True, "commit": "73d55df"}
+    assert cliente.get("/").json() == {"ok": True, "commit": "73d55df"}
+    monkeypatch.setattr(config, "railway_git_commit_sha", "")  # en la compu no está
+    assert cliente.get("/salud").json() == {"ok": True, "commit": None}
+
+
 @pytest.mark.parametrize("timestamp", ["ayer", "17.6e8x", {"segundos": 1}, None])
 def test_un_timestamp_mal_formado_no_tira_abajo_el_webhook(cliente, monkeypatch, timestamp):
     monkeypatch.setattr(config, "admin_telefonos", {"5491100000001"})

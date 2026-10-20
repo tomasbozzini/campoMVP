@@ -37,6 +37,10 @@ de producto"). `README.md` explica el uso y el funcionamiento.
   para hacer una copia de la base de Railway.
 - Las pruebas desde el celular son contra Railway: las instrucciones no piden ngrok,
   uvicorn ni copiar `campo.db`.
+- **No decir que Railway desplegó sin comprobarlo** (paso 8.7.3: hubo pushes que no se
+  desplegaron). `/salud` devuelve el commit que corre (`{"ok": true, "commit": "abc1234"}`):
+  en el resumen de cada paso, pasar el link de `/salud` y el commit subido, para que el
+  usuario vea que coinciden antes de probar.
 
 ## Chequeos
 

@@ -308,14 +308,14 @@ En Railway el proyecto queda armado con **tres servicios**, todos dentro del mis
 1. Entrá a [railway.com](https://railway.com) con tu cuenta de GitHub → *New Project* → *Deploy from GitHub repo* → este repo. En *Settings → Source → Branch* elegí la rama del bot.
 2. *New → Database → PostgreSQL*.
 3. En el servicio del bot → *Variables* → *Raw Editor*: `DATABASE_URL=${{Postgres.DATABASE_URL}}`, `ENTORNO=produccion` y el resto de las variables de `.env.example` (`GROQ_API_KEY`, `OPENROUTER_API_KEY`, `WA_TOKEN`, `WA_PHONE_NUMBER_ID`, `META_APP_SECRET`, `WA_VERIFY_TOKEN`, `ADMIN_TELEFONOS`, `CLAVE_HASH`, `WA_NUMERO_BOT`, `PRIVACIDAD_*`). Si falta alguna obligatoria, el deploy falla y el log dice cuál.
-4. *Settings → Networking → Generate Domain*. Abrí `https://tu-bot.up.railway.app/`: tiene que responder `{"ok": true}`.
+4. *Settings → Networking → Generate Domain*. Abrí `https://tu-bot.up.railway.app/salud`: tiene que responder `{"ok": true, "commit": "..."}`, con los primeros 7 caracteres del commit desplegado.
 5. Creá el servicio **actualizar-precios** (*New → GitHub Repo*, mismo repo y rama) con el start command y el cron de la tabla, y la variable `DATABASE_URL`. Ejecutalo una vez a mano para cargar los datos iniciales.
 6. En Meta → *Casos de uso → Conectar en WhatsApp → Personalizar* → *Configuración* (*Configuration*), sección *Webhook*: Callback URL `https://tu-bot.up.railway.app/webhook`, el mismo verify token, y suscripción a **messages**. La política de privacidad queda en `https://tu-bot.up.railway.app/privacidad`.
 7. Mandale `hola` al bot. Los logs se ven en el servicio del bot → *Deployments* → *View logs*.
 
 ### Uso diario
 
-- **Subir cambios**: hacés `git push` a la rama y Railway vuelve a construir y prender el bot solo. Si el cambio trae una migración, se aplica al arrancar (`python -m app db migrar`, en el `Dockerfile`).
+- **Subir cambios**: hacés `git push` a la rama y Railway vuelve a construir y prender el bot solo. Si el cambio trae una migración, se aplica al arrancar (`python -m app db migrar`, en el `Dockerfile`). Antes de probar, fijate en `https://tu-bot.up.railway.app/salud` que el commit sea el que subiste (`git log -1 --format=%h`): a veces Railway no se entera de un push y sigue corriendo el anterior.
 - **Cambiar una clave** (por ejemplo, el token de Meta): editás la variable en *Variables* y se redeploya solo.
 - **La IA**: con `OPENROUTER_API_KEY` en *Variables*, OpenRouter interpreta los mensajes y Groq queda de respaldo; sin ella, todo va por Groq (no es obligatoria: el bot arranca igual). Al arrancar, el log dice cuál se usa (`IA: OpenRouter (openai/gpt-oss-120b, esfuerzo low) con Groq de respaldo; audios en Groq`), y cada mensaje deja una línea `IA openrouter (...)` o `IA groq`. El saldo y los pedidos se ven en [openrouter.ai/activity](https://openrouter.ai/activity). `OPENROUTER_ESFUERZO` (low, medium o high) cambia cuánto razona el modelo.
 - **Ver qué pasa**: *View logs* del bot muestra lo mismo que la terminal de uvicorn. Los logs salen por stdout, así Railway no los pinta en rojo como errores.

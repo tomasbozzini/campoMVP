@@ -5,14 +5,17 @@ from typing import Any
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 
+from app.infra.config import config
 from app.salidas import privacidad
 
 rutas = APIRouter()
 
 
 @rutas.get("/")
+@rutas.get("/salud")
 def salud() -> dict[str, Any]:
-    return {"ok": True}
+    """Responde si el servidor anda y qué commit corre, para ver que Railway desplegó el último."""
+    return {"ok": True, "commit": config.railway_git_commit_sha[:7] or None}
 
 
 @rutas.get("/privacidad", response_class=HTMLResponse)

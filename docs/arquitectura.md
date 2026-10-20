@@ -659,6 +659,25 @@ de 2b, 7 y 8b):
       responde desde el 8.7.1). Costo: USD 0,056 entre reproducir la prueba (USD 0,016) y el eval
       (USD 0,040): se pasó USD 0,006 del tope, porque el tope del eval se mira después de cada
       frase.
+
+      Corrección (8.7.3): las pruebas de la tarde corrieron sobre el 8.7, porque Railway no
+      desplegó el 8.7.1 ni el 8.7.2. El 8.7 no tenía `borrar_campo`, así que la IA solo podía
+      mandar "borrar", y con menos de 4 registros se borraba sin preguntar. La red de seguridad
+      queda igual.
+- [x] 8.7.3 · Saber qué versión corre en Railway. Railway no desplegó el 8.7.1 ni el 8.7.2
+      (no figuran ni como Skipped; la rama y el despliegue automático están bien: parece que no
+      le llegó el aviso de GitHub), y las pruebas desde el celular corrieron sobre el 8.7.
+      - `/salud` devuelve el commit desplegado: los primeros 7 caracteres de
+        `RAILWAY_GIT_COMMIT_SHA`, que pone Railway (`{"ok": true, "commit": "abc1234"}`; sin la
+        variable, `null`). Nada más. `/` sigue respondiendo lo mismo.
+      - En el resumen de cada paso no se dice que Railway lo desplegó sin comprobarlo: se pasa
+        el link de `/salud` para que el usuario vea que el commit coincide antes de probar. Va
+        también en CLAUDE.md (Producción).
+      - Este push sirve para ver si el despliegue automático volvió a andar.
+
+      Cómo quedó: la variable se lee en la configuración (`railway_git_commit_sha`). `/salud` es
+      una ruta nueva (antes la salud estaba solo en `/`) y las dos responden lo mismo. El README
+      dice que hay que mirar `/salud` antes de probar.
 - [ ] 9a · Modo prueba.
 - [ ] 9b · Set de evaluación armado con el modo prueba (`eval revisar`); el comando
       `python -m app eval` ya existe desde el 8.2.

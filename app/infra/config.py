@@ -75,6 +75,9 @@ class Configuracion(BaseSettings):
     # URL pública de la política (ej: https://tu-bot.up.railway.app/privacidad), para el comando "privacidad"
     privacidad_url: str = ""
 
+    # Railway la pone en cada despliegue: /salud muestra qué commit está corriendo.
+    railway_git_commit_sha: str = ""
+
     @field_validator("entorno", mode="before")
     @classmethod
     def _entorno(cls, valor: object) -> object:
