@@ -43,6 +43,18 @@ class Campo:
     establecimiento: Establecimiento | None
     lotes: list[str]
     registros: int
+    pendientes: int = 0  # los que no están hechos
+
+
+@dataclass(frozen=True)
+class Contenido:
+    """Lo que tiene un campo o un lote: lo que pasa al otro si se unen."""
+
+    registros: int
+    pendientes: int  # hechos o no
+    sesiones: int
+    lotes: list[str]  # solo los de un campo: sus lotes
+    lotes_iguales: list[str]  # de esos, los que el otro campo ya tiene con el mismo nombre
 
 
 class CampoParecido(Exception):
@@ -178,6 +190,166 @@ class Cuaderno:
         self.db.flush()
         return nuevo
 
+    def establecimiento_existente(self, nombre: str | None) -> Establecimiento | None:
+        """El establecimiento con ese nombre, escrito como sea; None si no lo tiene (no lo crea
+        ni busca uno parecido)."""
+        clave = clave_establecimiento(nombre)
+        if not clave:
+            return None
+        return self.db.scalar(
+            select(Establecimiento).where(Establecimiento.cuenta_id == self.cuenta_id, Establecimiento.clave == clave)
+        )
+
+    def renombrar_establecimiento(self, establecimiento: Establecimiento, nombre: str) -> None:
+        """Le cambia el nombre (y la clave). Ningún otro de la cuenta puede tener esa clave."""
+        if establecimiento.cuenta_id != self.cuenta_id:
+            raise ValueError("El establecimiento es de otra cuenta")
+        establecimiento.nombre = prolijo(nombre)
+        establecimiento.clave = clave_establecimiento(nombre) or establecimiento.clave
+        self.db.flush()
+        auditoria.registrar(
+            self.db, auditoria.RENOMBRAR_CAMPO, actor=self.usuario_id, cuenta=self.cuenta_id, campo=establecimiento.id
+        )
+
+    def contenido_establecimiento(self, origen: Establecimiento, destino: Establecimiento) -> Contenido:
+        """Lo que pasaría de `origen` a `destino` si se unen."""
+        lotes = self._lotes_de(origen.id)
+        del_destino = {lote.nombre for lote in self._lotes_de(destino.id)}
+        return Contenido(
+            registros=self._contar(Evento, Evento.establecimiento_id == origen.id),
+            pendientes=self._contar(Pendiente, Pendiente.establecimiento_id == origen.id),
+            sesiones=self._contar(Sesion, Sesion.establecimiento_id == origen.id),
+            lotes=_ordenar_lotes([lote.nombre for lote in lotes]),
+            lotes_iguales=_ordenar_lotes([lote.nombre for lote in lotes if lote.nombre in del_destino]),
+        )
+
+    def unir_establecimientos(self, origen_id: int, destino_id: int) -> Contenido | None:
+        """Pasa todo lo de `origen` a `destino` y borra `origen`: registros, pendientes, sesiones
+        y lotes (los que `destino` ya tiene con el mismo nombre se unen). Quien tenía `origen`
+        como campo actual pasa a tener `destino`. None si alguno ya no está."""
+        origen = self.db.get(Establecimiento, origen_id)
+        destino = self.db.get(Establecimiento, destino_id)
+        if origen is None or destino is None or origen.id == destino.id:
+            return None
+        if origen.cuenta_id != self.cuenta_id or destino.cuenta_id != self.cuenta_id:
+            return None
+        contenido = self.contenido_establecimiento(origen, destino)
+        de_destino = {lote.nombre: lote for lote in self._lotes_de(destino.id)}
+        for lote in self._lotes_de(origen.id):
+            if lote.nombre in de_destino:
+                self._pasar_lote(lote, de_destino[lote.nombre])
+            else:
+                lote.establecimiento_id = destino.id
+        for modelo in (Evento, Pendiente, Sesion):
+            self.db.execute(
+                update(modelo)
+                .where(modelo.cuenta_id == self.cuenta_id, modelo.establecimiento_id == origen.id)
+                .values(establecimiento_id=destino.id)
+                .execution_options(synchronize_session="fetch")
+            )
+        self.db.execute(
+            update(Usuario)
+            .where(Usuario.cuenta_id == self.cuenta_id, Usuario.establecimiento_actual_id == origen.id)
+            .values(establecimiento_actual_id=destino.id)
+            .execution_options(synchronize_session="fetch")
+        )
+        self.db.delete(origen)
+        self.db.flush()
+        # Lo que ya estaba cargado (el campo actual, los registros) puede apuntar al que se borró.
+        self.db.expire_all()
+        auditoria.registrar(
+            self.db,
+            auditoria.UNIR_CAMPOS,
+            actor=self.usuario_id,
+            cuenta=self.cuenta_id,
+            origen=origen_id,
+            destino=destino_id,
+            registros=contenido.registros,
+        )
+        return contenido
+
+    def lote_existente(self, nombre: str | None, establecimiento: Establecimiento | None) -> Lote | None:
+        """El lote con ese nombre en ese campo (o suelto); None si no lo tiene (no lo crea)."""
+        limpio = normalizar_lote(nombre)
+        lotes = self._lotes_de(establecimiento.id if establecimiento else None)
+        return next((lote for lote in lotes if lote.nombre == limpio), None) if limpio else None
+
+    def renombrar_lote(self, lote: Lote, nombre: str) -> None:
+        """Le cambia el nombre. Ningún otro lote de su campo puede llamarse así."""
+        if lote.cuenta_id != self.cuenta_id:
+            raise ValueError("El lote es de otra cuenta")
+        lote.nombre = normalizar_lote(nombre) or lote.nombre
+        self.db.flush()
+        auditoria.registrar(
+            self.db, auditoria.RENOMBRAR_LOTE, actor=self.usuario_id, cuenta=self.cuenta_id, lote=lote.id
+        )
+
+    def contenido_lote(self, lote: Lote) -> Contenido:
+        """Lo que pasaría de ese lote a otro si se unen."""
+        return Contenido(
+            registros=self._contar(Evento, (Evento.lote_id == lote.id) | (Evento.lote_destino_id == lote.id)),
+            pendientes=self._contar(Pendiente, Pendiente.lote_id == lote.id),
+            sesiones=self._contar(Sesion, Sesion.lote_id == lote.id),
+            lotes=[],
+            lotes_iguales=[],
+        )
+
+    def unir_lotes(self, origen_id: int, destino_id: int) -> Contenido | None:
+        """Pasa todo lo de un lote a otro del mismo campo y borra el primero. None si alguno ya
+        no está o no son del mismo campo."""
+        origen = self.db.get(Lote, origen_id)
+        destino = self.db.get(Lote, destino_id)
+        if origen is None or destino is None or origen.id == destino.id:
+            return None
+        if origen.cuenta_id != self.cuenta_id or destino.cuenta_id != self.cuenta_id:
+            return None
+        if origen.establecimiento_id != destino.establecimiento_id:
+            return None
+        contenido = self.contenido_lote(origen)
+        self._pasar_lote(origen, destino)
+        self.db.flush()
+        auditoria.registrar(
+            self.db,
+            auditoria.UNIR_LOTES,
+            actor=self.usuario_id,
+            cuenta=self.cuenta_id,
+            origen=origen_id,
+            destino=destino_id,
+            registros=contenido.registros,
+        )
+        return contenido
+
+    def _pasar_lote(self, origen: Lote, destino: Lote) -> None:
+        """Lo que apunta a `origen` pasa a apuntar a `destino`, y `origen` se borra."""
+        for modelo, columna in (
+            (Evento, "lote_id"),
+            (Evento, "lote_destino_id"),
+            (Pendiente, "lote_id"),
+            (Sesion, "lote_id"),
+        ):
+            self.db.execute(
+                update(modelo)
+                .where(modelo.cuenta_id == self.cuenta_id, getattr(modelo, columna) == origen.id)
+                .values({columna: destino.id})
+                .execution_options(synchronize_session="fetch")
+            )
+        self.db.delete(origen)
+        self.db.flush()
+        # Lo que ya estaba cargado (el campo actual, los registros) puede apuntar al que se borró.
+        self.db.expire_all()
+
+    def _lotes_de(self, establecimiento_id: int | None) -> list[Lote]:
+        campo = (
+            Lote.establecimiento_id.is_(None)
+            if establecimiento_id is None
+            else Lote.establecimiento_id == establecimiento_id
+        )
+        return list(self.db.scalars(select(Lote).where(Lote.cuenta_id == self.cuenta_id, campo)).all())
+
+    def _contar(self, modelo: type[Evento] | type[Pendiente] | type[Sesion], condicion: Any) -> int:
+        q = select(func.count(modelo.id)).where(modelo.cuenta_id == self.cuenta_id, condicion)
+        return self.db.scalar(q) or 0
+
     def _parecido(self, clave: str) -> Establecimiento | None:
         """El establecimiento con el nombre más parecido a esa clave, si pasa el mínimo."""
         candidatos = self.db.scalars(select(Establecimiento).where(Establecimiento.cuenta_id == self.cuenta_id))
@@ -229,9 +401,21 @@ class Cuaderno:
                 .group_by(Evento.establecimiento_id)
             ).all()
         )
-        campos = [Campo(e, _ordenar_lotes(lotes.get(e.id, [])), registros.get(e.id, 0)) for e in establecimientos]
-        if lotes.get(None) or registros.get(None):
-            campos.append(Campo(None, _ordenar_lotes(lotes.get(None, [])), registros.get(None, 0)))
+        pendientes: dict[int | None, int] = dict(
+            self.db.execute(
+                select(Pendiente.establecimiento_id, func.count(Pendiente.id))
+                .where(Pendiente.cuenta_id == self.cuenta_id, Pendiente.hecho.is_(None))
+                .group_by(Pendiente.establecimiento_id)
+            ).all()
+        )
+        campos = [
+            Campo(e, _ordenar_lotes(lotes.get(e.id, [])), registros.get(e.id, 0), pendientes.get(e.id, 0))
+            for e in establecimientos
+        ]
+        if lotes.get(None) or registros.get(None) or pendientes.get(None):
+            campos.append(
+                Campo(None, _ordenar_lotes(lotes.get(None, [])), registros.get(None, 0), pendientes.get(None, 0))
+            )
         return campos
 
     def nombres_propios(self) -> list[str]:

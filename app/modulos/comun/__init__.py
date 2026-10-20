@@ -12,6 +12,7 @@ from app.modulos.comun import (
     pendientes,
     precios,
     registrar,
+    renombrar,
     senasa,
     sesion,
 )
@@ -25,6 +26,7 @@ ACCIONES = [
     consultar.ACCION,
     exportar.ACCION,
     establecimiento.ACCION,
+    renombrar.ACCION,
     precios.ACCION,
     senasa.ACCION,
     *sesion.ACCIONES,

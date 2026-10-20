@@ -68,6 +68,28 @@ def es_cancelar(texto: str) -> bool:
     return es_no(texto) and any(p in _CANCELAR for p in _palabras(texto))
 
 
+# "¿*El Ombú* es *Omu*?": *cambiale el nombre* (Omu pasa a llamarse El Ombú).
+_RENOMBRAR = {"nombre", "renombra", "renombralo", "renombrar", "renombrarlo"}
+_RELLENO_RENOMBRAR = {
+    "cambia", "cambiale", "cambialo", "cambiar", "cambiarle", "ponele", "pone", "poner", "si", "dale", "ok",
+    "mejor", "el", "la", "al", "a", "de", "del", "que", "se", "llame", "llama", "le", "lo", "su", "nuevo", "por",
+    "ese", "es", "campo",
+}  # fmt: skip
+
+
+def es_renombrar(texto: str, nombres: Sequence[str]) -> bool:
+    """*cambiale el nombre* a la pregunta de un campo parecido: todas las palabras tienen que
+    ser de esa respuesta, de los nombres de los dos campos (`nombres`) o del relleno, y sin
+    ningún *no* ("no, no le cambies el nombre, El Ombú es otro campo" no es)."""
+    de_los_nombres = {p for nombre in nombres for p in _palabras(nombre)}
+    palabras = _palabras(texto)
+    if any(p in _NO for p in palabras):
+        return False
+    return any(p in _RENOMBRAR for p in palabras) and all(
+        p in _RENOMBRAR | _RELLENO_RENOMBRAR | _RELLENO | de_los_nombres for p in palabras
+    )
+
+
 _DIAS_SEMANA = ("lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo")
 _MESES = (
     "enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre",

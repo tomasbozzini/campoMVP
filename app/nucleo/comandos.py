@@ -47,6 +47,7 @@ _Hablame como siempre, por audio o por escrito: no hace falta ninguna palabra ex
       › No eran 20, eran 25
       › Borrá la lluvia de La Pastora
       › Me equivoqué, sacá lo último
+      › Omu en realidad es El Ombú
 
 🔍 *Consultar*
       › ¿Qué tengo anotado?

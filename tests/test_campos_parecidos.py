@@ -66,7 +66,7 @@ def test_pregunta_antes_de_crear_un_campo_parecido_y_no_anota_nada(db, ia):
     _mandar(db, "estoy en el ombú")
     r = _mandar(db, "llovió 20 mm en omu")
     assert r.startswith("🤔 *¿Omu es El Ombú?*\n\nYa tenés cargado el campo *El Ombú*.")
-    assert "Respondé *sí* para anotarlo en El Ombú, *no* para crear el campo *Omu*, o *cancelá*." in r
+    assert "Respondé *sí* para anotarlo en El Ombú, *no* para crear el campo *Omu*, *cambiale el nombre*" in r
     assert _campos(db) == ["El Ombú"] and _lluvias(db) == []
 
 

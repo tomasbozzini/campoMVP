@@ -43,6 +43,9 @@ FUNCIONES = {
     "exportar_pdf": "exportar",
     "exportar_excel": "exportar",
     "exportar_csv": "exportar",
+    "renombrar_campo": "renombrar_campo",
+    "unir_campos": "renombrar_campo",
+    "renombrar_lote": "renombrar_campo",
 }
 ADMINISTRADOR = {"invitar", "invitaciones", "anular", "autorizar", "quitar", "autorizados"}
 

@@ -12,6 +12,7 @@ El texto para la IA es fijo, del código: nunca lleva lo que escribió la person
 from dataclasses import dataclass
 
 RUBRO, MATRICULA, BORRAR, CORREGIR, CAMPO, FECHA = "rubro", "matricula", "borrar", "corregir", "campo", "fecha"
+UNIR = "unir"
 
 SIN_CAMBIOS = "👌 Listo, no cambié nada."
 
@@ -28,8 +29,11 @@ PREGUNTAS = {
     BORRAR: Pregunta("¿Confirmás que borre lo que te mostré? (sí o no)", "👌 Listo, no borré nada."),
     CORREGIR: Pregunta("¿Confirmás que corrija los pendientes que te mostré? (sí o no)", SIN_CAMBIOS),
     CAMPO: Pregunta(
-        "¿Es el mismo campo que ya tenés cargado? (sí: es ese; no: es otro campo nuevo)", "👌 Listo, no anoté nada."
+        "¿Es el mismo campo que ya tenés cargado? (sí: es ese; no: es otro campo nuevo; cambiale el nombre: el que "
+        "tenía pasa a llamarse como lo nombró ahora)",
+        "👌 Listo, no anoté nada.",
     ),
+    UNIR: Pregunta("¿Confirmás que una los dos campos o lotes que te mostré? (sí o no)", SIN_CAMBIOS),
     FECHA: Pregunta(
         "¿Para cuándo? (el día de la semana y el número que dijo no coinciden; le mostré dos fechas: 1 o 2)",
         "👌 Listo, no anoté nada.",

@@ -13,6 +13,7 @@ PROMPT = Parte(
         "aclarar",
         "saludo",
         "establecimiento",
+        "renombrar_campo",
         "abrir_sesion",
         "cerrar_sesion",
         "anotar_pendiente",
@@ -42,6 +43,7 @@ PROMPT = Parte(
   "consulta": CONSULTA | null,     // solo si intencion = "consultar" o "exportar"
   "exportar": { "formato": "pdf" | "excel" | "csv" } | null,  // solo si intencion = "exportar"
   "sesion": { "lote": string | null, "actividad": string | null } | null,  // solo si intencion = "abrir_sesion"
+  "renombrar": RENOMBRAR | null,   // solo si intencion = "renombrar_campo"
   "pendiente": PENDIENTE | null,   // solo si intencion = "anotar_pendiente"
   "pendientes": [ REF_PENDIENTE, ... ] | null,  // solo si intencion = "pendiente_hecho" o "borrar_pendiente"
   "correccion_pendiente": CORRECCION_PENDIENTE | null,  // solo si intencion = "corregir_pendiente"
@@ -71,6 +73,13 @@ PROMPT = Parte(
   el mismo formato, y pedir que le saquen, pasen o manden eso es "exportar", no "fuera_de_alcance".
 - "establecimiento": solo avisa dónde está o a qué campo llegó, sin registrar nada
   ("estoy en La Esperanza", "llegué a El Ombú"). Completá "establecimiento".
+- "renombrar_campo": cambia el nombre de un campo o de un lote que ya tiene, o dice que dos campos
+  (o dos lotes) son el mismo y hay que unirlos ("Omu en realidad es El Ombú", "cambiale el nombre a
+  Omu, se llama El Ombú", "uní Omu con El Ombú", "Omu y El Ombú son el mismo campo", "el lote 3 de
+  La Pastora se llama Los Pinos", "el potrero grande y el lote 5 son el mismo"). Completá
+  "renombrar". No es "corregir": no cambia un registro, cambia el nombre. Pasar registros o
+  pendientes de un campo a otro ("eso fue en El Ombú", "los del molino son de La Feliz") es
+  "corregir" o "corregir_pendiente".
 - "abrir_sesion": avisa que EMPIEZA un trabajo en un lote, una manga o una tarea, para que lo que
   dicte después quede junto ("arranco manga en El Retiro", "empiezo siembra lote Los Pinos",
   "arrancamos tacto de vaquillonas en La Pastora"). Completá "establecimiento" si lo nombra y en
@@ -252,6 +261,17 @@ FECHA (lo que DIJO la persona, sin calcular nada: el sistema calcula la fecha):
   {"dia_semana": "jueves", "cual": "pasado"}; "el sábado que viene" o "tengo que ir el sábado" ->
   {"dia_semana": "sabado", "cual": "proximo"}; "el jueves 22" -> {"dia_semana": "jueves", "dia": 22};
   "ayer" -> {"dias": -1}; "en 21 días" -> {"dias": 21}; "el 5 de noviembre" -> {"dia": 5, "mes": 11}.
+
+RENOMBRAR:
+{
+  "campo": string | null,  // el campo que cambia de nombre o desaparece al unirse, como lo nombra; si cambia
+                           // un lote, el campo de ese lote. null si no lo dice ("este campo se llama...")
+  "lote": string | null,   // SOLO si cambia un LOTE: el que cambia de nombre o desaparece, como en EVENTO
+  "nuevo": string          // el nombre que queda: el nuevo, o el campo o lote con el que se une
+}
+  Ej: "Omu en realidad es El Ombú" -> {"campo": "Omu", "lote": null, "nuevo": "El Ombú"};
+  "el lote 3 de La Pastora se llama los pinos" -> {"campo": "La Pastora", "lote": "3", "nuevo": "los pinos"};
+  "uní el lote 5 con el potrero grande" -> {"campo": null, "lote": "5", "nuevo": "potrero grande"}.
 
 PRECIO:
 {

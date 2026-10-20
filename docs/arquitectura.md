@@ -528,7 +528,7 @@ de 2b, 7 y 8b):
       SENASA (`campo-bot/1.0`) y la clave de desarrollo del HMAC de los intentos fallidos
       (cambiarla cambiaría los hashes guardados). El código de invitación se reconoce como
       palabra entera (`\b`): "anota vacunacion…" no se toma como un código `ANOTA-`.
-- [ ] 8.7 · Renombrar y unir campos y lotes, adelantado de "más adelante":
+- [x] 8.7 · Renombrar y unir campos y lotes, adelantado de "más adelante":
       - Una intención nueva, `renombrar_campo`, sin comando escrito: "Omu en realidad es El
         Ombú", "cambiale el nombre a Omu, se llama El Ombú", "uní Omu con El Ombú", "Omu y El
         Ombú son el mismo campo". Lleva el campo que cambia, el nombre que queda y, para los
@@ -556,6 +556,17 @@ de 2b, 7 y 8b):
       - Set: al menos 5 frases para renombrar campos, 5 para unirlos y 5 para lotes. Una sola
         corrida del eval (`--tope-usd 0.10`) con esas y las parecidas (corregir, borrar,
         mis campos).
+
+      Cómo quedó: `app/modulos/comun/renombrar.py`; renombrar y unir están en el cuaderno
+      (`renombrar_establecimiento`, `unir_establecimientos`, `renombrar_lote`, `unir_lotes`) y la
+      unión la hace `confirmar` con el *sí*. La pregunta guarda `unir_campo` o `unir_lote` (la
+      columna `que` tiene 10 letras: sin migración). Eval: 27 de 29, USD 0,074. Con lo que
+      devolvió la IA, el código además toma el campo del lote de "establecimiento" si no viene
+      en el dato ("el lote 3 de La Pastora…") y, si el "campo" no existe pero hay un lote con
+      ese nombre en el campo actual ("cambiale el nombre al potrero grande…"), cambia el lote.
+      Fallaron: "tengo El Retiro cargado dos veces, uno como Retiro, dejalo todo en El Retiro"
+      (vino "borrar"; borrar pide confirmación solo desde 4 registros) y "ehh no no cancelá eso
+      que anoté recién", del 7.2 (vino "cancelar": responde "Listo" y no borra).
 - [ ] 9a · Modo prueba.
 - [ ] 9b · Set de evaluación armado con el modo prueba (`eval revisar`); el comando
       `python -m app eval` ya existe desde el 8.2.

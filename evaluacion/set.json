@@ -180,6 +180,22 @@
     {"funcion": "fecha_consulta", "frase": "¿cuánto llovió este mes?", "intenciones": ["consultar"], "hoy": "2026-10-20", "fechas": ["2026-10-01", "2026-10-20"]},
     {"funcion": "fecha_consulta", "frase": "¿cuánto llovió en septiembre?", "intenciones": ["consultar"], "hoy": "2026-10-20", "fechas": ["2026-09-01", "2026-09-30"]},
     {"funcion": "fecha_consulta", "frase": "¿qué hice desde el lunes?", "intenciones": ["consultar"], "hoy": "2026-10-20", "fechas": ["2026-10-19"]},
-    {"funcion": "fecha_consulta", "frase": "mandame un PDF de lo que hice este año", "intenciones": ["exportar"], "hoy": "2026-10-20", "fechas": ["2026-01-01", "2026-10-20"]}
+    {"funcion": "fecha_consulta", "frase": "mandame un PDF de lo que hice este año", "intenciones": ["exportar"], "hoy": "2026-10-20", "fechas": ["2026-01-01", "2026-10-20"]},
+    {"funcion": "renombrar_campo", "frase": "Omu en realidad es El Ombú", "intenciones": ["renombrar_campo"]},
+    {"funcion": "renombrar_campo", "frase": "cambiale el nombre a Omu, se llama El Ombú", "intenciones": ["renombrar_campo"]},
+    {"funcion": "renombrar_campo", "frase": "che, el campo La Esperansa está mal escrito, es La Esperanza", "intenciones": ["renombrar_campo"]},
+    {"funcion": "renombrar_campo", "frase": "ehh el campo Don Carlo en realidad se llama Don Carlos, arreglalo", "intenciones": ["renombrar_campo"]},
+    {"funcion": "renombrar_campo", "frase": "a este campo ponele de nombre La Pastora", "intenciones": ["renombrar_campo"]},
+    {"funcion": "renombrar_campo", "frase": "bueno, a Santa Rita cambiale el nombre, ahora es Estancia Santa Rita", "intenciones": ["renombrar_campo"]},
+    {"funcion": "unir_campos", "frase": "uní Omu con El Ombú", "intenciones": ["renombrar_campo"]},
+    {"funcion": "unir_campos", "frase": "Omu y El Ombú son el mismo campo", "intenciones": ["renombrar_campo"]},
+    {"funcion": "unir_campos", "frase": "che, La Esperanza y Esperanza son lo mismo, juntalos", "intenciones": ["renombrar_campo"]},
+    {"funcion": "unir_campos", "frase": "fusioná los campos Don Carlo y Don Carlos que es uno solo", "intenciones": ["renombrar_campo"]},
+    {"funcion": "unir_campos", "frase": "ehh tengo El Retiro cargado dos veces, uno como Retiro, dejalo todo en El Retiro", "intenciones": ["renombrar_campo"]},
+    {"funcion": "renombrar_lote", "frase": "el lote 3 de La Pastora se llama Los Pinos", "intenciones": ["renombrar_campo"]},
+    {"funcion": "renombrar_lote", "frase": "cambiale el nombre al potrero grande, ahora es el lote 8", "intenciones": ["renombrar_campo"]},
+    {"funcion": "renombrar_lote", "frase": "uní el lote 5 con el potrero grande que son el mismo", "intenciones": ["renombrar_campo"]},
+    {"funcion": "renombrar_lote", "frase": "che el lote 2 y el lote dos bis son el mismo lote, juntalos en el 2", "intenciones": ["renombrar_campo"]},
+    {"funcion": "renombrar_lote", "frase": "al lote del molino ponele de nombre lote 4", "intenciones": ["renombrar_campo"]}
   ]
 }

@@ -4,7 +4,10 @@ campos parecidos a otro y fechas dudosas.
 - Desde 4 registros o 4 pendientes de una vez, borrar o corregir pide confirmación.
 - Antes de crear un campo con un nombre muy parecido a uno que ya existe ("Omu" y "El
   Ombú"), se pregunta si es el mismo. Lo del mensaje se hace después de la respuesta: *sí*
-  lo anota en el que ya existe, *no* crea el nuevo, y "cancelá" o "dejá" no anota nada.
+  lo anota en el que ya existe, *no* crea el nuevo, *cambiale el nombre* le pone al que ya
+  existe el nombre nuevo y lo anota ahí, y "cancelá" o "dejá" no anota nada.
+- Unir dos campos o dos lotes ("Omu y El Ombú son el mismo campo") pide confirmación y
+  muestra qué pasa al que queda.
 - Si el día de la semana y el número no coinciden ("el viernes 22" cuando el 22 es jueves),
   se pregunta para cuándo, con las dos fechas: *1* o *2*, o el día ("el jueves", "el 23").
   Lo del mensaje se hace después, como con un campo parecido.
@@ -18,10 +21,10 @@ from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
-from app.infra.modelos import BorradoPendiente, Establecimiento
+from app.infra.modelos import BorradoPendiente, Establecimiento, Lote
 from app.nucleo import preguntas, respuestas
 from app.nucleo.contexto import Contexto
-from app.nucleo.cuaderno import Cuaderno
+from app.nucleo.cuaderno import Contenido, Cuaderno
 from app.nucleo.normalizar import clave_establecimiento
 from app.salidas import whatsapp as formato
 from app.salidas.whatsapp import SANGRIA
@@ -33,6 +36,7 @@ MAX_EN_LISTA = 10
 
 # Qué espera confirmación.
 REGISTROS, PENDIENTES, CORREGIR, CAMPO, FECHA = "registros", "pendientes", "corregir", "campo", "fecha"
+UNIR_CAMPOS, UNIR_LOTES = "unir_campo", "unir_lote"  # `que` tiene hasta 10 letras
 
 PASO_EL_TIEMPO = "⏱️ Pasó mucho tiempo desde que lo pediste y no {hice}.\nSi querés, pedilo de nuevo."
 
@@ -88,8 +92,16 @@ def preguntar_campo(
     return (
         f"🤔 *¿{nuevo} es {existente.nombre}?*\n\n"
         f"Ya tenés cargado el campo *{existente.nombre}*.\n\n{LINEA}\n"
-        f"Respondé *sí* para anotarlo en {existente.nombre}, *no* para crear el campo *{nuevo}*, o *cancelá*."
+        f"Respondé *sí* para anotarlo en {existente.nombre}, *no* para crear el campo *{nuevo}*, "
+        f"*cambiale el nombre* para que {existente.nombre} pase a llamarse {nuevo}, o *cancelá*."
     )
+
+
+def pedir_union(cuaderno: Cuaderno, que: str, origen: int, destino: int, texto: str, ahora: datetime) -> str:
+    """Deja la unión de dos campos (`UNIR_CAMPOS`) o dos lotes (`UNIR_LOTES`) esperando el
+    *sí*. `texto`: la pregunta, con lo que pasa al que queda."""
+    cuaderno.guardar_borrado_pendiente([origen, destino], ahora, que)
+    return f"{texto}\n\n{LINEA}\n¿Confirmás? Respondé *sí* para unirlos o *no* para cancelar."
 
 
 def preguntar_fecha(
@@ -125,14 +137,19 @@ def resolver(ctx: Contexto, rehacer: Callable[[list[dict[str, Any]]], str]) -> s
         return _resolver_campo(ctx, pendiente, rehacer)
     if pendiente.que == FECHA:
         return _resolver_fecha(ctx, pendiente, rehacer)
-    pregunta = preguntas.CORREGIR if pendiente.que == CORREGIR else preguntas.BORRAR
+    if pendiente.que in (UNIR_CAMPOS, UNIR_LOTES):
+        pregunta = preguntas.UNIR
+    else:
+        pregunta = preguntas.CORREGIR if pendiente.que == CORREGIR else preguntas.BORRAR
     if respuestas.es_no(ctx.texto):
         return preguntas.al_cancelar(pregunta)
     if not respuestas.es_si(ctx.texto):
         ctx.pregunta_abierta = pregunta
         return None
     if not _vigente(pendiente, ctx.ahora):
-        return PASO_EL_TIEMPO.format(hice="cambié nada" if pendiente.que == CORREGIR else "borré nada")
+        return PASO_EL_TIEMPO.format(hice="borré nada" if pregunta == preguntas.BORRAR else "cambié nada")
+    if pregunta == preguntas.UNIR:
+        return _unir(ctx, pendiente)
     if pendiente.que == CORREGIR:
         return _corregir(cuaderno, pendiente)
     if pendiente.que == PENDIENTES:
@@ -149,21 +166,70 @@ def _corregir(cuaderno: Cuaderno, pendiente: BorradoPendiente) -> str:
     return f"✏️ *PENDIENTES CORREGIDOS*\n\nListo, corregí {len(corregidos)} pendientes."
 
 
+def nombre_lote(nombre: str) -> str:
+    """'3' -> 'lote 3'; 'potrero grande' queda igual."""
+    return f"lote {nombre}" if nombre.isdecimal() else nombre
+
+
+def resumen_union(contenido: Contenido, de_campo: bool) -> str:
+    """Lo que pasa al que queda, una línea por cosa ("12 registros", "2 pendientes"...)."""
+    cosas = [
+        (contenido.registros, "registro", "registros"),
+        (contenido.pendientes, "pendiente", "pendientes"),
+        (len(contenido.lotes) if de_campo else 0, "lote", "lotes"),
+        (contenido.sesiones, "sesión de trabajo", "sesiones de trabajo"),
+    ]
+    lineas = [f"{SANGRIA}› {n} {uno if n == 1 else varios}" for n, uno, varios in cosas if n]
+    return "\n".join(lineas) or f"{SANGRIA}› nada anotado, solo el nombre"
+
+
+def _unir(ctx: Contexto, pendiente: BorradoPendiente) -> str:
+    origen_id, destino_id = pendiente.ids
+    cuaderno = ctx.cuaderno
+    if pendiente.que == UNIR_CAMPOS:
+        origen, destino = cuaderno.db.get(Establecimiento, origen_id), cuaderno.db.get(Establecimiento, destino_id)
+        nombres = (origen.nombre, destino.nombre) if origen and destino else None
+        contenido = cuaderno.unir_establecimientos(origen_id, destino_id)
+        titulo = "🔗 *CAMPOS UNIDOS*"
+        de_campo = True
+    else:
+        lote_o, lote_d = cuaderno.db.get(Lote, origen_id), cuaderno.db.get(Lote, destino_id)
+        nombres = (nombre_lote(lote_o.nombre), nombre_lote(lote_d.nombre)) if lote_o and lote_d else None
+        contenido = cuaderno.unir_lotes(origen_id, destino_id)
+        titulo = "🔗 *LOTES UNIDOS*"
+        de_campo = False
+    if contenido is None or nombres is None:
+        return "🤔 No pude unirlos: uno de los dos ya no está.\nMandá *mis campos* para ver cómo quedaron."
+    return (
+        f"{titulo}\n\nListo: lo de *{nombres[0]}* pasó a *{nombres[1]}*.\n\n{resumen_union(contenido, de_campo)}\n\n"
+        f"_{nombres[0]} ya no está en tus campos._"
+        if de_campo
+        else f"{titulo}\n\nListo: lo del *{nombres[0]}* pasó al *{nombres[1]}*.\n\n{resumen_union(contenido, de_campo)}"
+    )
+
+
 def _resolver_campo(
     ctx: Contexto, pendiente: BorradoPendiente, rehacer: Callable[[list[dict[str, Any]]], str]
 ) -> str | None:
     texto = ctx.texto
+    datos = pendiente.datos or {}
+    existente = ctx.cuaderno.db.get(Establecimiento, int(datos["existente"]))
     if respuestas.es_cancelar(texto):
         return preguntas.al_cancelar(preguntas.CAMPO)
-    es_el_mismo = respuestas.es_si(texto)
+    renombrar = existente is not None and respuestas.es_renombrar(texto, [datos["nuevo"], existente.nombre])
+    es_el_mismo = renombrar or respuestas.es_si(texto)
     if not es_el_mismo and not respuestas.es_no(texto):
         ctx.pregunta_abierta = preguntas.CAMPO
         return None
     if not _vigente(pendiente, ctx.ahora):
         return PASO_EL_TIEMPO.format(hice="anoté nada")
-    datos = pendiente.datos or {}
     clave = clave_establecimiento(datos["nuevo"]) or ""
     _recuperar(ctx.cuaderno, datos)
+    if renombrar and existente is not None and ctx.cuaderno.establecimiento_existente(datos["nuevo"]) is None:
+        antes = existente.nombre
+        ctx.cuaderno.renombrar_establecimiento(existente, datos["nuevo"])
+        aviso = f"✏️ *{antes}* ahora se llama *{existente.nombre}*."
+        return f"{aviso}\n\n{rehacer(datos['pedidos'])}"
     if es_el_mismo:
         ctx.cuaderno.alias[clave] = int(datos["existente"])
     else:
