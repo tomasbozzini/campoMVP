@@ -37,6 +37,7 @@ class Uso:
     tokens_razonamiento: int
     costo_usd: float | None  # lo que informa el proveedor; None si no lo informa
     segundos: float
+    tokens_cache: int = 0  # de los de entrada, los que salieron del caché del proveedor (si lo informa)
 
 
 _medicion: ContextVar[list[Uso] | None] = ContextVar("medicion", default=None)

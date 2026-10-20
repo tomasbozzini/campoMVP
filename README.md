@@ -238,6 +238,17 @@ python -m app eval --proveedor groq --limite 5 --pausa 60
 - Por defecto usa OpenRouter si está `OPENROUTER_API_KEY` (si no, Groq), sin respaldo, con el prompt de un productor (`--rubro`).
 - Muestra cada frase (✓ o ✗, demora y tokens) y al final la precisión, las llamadas, los tokens, el costo y la demora (mediana y p95).
 - Frena si el costo llega al tope (`--tope-usd`, USD 0,50 por defecto). Groq no informa el costo: con Groq no hay tope por costo, y en el plan gratuito conviene `--pausa 60` y pocas frases.
+- Los tokens de entrada dicen cuántos salieron del caché del proveedor (si lo informa), y con varias funciones muestra la precisión de cada una.
+
+**Sumar al set lo que probaste en el modo prueba** (`modo prueba` desde tu WhatsApp de administrador): `python -m app eval revisar` muestra de a una las pruebas que todavía no están en el set, con la charla, la pregunta abierta, lo que devolvió la IA (y las fechas que calculó el bot) y lo que respondió. Respondés *a* (aprobar: lo que devolvió la IA es lo esperado), *c* (corregir: escribís las intenciones esperadas), *d* (descartar), *s* (saltar) o *q* (salir), y la función (por defecto, la primera intención). Lo aprobado se suma al final de `evaluacion/set.json` con `"origen": "modo prueba"`: revisalo antes de subirlo, porque lleva la charla tal cual. La base se lee en solo lectura y no se toca; lo descartado queda en `evaluacion/descartadas.txt` (local, fuera del repo, solo huellas).
+
+Las pruebas hechas contra Railway están en la base de Railway: en Railway → servicio de **Postgres** → *Variables*, copiá `DATABASE_PUBLIC_URL` y:
+
+```bat
+python -m app eval revisar --base "postgresql://postgres:...@...proxy.rlwy.net:12345/railway"
+```
+
+La conexión es de solo lectura (Postgres rechaza cualquier cambio). No pegues esa URL en ningún archivo: lleva la clave de la base.
 
 ### Probar con el celular (ngrok)
 

@@ -36,6 +36,7 @@ def _respuesta_ok(contenido: str = '{"acciones": [{"intencion": "saludo"}]}') ->
             "prompt_tokens": 4712,
             "completion_tokens": 95,
             "completion_tokens_details": {"reasoning_tokens": 60},
+            "prompt_tokens_details": {"cached_tokens": 4096},
             "cost": 0.00031,
         },
     }
@@ -82,6 +83,7 @@ def test_anota_quien_respondio_los_tokens_y_el_costo():
     [uso] = usos
     assert (uso.proveedor, uso.servidor) == ("openrouter", "Cerebras")
     assert (uso.tokens_entrada, uso.tokens_salida, uso.tokens_razonamiento) == (4712, 95, 60)
+    assert uso.tokens_cache == 4096  # de los de entrada (paso 9b)
     assert uso.costo_usd == pytest.approx(0.00031)
 
 

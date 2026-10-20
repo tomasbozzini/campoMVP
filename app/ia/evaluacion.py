@@ -62,6 +62,7 @@ class Resumen:
     tokens_entrada: int
     tokens_salida: int
     tokens_razonamiento: int
+    tokens_cache: int  # de los de entrada, los que salieron del caché (si el proveedor lo informa)
     costo_usd: float | None  # None si el proveedor no informa el costo
     mediana: float
     p95: float
@@ -152,6 +153,15 @@ def _p95(valores: list[float]) -> float:
     return ordenados[math.ceil(0.95 * len(ordenados)) - 1] if ordenados else 0.0
 
 
+def por_funcion(resultados: Sequence[Resultado]) -> dict[str, tuple[int, int]]:
+    """Cuántas frases salieron bien de cada función, sobre cuántas: {"borrar": (6, 7)}."""
+    cuentas: dict[str, tuple[int, int]] = {}
+    for r in resultados:
+        bien, total = cuentas.get(r.frase.funcion, (0, 0))
+        cuentas[r.frase.funcion] = (bien + r.bien, total + 1)
+    return cuentas
+
+
 def resumir(resultados: Sequence[Resultado]) -> Resumen:
     usos = [u for r in resultados for u in r.usos]
     demoras = [r.segundos for r in resultados]
@@ -163,6 +173,7 @@ def resumir(resultados: Sequence[Resultado]) -> Resumen:
         tokens_entrada=sum(u.tokens_entrada for u in usos),
         tokens_salida=sum(u.tokens_salida for u in usos),
         tokens_razonamiento=sum(u.tokens_razonamiento for u in usos),
+        tokens_cache=sum(u.tokens_cache for u in usos),
         costo_usd=sum(con_costo) if con_costo else None,
         mediana=statistics.median(demoras) if demoras else 0.0,
         p95=_p95(demoras),

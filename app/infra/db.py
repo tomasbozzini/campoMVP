@@ -5,7 +5,7 @@ from typing import Any
 from sqlalchemy import Connection, Engine, MetaData, create_engine, event
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-from app.infra.config import config
+from app.infra.config import config, url_postgres
 
 
 def crear_motor(url: str) -> Engine:
@@ -15,6 +15,22 @@ def crear_motor(url: str) -> Engine:
     motor = create_engine(url, pool_pre_ping=True, hide_parameters=True, connect_args=connect_args)
     if motor.dialect.name == "sqlite":
         _transacciones_completas(motor)
+    return motor
+
+
+def motor_solo_lectura(url: str) -> Engine:
+    """Para leer una base sin poder cambiarla (`eval revisar --base`): en Postgres, cada
+    transacción es de solo lectura; en SQLite, `query_only`."""
+    url = url_postgres(url)
+    if not url.startswith("sqlite"):
+        opciones = {"options": "-c default_transaction_read_only=on"}
+        return create_engine(url, pool_pre_ping=True, hide_parameters=True, connect_args=opciones)
+    motor = crear_motor(url)
+
+    @event.listens_for(motor, "connect")
+    def _solo_lectura(conexion_dbapi: Any, _registro: Any) -> None:
+        conexion_dbapi.execute("PRAGMA query_only = ON")
+
     return motor
 
 

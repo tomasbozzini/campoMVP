@@ -15,6 +15,11 @@ Entorno = Literal["desarrollo", "produccion"]
 Esfuerzo = Literal["low", "medium", "high"]
 
 
+def url_postgres(valor: str) -> str:
+    """Railway/Heroku entregan "postgres://", SQLAlchemy necesita "postgresql://"."""
+    return "postgresql://" + valor.removeprefix("postgres://") if valor.startswith("postgres://") else valor
+
+
 class Configuracion(BaseSettings):
     # env_ignore_empty: una variable vacía (como las del .env.example) cuenta como no definida
     # y toma el valor por defecto, en vez de pisarlo con "".
@@ -101,8 +106,7 @@ class Configuracion(BaseSettings):
     @field_validator("database_url")
     @classmethod
     def _url_postgres(cls, valor: str) -> str:
-        # Railway/Heroku entregan "postgres://", SQLAlchemy necesita "postgresql://"
-        return "postgresql://" + valor.removeprefix("postgres://") if valor.startswith("postgres://") else valor
+        return url_postgres(valor)
 
     @field_validator("zona_horaria", mode="before")
     @classmethod

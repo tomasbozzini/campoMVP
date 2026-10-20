@@ -101,6 +101,7 @@ class ProveedorOpenRouter:
 
         uso = datos.get("usage") or {}
         detalle = uso.get("completion_tokens_details") or {}
+        entrada = uso.get("prompt_tokens_details") or {}
         costo = uso.get("cost")
         anotar_uso(
             Uso(
@@ -111,6 +112,7 @@ class ProveedorOpenRouter:
                 tokens_razonamiento=_entero(detalle.get("reasoning_tokens")),
                 costo_usd=float(costo) if isinstance(costo, int | float) else None,
                 segundos=time.perf_counter() - inicio,
+                tokens_cache=_entero(entrada.get("cached_tokens")),
             )
         )
         try:

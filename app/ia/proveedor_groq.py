@@ -51,6 +51,7 @@ class ProveedorGroq:
                 tokens_razonamiento=_entero(getattr(detalle, "reasoning_tokens", 0)),
                 costo_usd=None,  # Groq no lo informa
                 segundos=time.perf_counter() - inicio,
+                tokens_cache=_entero(getattr(getattr(uso, "prompt_tokens_details", None), "cached_tokens", 0)),
             )
         )
         contenido = respuesta.choices[0].message.content

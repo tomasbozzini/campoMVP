@@ -9,3 +9,6 @@ archivos_chat/
 
 # Documentos privados (especificación funcional): no se suben
 docs/privado/
+
+# Pruebas descartadas al revisar el modo prueba (python -m app eval revisar): solo huellas, locales
+evaluacion/descartadas.txt

@@ -719,7 +719,7 @@ de 2b, 7 y 8b):
       (`atender(..., audio=True)`). `modo prueba` y `fin modo prueba` no van a la charla, para
       que no aparezcan en la de los mensajes que se prueban. Tests también sobre Postgres.
       Costo: USD 0.
-- [ ] 9b · Set de evaluación armado con el modo prueba (`eval revisar`); el comando
+- [x] 9b · Set de evaluación armado con el modo prueba (`eval revisar`); el comando
       `python -m app eval` ya existe desde el 8.2.
       - `python -m app eval revisar` muestra de a una las pruebas que no están en el set: el
         mensaje (🎤 si fue audio), la charla, la pregunta abierta, lo que devolvió la IA
@@ -740,6 +740,23 @@ de 2b, 7 y 8b):
         tokens, caché, costo y demora), anotada acá.
       - Presupuesto del 9 (9a y 9b): USD 0,50, con la línea de base adentro; `--tope-usd` en
         cada corrida y el gasto después de cada una.
+
+      Cómo quedó: `app/ia/revisar.py` (`python -m app eval revisar`), con la base abierta por
+      `db.motor_solo_lectura`. El eval muestra los tokens del caché y la precisión por función.
+      **Línea de base** (20/10/2026, set de 190 frases, OpenRouter con esfuerzo low, rubro
+      productor): **183/190 (96 %)**, mediana 1,0 s, p95 1,7 s. Unos 7.200 tokens de entrada por
+      llamada, de los que el 97 % salió del caché de OpenRouter (1.333.760 de 1.370.148); 30.588 de
+      salida (14.386 de razonamiento). Fallaron:
+      - "ehh no no cancelá eso que anoté recién" → "cancelar" (la de siempre; el código ya la
+        responde desde el 8.7.1);
+      - "quiero ver" y "ehh mostrame eso" → "consultar" en vez de "aclarar";
+      - "fusioná los campos Don Carlo y Don Carlos que es uno solo" → "aclarar";
+      - tres fechas que quedaron vacías: "anteayer había que pagar el flete y quedó pendiente",
+        "el pendiente del molino era para ayer" y "¿qué hice desde el lunes?".
+      Costo: USD 0,5025 según lo que informa cada llamada (la clave marcaba USD 0,4918 al
+      terminar). La corrida frenó por el tope en 186 de 190, porque el costo que suma el eval
+      llegó a USD 0,49; con la clave marcando USD 0,4284 (estaba atrasada) se corrieron las 4
+      que faltaban (USD 0,0107). Se pasó unos USD 0,003 del tope del 9.
 
 **Decisiones de producto de la etapa 1:**
 

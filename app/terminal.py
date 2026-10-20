@@ -15,6 +15,7 @@ python -m app db estado                          versión de la base y diferenci
 python -m app auditoria [--limite 50]            últimas acciones sensibles (solo ids)
 python -m app eval [--funcion ayuda] [--desde 1] [--limite 10] [--esfuerzo low] [--tope-usd 0.5]
                                                  set de evaluación contra la IA real
+python -m app eval revisar [--base URL]          pruebas del modo prueba, para sumar al set
 """
 
 import argparse
@@ -26,15 +27,16 @@ import sys
 from datetime import date, datetime
 from pathlib import Path
 
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app import modulos
 from app.fuentes import precios as fuentes_precios
 from app.fuentes import senasa as fuentes_senasa
-from app.ia import evaluacion, proveedor
+from app.ia import evaluacion, proveedor, revisar
 from app.infra import migrar
 from app.infra.config import config
-from app.infra.db import SessionLocal, engine
+from app.infra.db import SessionLocal, engine, motor_solo_lectura
 from app.infra.logs import configurar_logs
 from app.infra.marca import NOMBRE
 from app.modulos.comun import precios, senasa
@@ -177,12 +179,39 @@ def _eval(args: argparse.Namespace) -> None:
     print(
         f"\nPrecisión: {r.bien}/{r.total} ({r.precision:.0%})"
         f"\nLlamadas: {r.total} ({r.errores} con error)"
-        f"\nTokens: {r.tokens_entrada} de entrada, {r.tokens_salida} de salida ({r.tokens_razonamiento} de razonamiento)"
+        f"\nTokens: {r.tokens_entrada} de entrada ({r.tokens_cache} del caché), {r.tokens_salida} de salida "
+        f"({r.tokens_razonamiento} de razonamiento)"
         f"\nCosto: {costo}"
         f"\nDemora: mediana {r.mediana:.1f} s, p95 {r.p95:.1f} s"
     )
+    funciones = evaluacion.por_funcion(resultados)
+    if len(funciones) > 1:
+        print("\nPor función:")
+        for funcion, (bien, total) in sorted(funciones.items()):
+            print(f"  {'✓' if bien == total else '✗'} {funcion:<20} {bien}/{total}")
     if frenado:
         print(f"\n⚠️ Frené en {r.total} de {len(frases)} frases: se llegó al tope de USD {args.tope_usd:.2f}.")
+
+
+def _revisar(args: argparse.Namespace) -> None:
+    """Las pruebas del modo prueba, para sumarlas al set (paso 9b). La base se lee en solo
+    lectura: la local o, con `--base`, otra (la URL no se muestra: lleva la clave)."""
+    frases = evaluacion.cargar()
+    motor = motor_solo_lectura(args.base or config.database_url)
+    try:
+        with Session(motor) as db:
+            pruebas = revisar.para_revisar(db, frases, revisar.descartadas())
+    except SQLAlchemyError as e:
+        sys.exit(f"No pude leer las pruebas de esa base ({type(e).__name__}). ¿Está migrada a la 0013?")
+    finally:
+        motor.dispose()
+    if not pruebas:
+        print("No hay pruebas para revisar.")
+        return
+    conocidas = set(acciones.intenciones()) | {i for f in frases for i in f.intenciones}
+    print(f"{len(pruebas)} pruebas para revisar. Lo aprobado va a {evaluacion.SET.name}.")
+    aprobadas, descartadas = revisar.revisar(pruebas, acciones.fechas, conocidas.__contains__)
+    print(f"\nAprobadas: {aprobadas} · descartadas: {descartadas}.")
 
 
 def _db(args: argparse.Namespace) -> None:
@@ -237,6 +266,8 @@ def _argumentos() -> argparse.ArgumentParser:
     registro_acciones.set_defaults(ejecutar=_auditoria)
 
     evaluar = comandos.add_parser("eval", help="set de evaluación contra la IA real (cuesta plata)")
+    evaluar.add_argument("accion", nargs="?", choices=["revisar"], help="revisar: las pruebas del modo prueba")
+    evaluar.add_argument("--base", help="revisar: URL de otra base (se lee en solo lectura)")
     evaluar.add_argument("--funcion", action="append", help="solo las frases de esa función (se puede repetir)")
     evaluar.add_argument("--desde", type=int, default=1, help="desde qué frase, contando desde 1")
     evaluar.add_argument("--limite", type=int, help="cuántas frases como mucho")
@@ -265,8 +296,11 @@ def main(argv: list[str] | None = None) -> None:
     if args.comando == "db":
         _db(args)
         return
-    if args.comando == "eval":  # no usa la base
-        _eval(args)
+    if args.comando == "eval":  # no usa la base; revisar la lee en solo lectura
+        if args.accion == "revisar":
+            _revisar(args)
+        else:
+            _eval(args)
         return
     # Solo `db migrar` cambia la base: el resto avisa si falta migrar.
     try:
