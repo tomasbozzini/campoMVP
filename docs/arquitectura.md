@@ -567,6 +567,31 @@ de 2b, 7 y 8b):
       Fallaron: "tengo El Retiro cargado dos veces, uno como Retiro, dejalo todo en El Retiro"
       (vino "borrar"; borrar pide confirmación solo desde 4 registros) y "ehh no no cancelá eso
       que anoté recién", del 7.2 (vino "cancelar": responde "Listo" y no borra).
+- [ ] 8.7.1 · Lo que dejó el eval del 8.7, y borrar campos y lotes:
+      - "Tengo El Retiro cargado dos veces… dejalo todo en El Retiro" venía como "borrar": el
+        prompt dice que un campo cargado dos veces o con dos nombres es unirlos, no borrar. El
+        eval muestra siempre el JSON de la IA cuando falla una frase (no solo con las fechas).
+      - "ehh no no cancelá eso que anoté recién" venía como "cancelar" y respondía "Listo" sin
+        hacer nada. En el prompt, "cancelá eso que anoté" o "sacá lo que anoté recién" sin una
+        pregunta pendiente es "borrar" (deshacer lo último). En el código, "cancelar" sin una
+        pregunta pendiente responde: "No había nada para cancelar. Si querés deshacer lo último
+        que anotaste, mandá *borrar*."
+      - Borrar un campo o un lote ("borrá el campo Prueba Nueva", "el lote 5 ya no va,
+        sacalo"): una intención aparte, `borrar_campo`, en el mismo módulo y con el mismo dato
+        que `renombrar_campo` (campo y lote). No va en la misma intención porque se llama
+        "renombrar" y la IA distingue las intenciones por el nombre, y porque tiene que
+        separarse bien de "borrar", que borra registros.
+        - Siempre pregunta (*sí* / *no*), mostrando lo que tiene, como al unir.
+        - Campo: con el *sí* se borran sus registros, pendientes, sesiones y lotes, todo junto
+          en la misma transacción y en la auditoría solo con ids. Si era el campo actual, queda
+          sin campo actual. Sale de "mis campos" y del glosario de los audios.
+        - Lote: se borran sus registros y pendientes. Los traslados que lo tenían de destino y
+          las sesiones en ese lote quedan, sin lote.
+        - Sin decir el campo, como al renombrar: el de la sesión abierta o el actual (para un
+          lote); un campo tiene que nombrarse.
+      - Set: 5 frases de borrar campos y lotes, y 2 variantes de "cancelá eso que anoté".
+        Verificación: solo las 5 de unir campos, las 5 nuevas y las 3 de "cancelá eso".
+        Tope: USD 0,05.
 - [ ] 9a · Modo prueba.
 - [ ] 9b · Set de evaluación armado con el modo prueba (`eval revisar`); el comando
       `python -m app eval` ya existe desde el 8.2.
