@@ -429,6 +429,49 @@ de 2b, 7 y 8b):
       respuesta. Set: 20 frases nuevas (116 en total). Corrida de cancelar, corregir,
       corregir_pendiente, anotar_pendiente (también en pasado) y pendiente_hecho (34 frases):
       34/34, mediana 1,4 s, p95 1,8 s, USD 0,079.
+- [ ] 8.5.1 · Fechas calculadas por el código. Al probar el 8.5 (hoy martes 20/10/2026), con el
+      calendario de ±7 días el modelo igual erraba el día y si era pasado o futuro: "Tenía que
+      pagarle al contratista el sábado" dio Vie 23/10 (era Sáb 17/10, vencido) y "el sábado que
+      viene" dio Jue 22/10 (era Sáb 24/10).
+      - La IA no devuelve más fechas calculadas: devuelve lo que dijo la persona en un formato
+        fijo (FECHA): un día de la semana y si es el pasado o el próximo; días para atrás o
+        para adelante ("ayer", "anteayer", "en 21 días", "hace 3 días"); o día y mes si los
+        dijo ("el jueves 22", "el 5 de noviembre"). El código calcula la fecha con la de hoy en
+        hora argentina.
+      - Vale para todas las fechas: la de los registros (y sus correcciones), el vencimiento de
+        los pendientes y sus correcciones, y los períodos de las consultas y de exportar (y de
+        "borrá todo lo de la lista", que copia esos filtros): la IA devuelve un período fijo
+        (hoy, ayer, esta semana, la semana pasada, este mes, el mes pasado, este año, el año
+        pasado), un mes por su número, o desde / hasta como FECHA. La semana va de lunes a
+        domingo; "este mes" y "esta semana" llegan hasta hoy.
+      - Sin fechas calculadas, el prompt no lleva la fecha de hoy ni el calendario: es el mismo
+        todos los días.
+      - Casos:
+        - Día de la semana sin decir cuál: en los registros, las consultas y las correcciones de
+          registros es el pasado; en los pendientes, el próximo, salvo que lo cuente en pasado
+          ("tenía que…"). El pasado es el más reciente antes de hoy y el próximo, el primero
+          después de hoy: "el sábado" dicho un sábado es hace 7 días o dentro de 7 días, nunca
+          hoy (para hoy se dice "hoy").
+        - Solo el número de día ("el 22"): el de este mes, el anterior o el siguiente, el más
+          cercano a hoy en el sentido que corresponde (pasado o próximo, como arriba; hoy
+          cuenta para los dos). Con día y mes: el más cercano a hoy, de este año, el anterior o
+          el siguiente ("el 3 de enero" dicho el 20 de diciembre es del año que viene). Un día
+          que no existe ("el 31 de noviembre") no es una fecha.
+        - Día de la semana y número que no coinciden ("el viernes 22" cuando el 22 es jueves):
+          el bot pregunta "¿Para cuándo?" con las dos opciones (el 22 y el viernes más cercano
+          al 22) y lo del mensaje no se guarda hasta la respuesta, como con un campo parecido:
+          *1* o *2*, el día ("el jueves", "el 23") o cancelar.
+        - Los cambios de mes y de año salen solos: el código suma días a una fecha.
+        - Un registro nunca queda en el futuro (como hoy): si la fecha da después de hoy, es hoy.
+      - Tests de la conversión con hoy fijo, para cada día de la semana.
+      - Eval: por frase, "hoy" fijo y las fechas que tienen que quedar ("fechas"), controladas
+        con los mismos esquemas que usa el bot. Antes de arreglarlo se reproduce la falla con las
+        tres frases de la prueba y hoy 2026-10-20. Set: frases con cada día de la semana, "que
+        viene", "pasado", "tenía que", "ayer" y "en N días". Se corre el eval de las intenciones
+        con fecha, con tope de costo.
+- [ ] 8.6 · El bot pasa a llamarse **Anotagro** (el detalle se anota antes de empezarlo).
+- [ ] 8.7 · Renombrar y unir campos, adelantado de "más adelante" (el detalle se anota antes de
+      empezarlo).
 - [ ] 9a · Modo prueba.
 - [ ] 9b · Set de evaluación armado con el modo prueba (`eval revisar`); el comando
       `python -m app eval` ya existe desde el 8.2.
