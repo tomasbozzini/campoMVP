@@ -32,6 +32,11 @@ class Frase:
     pregunta: str | None = None
     hoy: date | None = None  # si no, el de la corrida
     fechas: tuple[str, ...] | None = None  # YYYY-MM-DD, en orden; None: no se controlan
+    # Otras respuestas que también están bien ("quiero ver": aclarar o consultar, paso 9.1).
+    o_bien: tuple[tuple[str, ...], ...] = ()
+
+    def acepta(self, obtenidas: tuple[str, ...]) -> bool:
+        return obtenidas == self.intenciones or obtenidas in self.o_bien
 
 
 @dataclass
@@ -47,7 +52,7 @@ class Resultado:
     @property
     def bien(self) -> bool:
         fechas_bien = self.frase.fechas is None or self.fechas == self.frase.fechas
-        return self.error is None and self.obtenidas == self.frase.intenciones and fechas_bien
+        return self.error is None and self.frase.acepta(self.obtenidas) and fechas_bien
 
     @property
     def costo_usd(self) -> float:
@@ -83,6 +88,7 @@ def cargar(ruta: Path = SET) -> list[Frase]:
             f.get("pregunta"),
             date.fromisoformat(f["hoy"]) if "hoy" in f else None,
             tuple(f["fechas"]) if "fechas" in f else None,
+            tuple(tuple(otras) for otras in f.get("o_bien", [])),
         )
         for f in datos["frases"]
     ]

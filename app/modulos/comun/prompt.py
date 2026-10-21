@@ -253,7 +253,7 @@ CORRECCION_PENDIENTE:
   }
 }
 
-FECHA (lo que DIJO la persona, sin calcular nada: el sistema calcula la fecha):
+FECHA (lo que DIJO la persona, sin calcular nada: el sistema calcula la fecha; solo las claves que usás):
 {
   "dias": int | null,          // días desde hoy: "hoy" 0, "ayer" -1, "anteayer" -2, "mañana" 1, "pasado mañana" 2,
                                // "hace 3 días" -3, "en 21 días" 21, "dentro de una semana" o "la semana que viene" 7
@@ -287,7 +287,8 @@ PRECIO:
 }""",
     reglas="""\
 - Las fechas van SIEMPRE como FECHA, con lo que dijo la persona. NUNCA calcules una fecha ni
-  escribas "YYYY-MM-DD": no sabés qué día es hoy, lo sabe el sistema. Si no dice cuándo, null.
+  escribas "YYYY-MM-DD": no sabés qué día es hoy, lo sabe el sistema. Si no dice cuándo, null;
+  si lo dice ("anteayer había que…", "desde el lunes"), la FECHA NUNCA va en null.
 - "cual" sale de cómo lo dice: "pasado" si ya pasó ("el sábado pasado", "vacuné el lunes",
   "tenía que pagarle el sábado", "me olvidé de pedir los rollos el jueves"); "proximo" si viene
   ("el sábado que viene", "el próximo martes", "tengo que vacunar el lunes", "acordate del

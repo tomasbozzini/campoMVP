@@ -226,7 +226,7 @@ python -m app chat
 
 ### Set de evaluación contra la IA real
 
-`python -m app eval` manda las frases de `evaluacion/set.json` a la IA y compara las intenciones que devuelve con las esperadas. Cuesta plata (con OpenRouter, el set entero sale unos centavos de dólar): correlo cuando cambia el prompt o un esquema.
+`python -m app eval` manda las frases de `evaluacion/set.json` a la IA y compara las intenciones que devuelve con las esperadas (o con las de `"o_bien"`, si la frase acepta otra respuesta: "quiero ver" puede ser aclarar o consultar). Cuesta plata (con OpenRouter, el set entero sale unos centavos de dólar): correlo cuando cambia el prompt o un esquema.
 
 ```bat
 python -m app eval --funcion ayuda --funcion mis_campos

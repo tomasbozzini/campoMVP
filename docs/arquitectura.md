@@ -189,7 +189,7 @@ en cada punto, primero un test que reproduce el problema.
 - Las referencias de borrado que no se entienden piden aclaración, en vez de tomar todos
   los registros.
 
-### Etapa 1 · Núcleo profesional
+### Etapa 1 · Núcleo profesional ✅
 
 - **Alta por código de invitación** (ver "Alta de usuarios" abajo).
 - Perfiles por rubro que habilitan módulos, además del común que tienen todos: veterinario →
@@ -757,6 +757,36 @@ de 2b, 7 y 8b):
       terminar). La corrida frenó por el tope en 186 de 190, porque el costo que suma el eval
       llegó a USD 0,49; con la clave marcando USD 0,4284 (estaba atrasada) se corrieron las 4
       que faltaban (USD 0,0107). Se pasó unos USD 0,003 del tope del 9.
+- [x] 9.1 · Lo que dejó la línea de base, antes de cerrar la etapa 1.
+      1. **Fechas vacías** (lo más importante: un registro sin fecha queda con la de hoy, sin
+         avisar). Lo que devolvió la IA:
+         - "el pendiente del molino era para ayer": `{"dias": -1}` bien, pero bajo la clave
+           `"pendiente"` (la de anotar) en vez de `"correccion_pendiente"`, y el esquema la
+           ignoraba. En el código: si falta `correccion_pendiente` y `"pendiente"` trae
+           `pendientes` o `cambios`, se toma de ahí.
+         - "anteayer había que pagar el flete…": `"vence": null` (1 de 2 veces al repetirla).
+         - "¿qué hice desde el lunes?": `"desde"` con las seis claves de FECHA en null (bien 2 de
+           2 al repetirla): el mismo relleno con nulls del 8.5.2.
+         Para las dos últimas, el prompt dice que una FECHA lleva solo las claves que usa y que,
+         si la persona dijo cuándo, nunca va en null (corto: el tope del prompt no se toca).
+         Respaldo en el código: si la IA devuelve una palabra en vez de una FECHA ("ayer"), se
+         aceptan las fijas hoy, ayer, anteayer, antes de ayer, mañana y pasado mañana (es leer
+         una palabra, no calcular). Verificación: solo esas tres frases, tope USD 0,03.
+      2. "quiero ver" y "ehh mostrame eso" vinieron "consultar": mostrar lo anotado no hace
+         daño, así que el set acepta las dos ("aclarar" o "consultar"): una frase puede tener
+         varias listas de intenciones aceptadas (`"o_bien"`).
+      3. **Fallas conocidas** (el prompt no se toca; el bot responde de forma segura):
+         "cancelá eso que anoté recién" → "cancelar" (responde que no había nada para cancelar
+         y cómo deshacer lo último) y "fusioná Don Carlo y Don Carlos" → "aclarar" (pregunta
+         qué necesita).
+      4. Las frases que el usuario apruebe con `eval revisar` van en este mismo commit.
+
+      Cómo quedó: el respaldo de `"pendiente"` en `CorregirPendiente`, las palabras fijas en
+      `fechas.leer` (`PALABRAS`), dos líneas en el prompt (24.338 caracteres, debajo del tope) y
+      `"o_bien"` en el set. Verificación (20/10/2026): las tres frases bien, y "anteayer…" bien
+      3 de 3 al repetirla; "era para ayer" volvió a venir bajo `"pendiente"` y la rescató el
+      código. Costo: USD 0,0245 (tope 0,03). Al cerrar no había frases aprobadas con
+      `eval revisar` en el set.
 
 **Decisiones de producto de la etapa 1:**
 

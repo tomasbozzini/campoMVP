@@ -153,7 +153,7 @@ def _eval(args: argparse.Namespace) -> None:
         linea = f"{marca} {r.segundos:5.1f} s {tokens:6} tok  {r.frase.funcion:<18} {r.frase.frase}"
         if r.error:
             linea += f"\n      error: {r.error}"
-        elif r.obtenidas != r.frase.intenciones:
+        elif not r.frase.acepta(r.obtenidas):
             linea += f"\n      esperaba {list(r.frase.intenciones)} y vino {list(r.obtenidas)}"
         elif not r.bien:
             linea += f"\n      esperaba las fechas {list(r.frase.fechas or ())} y quedaron {list(r.fechas)}"

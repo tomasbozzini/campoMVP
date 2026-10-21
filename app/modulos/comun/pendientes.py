@@ -18,7 +18,7 @@ import re
 from datetime import date
 from typing import Annotated
 
-from pydantic import BeforeValidator, Field
+from pydantic import BeforeValidator, Field, model_validator
 
 from app.ia.esquemas import Bandera, Esquema, EsquemaAccion, FechaProxima, SiNoVacio, limpiar_texto, texto
 from app.infra.modelos import Establecimiento, Pendiente
@@ -128,6 +128,18 @@ class CorreccionPendiente(Esquema):
 
 class CorregirPendiente(EsquemaAccion):
     correccion_pendiente: Annotated[CorreccionPendiente, SiNoVacio] = Field(default_factory=CorreccionPendiente)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _bajo_otra_clave(cls, datos: object) -> object:
+        """A veces la IA la pone bajo "pendiente", la clave de anotar ("el pendiente del molino
+        era para ayer", paso 9.1): si trae lo de una corrección, se toma de ahí."""
+        if not isinstance(datos, dict) or datos.get("correccion_pendiente"):
+            return datos
+        otra = datos.get("pendiente")
+        if isinstance(otra, dict) and ("pendientes" in otra or "cambios" in otra):
+            return {**datos, "correccion_pendiente": otra}
+        return datos
 
 
 # --- Cómo se ven ----------------------------------------------------------------------

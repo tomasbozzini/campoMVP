@@ -10,7 +10,7 @@ from app.ia import fechas, interprete
 from app.ia.fechas import PASADO, PROXIMO, Dicha, FechaDudosa
 from app.infra.modelos import Evento, Pendiente
 from app.modulos.comun.consultar import FiltrosConsulta
-from app.modulos.comun.pendientes import DatosPendiente
+from app.modulos.comun.pendientes import CorregirPendiente, DatosPendiente
 from app.modulos.comun.registros import DatosEvento
 from app.nucleo import pipeline, respuestas
 from app.salidas.whatsapp import fecha_corta
@@ -186,11 +186,34 @@ def test_dia_de_la_semana_y_numero_que_no_coinciden_es_dudosa():
 
 @pytest.mark.parametrize(
     "valor",
-    [None, "ayer", "2026-10-20", 3, [], {}, {"dia_semana": "feriado"}, {"dias": "muchos"}, {"dias": 5000}, {"mes": 11}],
+    [
+        None,
+        "2026-10-20",
+        "el lunes",
+        3,
+        [],
+        {},
+        {"dia_semana": "feriado"},
+        {"dias": "muchos"},
+        {"dias": 5000},
+        {"mes": 11},
+    ],
 )
 def test_lo_que_no_es_una_fecha_queda_vacio(valor):
-    """Un texto no es una FECHA: la IA no calcula fechas. Solo el mes no dice qué día."""
+    """Un texto no es una FECHA (la IA no calcula fechas), salvo las palabras fijas. Solo el mes
+    no dice qué día."""
     assert fechas.leer(valor) is None
+
+
+@pytest.mark.parametrize(
+    ("palabra", "dias"),
+    [("hoy", 0), ("Ayer", -1), ("anteayer", -2), ("antes de ayer", -2), ("mañana", 1), ("pasado  mañana", 2)],
+)
+def test_si_la_ia_devuelve_la_palabra_se_lee(palabra, dias):
+    """Paso 9.1: "ayer" en vez de {"dias": -1}. Es leer una palabra fija, no calcular."""
+    assert fechas.leer(palabra) == Dicha(dias=dias)
+    evento = DatosEvento.model_validate({"fecha_evento": palabra}, context={"hoy": MARTES})
+    assert evento.fecha_evento == MARTES + timedelta(days=dias)
 
 
 def test_los_datos_raros_se_ignoran():
@@ -206,6 +229,17 @@ def test_los_esquemas_calculan_con_el_hoy_que_les_pasan():
     evento = DatosEvento.model_validate({"fecha_evento": {"dia_semana": "sabado"}}, context=contexto)
     pendiente = DatosPendiente.model_validate({"vence": {"dia_semana": "sabado"}}, context=contexto)
     assert evento.fecha_evento == date(2026, 10, 17) and pendiente.vence == date(2026, 10, 24)
+
+
+def test_la_correccion_de_un_pendiente_bajo_la_clave_de_anotar():
+    """Lo que devolvió la IA en la línea de base para "el pendiente del molino era para ayer"."""
+    pedido = {
+        "intencion": "corregir_pendiente",
+        "pendiente": {"pendientes": [{"texto": "molino", "todos": False}], "cambios": {"vence": {"dias": -1}}},
+    }
+    correccion = CorregirPendiente.model_validate(pedido, context={"hoy": MARTES}).correccion_pendiente
+    assert correccion.cambios.vence == date(2026, 10, 19)
+    assert [r.texto for r in correccion.pendientes] == ["molino"]
 
 
 @pytest.mark.parametrize(

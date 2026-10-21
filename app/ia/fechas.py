@@ -71,9 +71,18 @@ def _palabra(valor: object) -> str:
     return sin_tildes(str(valor).strip().lower()) if isinstance(valor, str) else ""
 
 
+# Si la IA devuelve la palabra en vez de la FECHA ("ayer" en vez de {"dias": -1}), se aceptan
+# estas, fijas (paso 9.1): es leer una palabra, no calcular. Sin esto, la fecha se perdía y un
+# registro quedaba con la de hoy sin avisar.
+PALABRAS = {"hoy": 0, "ayer": -1, "anteayer": -2, "antes de ayer": -2, "manana": 1, "pasado manana": 2}
+
+
 def leer(valor: object) -> Dicha | None:
-    """La FECHA que devolvió la IA, limpia; None si no dice una fecha (un texto como "ayer" o
-    "2026-10-20" tampoco: la IA no calcula fechas)."""
+    """La FECHA que devolvió la IA, limpia; None si no dice una fecha. De un texto, solo las
+    palabras fijas de `PALABRAS` ("2026-10-20" no: la IA no calcula fechas)."""
+    if isinstance(valor, str):
+        dias = PALABRAS.get(" ".join(_palabra(valor).split()))
+        return Dicha(dias=dias) if dias is not None else None
     if not isinstance(valor, dict):
         return None
     nombre = _palabra(valor.get("dia_semana"))

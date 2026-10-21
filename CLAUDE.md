@@ -30,7 +30,7 @@ de producto"). `README.md` explica el uso y el funcionamiento.
 ## Producción (Railway)
 
 - El bot corre en Railway: el servicio del bot, Postgres y el cron `actualizar-precios`.
-  El webhook de Meta apunta ahí.
+  El webhook de Meta apunta ahí. Dominio: `campomvp-production.up.railway.app`.
 - **Cada push a la rama despliega solo y migra al arrancar, sin esperar al CI.** Antes de
   cada push: ruff, mypy y pytest en verde (y los tests sobre Postgres si hay migración).
 - Si un paso trae una migración que **borra o cambia datos**, avisar **antes de subirla**
@@ -39,8 +39,8 @@ de producto"). `README.md` explica el uso y el funcionamiento.
   uvicorn ni copiar `campo.db`.
 - **No decir que Railway desplegó sin comprobarlo** (paso 8.7.3: hubo pushes que no se
   desplegaron). `/salud` devuelve el commit que corre (`{"ok": true, "commit": "abc1234"}`):
-  en el resumen de cada paso, pasar el link de `/salud` y el commit subido, para que el
-  usuario vea que coinciden antes de probar.
+  en el resumen de cada paso, pasar el link (https://campomvp-production.up.railway.app/salud)
+  y el commit subido, para que el usuario vea que coinciden antes de probar.
 
 ## Chequeos
 

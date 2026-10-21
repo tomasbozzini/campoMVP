@@ -115,8 +115,8 @@
     {"funcion": "varios", "frase": "che pasame mis datos y decime quién ve lo que anoto", "intenciones": ["mis_datos", "privacidad"]},
     {"funcion": "varios", "frase": "bueno terminamos y anotame que mañana hay que revisar los toros", "intenciones": ["cerrar_sesion", "anotar_pendiente"]},
 
-    {"funcion": "ambiguo", "frase": "quiero ver", "intenciones": ["aclarar"]},
-    {"funcion": "ambiguo", "frase": "ehh mostrame eso", "intenciones": ["aclarar"]},
+    {"funcion": "ambiguo", "frase": "quiero ver", "intenciones": ["aclarar"], "o_bien": [["consultar"]]},
+    {"funcion": "ambiguo", "frase": "ehh mostrame eso", "intenciones": ["aclarar"], "o_bien": [["consultar"]]},
 
     {"funcion": "cancelar", "frase": "No, no, dejá, no quiero cambiar nada.", "intenciones": ["cancelar"], "pregunta": "rubro"},
     {"funcion": "cancelar", "frase": "ehh no, mejor lo dejo como está", "intenciones": ["cancelar"], "pregunta": "rubro"},

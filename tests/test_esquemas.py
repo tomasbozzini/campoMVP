@@ -28,7 +28,7 @@ def test_los_datos_de_un_evento_se_limpian():
             "categoria_animal": "Vacas",
             "lote": "Lote 3",
             "valor": "35",
-            "fecha_evento": "ayer",
+            "fecha_evento": "el otro día",  # un texto que no es una de las palabras fijas ("ayer" sí, paso 9.1)
             "producto": "  ",
             "descripcion": "x" * 900,
             "usuario_id": 999,  # no existe en el esquema: se ignora

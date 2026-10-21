@@ -71,6 +71,17 @@ def test_compara_las_intenciones_en_orden_y_mide_todo():
     assert r.costo_usd == pytest.approx(0.03) and r.precision == 0.5
 
 
+def test_una_frase_puede_aceptar_otras_respuestas():
+    """Paso 9.1: "quiero ver" está bien como aclarar o como consultar (mostrar no hace daño)."""
+    frase = evaluacion.Frase("ambiguo", "quiero ver", ("aclarar",), o_bien=(("consultar",),))
+    assert frase.acepta(("aclarar",)) and frase.acepta(("consultar",))
+    assert not frase.acepta(("borrar",)) and not frase.acepta(("aclarar", "consultar"))
+    del_set = next(f for f in evaluacion.cargar() if f.frase == "quiero ver")
+    assert del_set.o_bien == (("consultar",),)
+    resultados = [evaluacion.Resultado(frase, obtenidas=("consultar",)), evaluacion.Resultado(frase, obtenidas=())]
+    assert evaluacion.por_funcion(resultados) == {"ambiguo": (1, 2)}
+
+
 def test_frena_al_llegar_al_tope_de_costo():
     ia = IAFalsa(BIEN, costo=0.2)
     resultados, frenado = evaluacion.correr(FRASES, ia, [], HOY, tope_usd=0.35)
