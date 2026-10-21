@@ -118,7 +118,7 @@ WhatsApp ──► Meta Cloud API ──► POST /webhook (api/webhook.py)
 
 **Para sumar una acción**: un archivo en el módulo con su esquema (qué puede devolver la IA), su manejador (qué hace el código) y `ACCION = Accion("intencion", Esquema, manejar)`; se agrega a `ACCIONES` del módulo y se describe en la parte del prompt del módulo (`prompt.py`: la intención, sus campos, qué es y sus reglas). El núcleo no se toca.
 
-**Tope del prompt**: el prompt de cada rubro tiene como mucho `LARGO_MAXIMO_PROMPT` caracteres (24.000; hoy son unos 16.600) y un test lo verifica: cada carácter de más se paga y se espera en cada mensaje.
+**Tope del prompt**: el prompt de cada rubro tiene como mucho `LARGO_MAXIMO_PROMPT[rubro]` caracteres (veterinario 30.000, agrónomo 34.000, productor 40.000; hoy son unos 24.300, solo el módulo común) y un test lo verifica: cada carácter de más se paga en cada mensaje, porque Cerebras cobra igual los tokens que salen del caché.
 
 **Prompt por perfil**: cada persona recibe un prompt armado con los módulos de su rubro (`MODULOS_POR_RUBRO` en `app/modulos/__init__.py`): el común lo tienen todos; ganadería (veterinario y productor) y agricultura (agrónomo y productor) se suman cuando existan. Si la IA devuelve una acción de un módulo que la persona no tiene, se trata como fuera de alcance. Los audios se transcriben con el glosario de esos mismos módulos (las palabras que Whisper suele escribir mal), que entra en el `prompt` de Whisper: hasta 500 caracteres por rubro, y un test lo verifica.
 

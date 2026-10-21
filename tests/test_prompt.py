@@ -166,7 +166,7 @@ def test_el_glosario_de_cada_rubro_entra_en_whisper(rubro):
 def test_el_prompt_de_cada_rubro_no_pasa_el_tope(rubro):
     """Cada carácter de más se paga y se espera en cada mensaje."""
     sistema = prompt.sistema(modulos.partes(modulos.del_rubro(rubro)))
-    assert len(sistema) <= modulos.LARGO_MAXIMO_PROMPT
+    assert len(sistema) <= modulos.LARGO_MAXIMO_PROMPT[rubro]
 
 
 def test_cada_audio_se_transcribe_con_el_glosario_de_su_rubro(servidor, motor, ganaderia, ia, monkeypatch):

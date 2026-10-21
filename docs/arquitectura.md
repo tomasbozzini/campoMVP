@@ -888,10 +888,8 @@ resultado de laboratorio, pendiente de repetición), sanidad (planes oficiales, 
 carencia). La visita ya queda registrada con las sesiones (campo, horario, duración y lo
 anotado); la liquidación de visita y honorarios pasó a "Después del MVP".
 
-**Tope del prompt:** se decide al empezar esta etapa y hasta entonces no se toca
-(`LARGO_MAXIMO_PROMPT`, 24.500 desde el 8.7.2). Para decidirlo: cuántos tokens son de verdad,
-cuántos salen del caché de OpenRouter (si lo informa) y qué partes del prompt se repiten o se
-pueden juntar.
+**Tope del prompt:** decidido en el paso 1, con los números de la medición: uno por rubro
+(`LARGO_MAXIMO_PROMPT`).
 
 **Glosario:** pasan del glosario del módulo común al de ganadería ivermectina, aftosa,
 brucelosis, tacto, manga y destete, así el común queda corto y el rubro tiene lugar para
@@ -899,7 +897,99 @@ las suyas.
 
 **Aceptación:** los ejemplos de la especificación funcionan de punta a punta
 ("Terminamos lote vaquillonas San Pedro…", "Toro caravana 405 raspaje negativo…",
-"Pasamos 140 terneros con 4 ml de Ivermectina 1%…").
+"Pasamos 140 terneros con 4 ml de Ivermectina 1%…"), por texto y por audio.
+
+**Pasos** (un commit por paso, CI en verde; se frena para probar desde el celular después
+de 3, 4 y 5):
+
+- [x] 1 · Prompt ordenado y medido, sin funciones nuevas: juntar lo que se repite sin perder
+      precisión, medir tokens, caché y demora, proponer el tope de cada rubro con esos números
+      y correr el set entero una vez como línea de base de la etapa 2 (rubro productor). La IA
+      en dos pasos (primero el tema, después lo específico) solo si los números muestran que
+      hace falta.
+
+      Cómo quedó: **el prompt no cambió** (24.338 caracteres, el del 9.1). El reordenamiento
+      (juntar "fuera de alcance", que estaba en tres lugares; `cual`, en dos; los períodos, en
+      tres; lo de tachar pendientes, en tres; ejemplos repetidos) bajaba un 4 % (a 23.341,
+      ~250 tokens menos) y se descartó: en la línea de base dio 183/190, lo mismo que el 9b,
+      pero con fallas nuevas en lo que tocaba ("el domingo tenía que ver los toros y no fui" y
+      "hace 3 días tenía que mandar las caravanas…" vinieron "pendiente_hecho"; "El pendiente
+      de las aguadas es para el jueves 22", "anotar_pendiente"). Al repetirlas, el azar del
+      modelo con 3 tiradas era más grande que la diferencia, y verificarlo bien era otro set
+      entero. Ahorraba unos USD 0,0001 por mensaje.
+      - **Números** (OpenRouter, esfuerzo low, rubro productor): unos 4 caracteres por token;
+        ~7.200 tokens de entrada por llamada, 97 % del caché; mediana 1,0 a 1,2 s y p95 1,7 a
+        1,9 s; ~USD 0,0026 por mensaje. Cerebras cobra igual el token del caché (USD 0,35 por
+        millón; Groq, la mitad): el costo crece con el largo del prompt.
+      - **Línea de base de la etapa 2:** la del 9b (183/190, con la verificación del 9.1),
+        porque el prompt es el mismo.
+      - **Tope por rubro** (aprobado): veterinario 30.000 caracteres (común + ganadería),
+        agrónomo 34.000 (común + agricultura), productor 40.000 (los tres). No se agranda el
+        prompt sin necesidad.
+      - **IA en dos pasos:** no hace falta. Se vuelve a mirar si un rubro necesita pasar su
+        tope, si la precisión del set baja de 95 % o si la p95 pasa de 3 s.
+      - **Esquema estricto** (`response_format` `json_schema` con `strict: true`, una forma
+        por intención con `anyOf`; paso 1b): **descartado**. Cerebras y Groq lo aceptan con
+        gpt-oss-120b y el esquema entra en el límite de Cerebras (2.295 caracteres contados de
+        5.000; unos 3.600 con ganadería y agricultura), pero se suma al prompt: ~12.200 tokens
+        de entrada en vez de ~7.250, **+65 % de costo** (USD 0,0044 contra 0,0027 por mensaje).
+        **Groq lo rechazó siempre con 413** (pasa los 8.000 tokens por minuto del plan
+        gratuito). Con 10 frases: actual 10/10; estricto 7/8 (frenó por el tope), sin errores
+        de validación, salida 15 % más corta, demora parecida.
+      - Gasto del paso: USD 0,694 (línea de base 0,485, muestras y verificaciones 0,147,
+        esquema 0,062); la clave quedó en USD 2,66 de 3 en octubre.
+- [ ] 2 · Módulo ganadero (`app/modulos/ganaderia/`, para veterinario y productor) y su
+      glosario: pasan del común ivermectina, aftosa, brucelosis, tacto, manga y destete, y se
+      suman las palabras de tacto, raspaje y sanidad. Además (aprobado): un nombre de
+      intención casi igual a uno válido ("borrar_pendente", que vino 2 veces en una muestra
+      del paso 1) se toma como ese, con un umbral alto y con tests; los borrados igual piden
+      confirmación.
+- [ ] 3 · Tacto y cierre: por cabeza (varias vacas en un mismo mensaje o audio) y el cierre
+      del lote; % de preñez, total de vientres y CC promedio en `app/calculos/`.
+- [ ] 3b · PDF del tacto, a pedido, con un gráfico de barras de cabeza, cuerpo, cola y vacías.
+- [ ] 4 · Raspaje: tabla `animales` (RP o caravana por cuenta; migración que solo agrega),
+      número de muestreo calculado por el código, resultado en el momento o cuando llega el
+      del laboratorio, repetición como pendiente, consultas y PDF "Registro de raspajes".
+- [ ] 5 · Sanidad: consumo, carencia y planes oficiales, con sus consultas.
+- [ ] 6 · Aceptación de punta a punta, README, este plan y el set entero (avisando antes).
+
+**Decisiones de producto de la etapa 2:**
+
+- **Lo calcula el código, nunca la IA:** % de preñez, total, CC promedio, consumo, fin de
+  carencia, fecha de repetición del raspaje y número de muestreo. El bot nunca recomienda.
+- **Tacto por cabeza:** se dictan varias vacas en un mismo mensaje o audio ("213 preñada
+  cabeza CC 3, 214 vacía, 215 preñada cola"); se acumulan en la sesión y el código hace las
+  cuentas. La caravana de cada vaca, si la dice, va en el registro (`caravana`): el tacto no
+  necesita la tabla `animales`, que llega con el raspaje (1.° y 2.° del mismo toro).
+- **Límite diario con sesión** (cambio aprobado): con una sesión de trabajo abierta, el tope
+  de mensajes con IA sube a 300 por día; sin sesión sigue en 80.
+- **Cierre del tacto:** se guarda como lo dijo. Si en la misma sesión hay vacas por cabeza y
+  sus cuentas no coinciden con el cierre, se muestra la diferencia, sin preguntar. Si cabeza
+  + cuerpo + cola no da las preñadas, se guarda tal cual, el % sale de las preñadas y se avisa
+  ("cabeza, cuerpo y cola suman 86; dijiste 88"); si solo dice las tres, las preñadas son la
+  suma. El % se redondea a un decimal (88 de 102: 86,3 %).
+- **"Terminamos lote vaquillonas San Pedro…":** San Pedro es el campo, vaquillonas la
+  categoría y el lote queda vacío. Si hay una sesión abierta, después del tacto se cierra
+  (como "vacuné 30 terneros y terminamos").
+- **Raspaje:** se muestra lo que dijo el veterinario (negativo, positivo, dudoso o esperando
+  el resultado), nunca "Apto". El PDF es "Registro de raspajes", con el pie legal, no un
+  certificado. El intervalo para repetir, solo si lo dice el profesional; el código calcula la
+  fecha y lo deja como pendiente.
+- **Sanidad:** sigue siendo "registrar"; ganadería le suma a EVENTO la carencia y el plan
+  oficial. Tacto y raspaje son intenciones propias. Los tipos de EVENTO de ganadería quedan
+  en el común por ahora (un agrónomo no pierde lo que ya anota); se revisa en la etapa 3.
+- **Consumo:** dosis × animales, en ml. Una dosis por kilo ("1 ml cada 50 kg") se anota como
+  la dijo, sin consumo, salvo que diga el peso. El descargo en depósito queda fuera del MVP.
+- **Carencia:** la que dice el profesional ("ivermectina, 35 días"), nunca una que no dijo ni
+  una inventada; el fin es la fecha de aplicación más esos días, y si dice faena u ordeñe, se
+  guarda. Si no la dice, no se pregunta: en tratamientos y desparasitaciones la respuesta dice
+  "Carencia: no la indicaste" y cómo agregarla; en vacunaciones, nada.
+- **Planes oficiales** (aftosa, brucelosis, carbunclo): solo la marca en el registro y la
+  consulta por plan, sin campañas ni fechas oficiales.
+- **PDF del tacto:** a pedido; la respuesta del cierre lo ofrece en una línea.
+- **Gasto de OpenRouter** (clave con tope de USD 3 por mes): en cada paso, solo las frases de
+  lo que cambia, con `--tope-usd 0.10`; el set entero solo en la línea de base del paso 1 y
+  al cerrar la etapa, avisando antes; el gasto se informa después de cada corrida.
 
 ### Etapa 3 · Módulo agrícola
 
@@ -934,3 +1024,12 @@ animal, km), que estaba en "Pendientes de definición".
 - Fuente oficial de carencias por producto (el registro de SENASA descargado no las incluye).
 - Publicaciones oficiales de cada umbral: tolerancias de trilla INTA, humedades base,
   densidades para silobolsas, índice salino.
+- **`cual` contradictorio en el prompt** (encontrado en el paso 1 de la etapa 2): la regla
+  dice "si no se puede saber, null" y FECHA dice "obligatorio con dia_semana, nunca null". Se
+  arregla en el próximo cambio de prompt que se valide con el set entero.
+- **Respaldo de Groq:** el prompt actual (~7.250 tokens) ya está al borde del límite del plan
+  gratuito (8.000 tokens por minuto; en el paso 1 de la etapa 2 hubo una 413 con el formato de
+  siempre); con ganadería queda más justo y el del productor con agricultura no entraría. Se
+  decide antes de la etapa 4 (testers), y antes de la etapa 3 si el prompt del productor lo
+  necesita, con las opciones y su costo: los otros servidores de OpenRouter con
+  `allow_fallbacks`, el plan pago de Groq u otro.

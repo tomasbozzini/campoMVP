@@ -32,11 +32,16 @@ MODULOS_POR_RUBRO: dict[str, tuple[str, ...]] = {
 # token: con 500 caracteres queda margen. Un test lo verifica para cada rubro.
 LARGO_MAXIMO_GLOSARIO = 500
 
-# Largo máximo del prompt de cada rubro (en caracteres; en castellano son unos 3,5 por
-# token). En el paso 8.7.2 el módulo común solo llega a unos 24.230: subió de 24.000 a 24.500,
-# y para sumar ganadería y agricultura hay que decidir qué se hace con el tope. Más prompt es
-# más costo y más demora en cada mensaje. Un test lo verifica para cada rubro.
-LARGO_MAXIMO_PROMPT = 24_500
+# Largo máximo del prompt de cada rubro, en caracteres (unos 4 por token, medido en el paso 1
+# de la etapa 2). Casi todo el prompt sale del caché, pero Cerebras cobra igual el token del
+# caché: el costo de cada mensaje crece con el largo. Si un rubro necesita pasar su tope, la
+# precisión del set baja de 95 % o la p95 pasa de 3 s, se mira separar la IA en dos pasos.
+# Un test lo verifica para cada rubro.
+LARGO_MAXIMO_PROMPT: dict[str, int] = {
+    "veterinario": 30_000,  # común + ganadería
+    "agronomo": 34_000,  # común + agricultura
+    "productor": 40_000,  # los tres
+}
 
 _candado = threading.Lock()
 _cargados = False
