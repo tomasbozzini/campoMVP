@@ -210,7 +210,8 @@ def _ejecutar(ctx: Contexto, pedidos: list[dict[str, Any]], suyos: list[str]) ->
 
 def _hacer(ctx: Contexto, pedidos: list[dict[str, Any]], suyos: list[str]) -> str:
     """Hace los pedidos. Uno de un módulo que la persona no tiene se trata como fuera de
-    alcance, aunque la IA lo devuelva: su prompt no lo ofrecía."""
+    alcance, aunque la IA lo devuelva: su prompt no lo ofrecía. Una intención con el nombre
+    casi igual a una de las suyas ("borrar_pendente") se toma como esa (`acciones.buscar`)."""
     varios = len(pedidos) > 1
     respuestas: list[str] = []
     hubo_fuera = False
@@ -219,9 +220,7 @@ def _hacer(ctx: Contexto, pedidos: list[dict[str, Any]], suyos: list[str]) -> st
     juntas: dict[str, tuple[Accion, int, list[EsquemaAccion]]] = {}
 
     for pedido in pedidos:
-        accion = acciones.buscar(pedido.get("intencion"))
-        if accion is not None and accion.modulo not in suyos:
-            accion = None
+        accion = acciones.buscar(pedido.get("intencion"), suyos)
         datos = acciones.validar(accion, pedido, ctx.hoy, ctx.cuaderno.fechas) if accion else None
         if accion is None or datos is None:
             hubo_fuera = True

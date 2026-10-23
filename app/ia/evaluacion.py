@@ -18,6 +18,7 @@ from datetime import date
 from pathlib import Path
 
 from app.ia import prompt
+from app.ia.esquemas import intencion_valida
 from app.ia.proveedor import ErrorIA, ProveedorTexto, Uso, medir
 
 SET = Path(__file__).resolve().parents[2] / "evaluacion" / "set.json"
@@ -103,13 +104,16 @@ def elegir(
     return elegidas if limite is None else elegidas[:limite]
 
 
-def intenciones(interpretado: object) -> tuple[str, ...]:
-    """Las intenciones de la respuesta del modelo, en orden (como las lee el núcleo)."""
+def intenciones(interpretado: object, validas: Sequence[str] = ()) -> tuple[str, ...]:
+    """Las intenciones de la respuesta del modelo, en orden (como las lee el núcleo). Con
+    `validas`, un nombre casi igual a una de ellas cuenta como esa, como en el bot
+    (`esquemas.intencion_valida`)."""
     if not isinstance(interpretado, dict):
         return ()
     crudas = interpretado.get("acciones")
     lista = crudas if isinstance(crudas, list) else [interpretado]
-    return tuple(str(a.get("intencion")) for a in lista if isinstance(a, dict))
+    nombres = [a.get("intencion") for a in lista if isinstance(a, dict)]
+    return tuple(intencion_valida(n, validas) or str(n) for n in nombres)
 
 
 def correr(
@@ -127,6 +131,7 @@ def correr(
     `preguntas`: el texto que ve la IA para cada clave de pregunta pendiente. `fechas`: las
     fechas que quedan de una respuesta, como las calcula el bot."""
     sistema = prompt.sistema(partes)
+    validas = [*(i for p in partes for i in p.intenciones), "fuera_de_alcance"]
     resultados: list[Resultado] = []
     gastado = 0.0
     for i, frase in enumerate(frases):
@@ -139,7 +144,7 @@ def correr(
                 pregunta = (preguntas or {}).get(frase.pregunta or "")
                 mensaje = prompt.mensaje(frase.frase, frase.historial, pregunta)
                 interpretado = resultado.respuesta = proveedor.completar_json(sistema, mensaje)
-                resultado.obtenidas = intenciones(interpretado)
+                resultado.obtenidas = intenciones(interpretado, validas)
                 resultado.fechas = fechas(interpretado, frase.hoy or hoy)
             except ErrorIA as e:
                 resultado.error = str(e)

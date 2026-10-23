@@ -938,12 +938,30 @@ de 3, 4 y 5):
         de validación, salida 15 % más corta, demora parecida.
       - Gasto del paso: USD 0,694 (línea de base 0,485, muestras y verificaciones 0,147,
         esquema 0,062); la clave quedó en USD 2,66 de 3 en octubre.
-- [ ] 2 · Módulo ganadero (`app/modulos/ganaderia/`, para veterinario y productor) y su
+- [x] 2 · Módulo ganadero (`app/modulos/ganaderia/`, para veterinario y productor) y su
       glosario: pasan del común ivermectina, aftosa, brucelosis, tacto, manga y destete, y se
       suman las palabras de tacto, raspaje y sanidad. Además (aprobado): un nombre de
       intención casi igual a uno válido ("borrar_pendente", que vino 2 veces en una muestra
       del paso 1) se toma como ese, con un umbral alto y con tests; los borrados igual piden
       confirmación.
+
+      Cómo quedó: el módulo está en `MODULOS` y lo tienen el veterinario y el productor, **sin
+      intenciones todavía** (llegan en los pasos 3 a 5): el prompt de cada rubro sigue siendo
+      el del común, carácter por carácter (24.338; un test lo verifica).
+      - **Glosario de ganadería:** tacto, manga, destete, preñez, raspaje, tricomoniasis,
+        campylobacter, aftosa, brucelosis, carbunclo, ivermectina y doramectina. El del
+        veterinario y el productor queda en 285 caracteres de 500; el del agrónomo, en 158.
+      - **Nombre casi igual** (`esquemas.intencion_valida`): se compara sin mayúsculas, tildes,
+        espacios ni guiones ("Borrar pendiente") y, si no es igual, con un parecido de al menos
+        0,9 (`PARECIDO_INTENCION`, como el de los campos parecidos) con **una sola** de las
+        intenciones de los módulos de la persona; si se parece a dos, no es ninguna.
+        "borrar_pendente" da 0,97, "precios" 0,92; "registro" y "registrar" (0,82) no
+        alcanzan. Una intención de otro módulo nunca se toma como una suya. Un test controla
+        que dos intenciones válidas no se parezcan tanto entre sí. El log dice "Intención casi
+        igual tomada como …", sin el nombre que vino. El set de evaluación lo cuenta igual que
+        el bot.
+      - Gasto del paso: USD 0. No cambia nada de lo que ve la IA (el prompt es el mismo y el
+        glosario es de Whisper), así que no hubo frases que correr.
 - [ ] 3 · Tacto y cierre: por cabeza (varias vacas en un mismo mensaje o audio) y el cierre
       del lote; % de preñez, total de vientres y CC promedio en `app/calculos/`.
 - [ ] 3b · PDF del tacto, a pedido, con un gráfico de barras de cabeza, cuerpo, cola y vacías.

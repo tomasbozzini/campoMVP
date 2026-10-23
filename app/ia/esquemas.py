@@ -6,13 +6,37 @@ el valor (recortan, convierten) o lo dejan en None si no sirve. Lo que no entra 
 esquema de su acción se descarta y el mensaje se trata como fuera de alcance.
 """
 
+import re
+from collections.abc import Iterable
 from datetime import date, datetime
+from difflib import SequenceMatcher
 from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, ValidationInfo, model_validator
 
 from app.ia import fechas
 from app.infra.config import config
+from app.infra.texto import sin_tildes
+
+# Desde qué parecido un nombre de intención que no existe se toma como uno que sí (paso 2 de
+# la etapa 2): "borrar_pendente" y "borrar_pendiente" dan 0,97; "precios" y "precio", 0,92;
+# "consulta" y "consultar", 0,94. "registro" y "registrar" (0,82) o "borrar_datos" y
+# "borrar_mis_datos" (0,86) no alcanzan.
+PARECIDO_INTENCION = 0.9
+
+
+def intencion_valida(nombre: object, validas: Iterable[str]) -> str | None:
+    """La intención de `validas` que nombró la IA: la misma, escrita con mayúsculas, espacios o
+    guiones ("Borrar pendiente"), o casi igual a una sola de ellas ("borrar_pendente"). None si
+    no es ninguna o si se parece a más de una."""
+    if not isinstance(nombre, str):
+        return None
+    opciones = list(validas)
+    limpio = re.sub(r"[\s-]+", "_", sin_tildes(nombre).strip().lower())
+    if limpio in opciones:
+        return limpio
+    parecidas = [v for v in opciones if SequenceMatcher(None, limpio, v).ratio() >= PARECIDO_INTENCION]
+    return parecidas[0] if len(parecidas) == 1 else None
 
 
 def limpiar_texto(valor: object, largo: int) -> str | None:

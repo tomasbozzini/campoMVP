@@ -11,16 +11,19 @@ El núcleo no conoce las acciones: las busca en el registro por su `intencion`. 
 queda registrada con su módulo, y solo se ejecuta para quien tiene ese módulo.
 """
 
-from collections.abc import Callable
+import logging
+from collections.abc import Callable, Collection
 from dataclasses import dataclass, replace
 from datetime import date
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
-from app.ia.esquemas import EsquemaAccion
+from app.ia.esquemas import EsquemaAccion, intencion_valida
 from app.ia.fechas import FechaDudosa
 from app.nucleo.contexto import Contexto
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -47,8 +50,21 @@ def registrar(modulo: str, *acciones: Accion) -> None:
         _registro[accion.intencion] = replace(accion, modulo=modulo)
 
 
-def buscar(intencion: object) -> Accion | None:
-    return _registro.get(intencion) if isinstance(intencion, str) else None
+def buscar(intencion: object, modulos: Collection[str] | None = None) -> Accion | None:
+    """La acción de la intención que devolvió la IA, si es de esos módulos (de todos si no se
+    dicen). Un nombre casi igual a uno de ellos ("borrar_pendente") se toma como ese
+    (`esquemas.intencion_valida`); el de una intención de otro módulo, no."""
+    if isinstance(intencion, str) and intencion in _registro:
+        accion = _registro[intencion]
+        return accion if modulos is None or accion.modulo in modulos else None
+    validas = [i for i, a in _registro.items() if modulos is None or a.modulo in modulos]
+    nombre = intencion_valida(intencion, validas)
+    if nombre is None:
+        return None
+    if nombre != intencion:
+        # Sin el nombre que vino: lo escribe la IA y podría traer algo del mensaje.
+        log.info("Intención casi igual tomada como %s", nombre)
+    return _registro[nombre]
 
 
 def validar(

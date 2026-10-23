@@ -37,11 +37,11 @@ GLOSARIO_GANADERO = ("raspaje", "tricomoniasis", "vaquillonas")
 
 @pytest.fixture
 def ganaderia(monkeypatch):
-    """Un módulo ganadero de mentira, que tienen los veterinarios y los productores."""
+    """El módulo ganadero, que tienen los veterinarios y los productores, con un tacto de
+    mentira (el de verdad llega en el paso 3 de la etapa 2)."""
     monkeypatch.setattr(acciones, "_registro", dict(acciones._registro))
     monkeypatch.setattr(modulos, "_partes", dict(modulos._partes))
     monkeypatch.setattr(modulos, "_glosarios", dict(modulos._glosarios))
-    monkeypatch.setattr(modulos, "MODULOS", [*modulos.MODULOS, "ganaderia"])
     accion = Accion("tacto", EsquemaAccion, lambda _ctx, _datos: TACTO_ANOTADO)
     modulos.registrar("ganaderia", [accion], PARTE_TACTO, GLOSARIO_GANADERO)
 
@@ -69,10 +69,27 @@ def ia():
     proveedor.usar(None)
 
 
-@pytest.mark.parametrize("rubro", [*RUBROS, None, "otro"])
-def test_hoy_todos_los_rubros_usan_solo_el_modulo_comun(rubro):
-    """Ganadería y agricultura todavía no existen: nadie las tiene en el prompt."""
-    assert modulos.del_rubro(rubro) == ["comun"]
+@pytest.mark.parametrize(
+    ("rubro", "suyos"),
+    [
+        ("veterinario", ["comun", "ganaderia"]),
+        ("productor", ["comun", "ganaderia"]),
+        ("agronomo", ["comun"]),
+        (None, ["comun"]),
+        ("otro", ["comun"]),
+    ],
+)
+def test_hoy_ganaderia_es_de_veterinarios_y_productores(rubro, suyos):
+    """Agricultura todavía no existe (etapa 3): nadie la tiene en el prompt."""
+    assert modulos.del_rubro(rubro) == suyos
+
+
+@pytest.mark.parametrize("rubro", list(RUBROS))
+def test_ganaderia_todavia_no_cambia_el_prompt(rubro):
+    """Sus intenciones llegan en los pasos 3 a 5: hasta entonces el prompt de cada rubro es el
+    del módulo común, carácter por carácter."""
+    assert modulos.partes(["ganaderia"])[0].intenciones == ()
+    assert prompt.sistema(modulos.partes(modulos.del_rubro(rubro))) == prompt.sistema(modulos.partes(["comun"]))
 
 
 def test_cada_rubro_suma_los_modulos_que_le_tocan(monkeypatch):
@@ -124,15 +141,28 @@ def test_una_accion_de_un_modulo_que_no_tiene_no_se_ejecuta(db, ganaderia, ia):
     assert pipeline.manejar_mensaje(db, agronoma.telefono, "tacto 30 vacas", hoy=HOY) == pipeline.FUERA_DE_ALCANCE
 
 
+def test_un_nombre_casi_igual_se_toma_solo_entre_sus_intenciones(db, ganaderia):
+    """ "Tactos" es "tacto" para quien tiene ganadería; para un agrónomo, no es nada suyo."""
+    proveedor.usar(ProveedorFalso({"acciones": [{"intencion": "Tactos"}]}))
+    try:
+        veterinaria = con_perfil(db, "5491100000001", rubro="veterinario")
+        agronoma = con_perfil(db, "5491100000002", rubro="agronomo")
+        assert pipeline.manejar_mensaje(db, veterinaria.telefono, "tactos", hoy=HOY) == TACTO_ANOTADO
+        assert pipeline.manejar_mensaje(db, agronoma.telefono, "tactos", hoy=HOY) == pipeline.FUERA_DE_ALCANCE
+    finally:
+        proveedor.usar(None)
+
+
 def test_el_prompt_de_un_modulo_ofrece_justo_sus_acciones(monkeypatch):
     monkeypatch.setattr(acciones, "_registro", dict(acciones._registro))
     monkeypatch.setattr(modulos, "_partes", dict(modulos._partes))
+    antes = dict(modulos._partes)
     accion = Accion("tacto", EsquemaAccion, lambda _ctx, _datos: TACTO_ANOTADO)
     with pytest.raises(ValueError, match="ganaderia"):
         modulos.registrar("ganaderia", [accion], Parte(intenciones=("tacto", "raspaje"), campos="", descripciones=""))
     with pytest.raises(ValueError, match="ganaderia"):
         modulos.registrar("ganaderia", [accion], Parte(intenciones=(), campos="", descripciones=""))
-    assert acciones.buscar("tacto") is None and "ganaderia" not in modulos._partes
+    assert acciones.buscar("tacto") is None and modulos._partes == antes
 
 
 # --- Glosario para Whisper ------------------------------------------------------------
@@ -141,7 +171,20 @@ def test_el_prompt_de_un_modulo_ofrece_justo_sus_acciones(monkeypatch):
 def test_el_glosario_del_modulo_comun():
     glosario = modulos.glosario(["comun"])
     assert glosario.startswith("vaquillonas, novillos, terneros, ") and glosario.endswith(", cebada.")
-    assert "ivermectina" in glosario and "SENASA" in glosario
+    assert "SENASA" in glosario and "desparasitación" in glosario
+
+
+def test_lo_de_ganaderia_paso_a_su_glosario():
+    """Paso 2 de la etapa 2: un agrónomo no las necesita, y el común queda corto."""
+    comun = modulos.glosario(["comun"])
+    veterinario = modulos.glosario(modulos.del_rubro("veterinario"))
+    for palabra in ("ivermectina", "aftosa", "brucelosis", "tacto", "manga", "destete"):
+        assert palabra not in comun and palabra in veterinario, palabra
+    for palabra in ("raspaje", "tricomoniasis", "carbunclo"):
+        assert palabra in veterinario, palabra
+    assert veterinario.startswith(comun.removesuffix(".") + ", tacto, ")
+    assert modulos.glosario(modulos.del_rubro("productor")) == veterinario
+    assert modulos.glosario(modulos.del_rubro("agronomo")) == comun
 
 
 def test_cada_modulo_suma_su_glosario_sin_repetir(ganaderia):
@@ -221,4 +264,5 @@ def test_cada_audio_se_transcribe_con_los_campos_y_lotes_de_la_persona(servidor,
         c.post("/webhook", json={"entry": [{"changes": [{"value": {"messages": [mensaje]}}]}]})
         assert webhook.fila.esperar(5)
     # Primero el campo con más registros.
-    assert ia.glosarios == [modulos.glosario(["comun"], ["La Pastora", "El Ombú", "potrero grande"])]
+    propios = ["La Pastora", "El Ombú", "potrero grande"]
+    assert ia.glosarios == [modulos.glosario(modulos.del_rubro("productor"), propios)]

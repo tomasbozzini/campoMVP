@@ -17,11 +17,10 @@ from app.nucleo.acciones import Accion
 
 COMUN = "comun"
 # Los módulos que existen, en el orden en que se arma el prompt.
-MODULOS = [COMUN]
+MODULOS = [COMUN, "ganaderia"]
 
 # Los módulos de cada rubro (`perfil.RUBROS`), además del común, que lo tienen todos. Los
-# que todavía no existen (no están en MODULOS) no se ofrecen: ganadería llega en la etapa 2
-# y agricultura en la 3.
+# que todavía no existen (no están en MODULOS) no se ofrecen: agricultura llega en la etapa 3.
 MODULOS_POR_RUBRO: dict[str, tuple[str, ...]] = {
     "veterinario": ("ganaderia",),
     "agronomo": ("agricultura",),
