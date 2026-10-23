@@ -188,7 +188,7 @@ def test_borrar_deshace_las_vacas_del_ultimo_mensaje(db, ia):
     _mandar(db, "213 preñada cabeza cc 3, 214 vacía, 215 cola")
     _mandar(db, "216 preñada cuerpo")
     assert _mandar(db, "borrar").startswith("🗑️ *BORRADO*")
-    assert [e.caravana for e in db.scalars(select(Evento))] == ["213", "214", "215"]
+    assert [e.caravana for e in db.scalars(select(Evento).order_by(Evento.id))] == ["213", "214", "215"]
 
 
 @pytest.mark.parametrize(("con_sesion", "limite"), [(False, 80), (True, 300)])

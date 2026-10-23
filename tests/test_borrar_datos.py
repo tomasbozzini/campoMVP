@@ -12,6 +12,7 @@ from sqlalchemy import Table, func, select
 
 from app.infra.db import Base
 from app.infra.modelos import (
+    Animal,
     BorradoPendiente,
     Cuenta,
     Establecimiento,
@@ -40,7 +41,8 @@ def _todo_lo_de(db, u: Usuario) -> None:
     sesion = Sesion(
         cuenta_id=u.cuenta_id, usuario_id=u.id, establecimiento=campo, abierta=ahora, ultima_actividad=ahora
     )
-    db.add_all([lote, sesion])
+    toro = Animal(cuenta_id=u.cuenta_id, establecimiento=campo, caravana="405", categoria="toro")
+    db.add_all([lote, sesion, toro])
     db.flush()
     db.add_all(
         [
@@ -53,6 +55,15 @@ def _todo_lo_de(db, u: Usuario) -> None:
                 establecimiento=campo,
                 lote=lote,
                 sesion_id=sesion.id,
+            ),
+            Evento(
+                cuenta_id=u.cuenta_id,
+                usuario_id=u.id,
+                categoria="sanidad",
+                tipo="raspaje",
+                fecha_evento=HOY,
+                establecimiento=campo,
+                animal_id=toro.id,
             ),
             Pendiente(
                 cuenta_id=u.cuenta_id, usuario_id=u.id, texto="revisar aguadas", establecimiento=campo, lote=lote

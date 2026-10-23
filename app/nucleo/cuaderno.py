@@ -16,6 +16,7 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
 from app.infra.modelos import (
+    Animal,
     BorradoPendiente,
     Establecimiento,
     Evento,
@@ -135,7 +136,28 @@ class Cuaderno:
         return self.db.scalar(select(func.count(Evento.id)).where(Evento.cuenta_id == self.cuenta_id)) or 0
 
     def borrar(self, ids: list[int]) -> int:
-        """Borra esos registros, solo si son de esta cuenta. Devuelve cuántos borró."""
+        """Borra esos registros, solo si son de esta cuenta. Devuelve cuántos borró.
+
+        Un registro puede llevar en `extra` lo que se deshace con él: "pendientes" (los ids de
+        los que anotó, como la repetición de un raspaje: se borran si no están hechos) y
+        "deshacer" ({"evento", "antes", "despues"}: el `extra` que le cambió a otro registro,
+        como el resultado de laboratorio de un raspaje; vuelve a "antes" si sigue en "despues")."""
+        eventos = list(self.db.scalars(select(Evento).where(Evento.id.in_(ids), Evento.cuenta_id == self.cuenta_id)))
+        pendientes: list[int] = []
+        for e in eventos:
+            extra = e.extra if isinstance(e.extra, dict) else {}
+            pendientes += [p for p in extra.get("pendientes") or [] if isinstance(p, int)]
+            deshacer = extra.get("deshacer")
+            if isinstance(deshacer, dict) and isinstance(deshacer.get("evento"), int) and deshacer["evento"] not in ids:
+                otro = self.db.get(Evento, deshacer["evento"])
+                if otro is not None and otro.cuenta_id == self.cuenta_id and otro.extra == deshacer.get("despues"):
+                    otro.extra = deshacer.get("antes")
+        if pendientes:
+            self.db.execute(
+                delete(Pendiente)
+                .where(Pendiente.id.in_(pendientes), Pendiente.cuenta_id == self.cuenta_id, Pendiente.hecho.is_(None))
+                .execution_options(synchronize_session="fetch")
+            )
         resultado = self.db.execute(delete(Evento).where(Evento.id.in_(ids), Evento.cuenta_id == self.cuenta_id))
         borrados = int(getattr(resultado, "rowcount", 0) or 0)
         if borrados:
@@ -162,7 +184,13 @@ class Cuaderno:
             lotes = select(Lote.id).where(Lote.cuenta_id == self.cuenta_id, Lote.nombre == filtros.lote)
             q = q.where(Evento.lote_id.in_(lotes) | Evento.lote_destino_id.in_(lotes))
         if filtros.caravana:
-            q = q.where(func.lower(Evento.caravana) == filtros.caravana.lower())
+            # La caravana del registro o la de su animal, o su RP: "el 412" es el RP 412.
+            buscada = filtros.caravana.lower()
+            animales = select(Animal.id).where(
+                Animal.cuenta_id == self.cuenta_id,
+                (func.lower(Animal.rp) == buscada) | (func.lower(Animal.caravana) == buscada),
+            )
+            q = q.where((func.lower(Evento.caravana) == buscada) | Evento.animal_id.in_(animales))
         if filtros.categoria_animal:
             raiz = filtros.categoria_animal.lower().rstrip("s")
             q = q.where(func.lower(Evento.categoria_animal).like(f"%{raiz}%"))
@@ -277,6 +305,7 @@ class Cuaderno:
                 self._pasar_lote(lote, de_destino[lote.nombre])
             else:
                 lote.establecimiento_id = destino.id
+        self._pasar_animales(origen.id, destino.id)
         for modelo in (Evento, Pendiente, Sesion):
             self.db.execute(
                 update(modelo)
@@ -328,6 +357,13 @@ class Cuaderno:
             )
         self._sin(Usuario, "establecimiento_actual_id", Usuario.establecimiento_actual_id == campo.id)
         self.db.execute(delete(Lote).where(Lote.cuenta_id == self.cuenta_id, Lote.id.in_(lotes)))
+        animales = select(Animal.id).where(Animal.cuenta_id == self.cuenta_id, Animal.establecimiento_id == campo.id)
+        self._sin(Evento, "animal_id", Evento.animal_id.in_(animales))  # un registro que se pasó a otro campo
+        self.db.execute(
+            delete(Animal)
+            .where(Animal.cuenta_id == self.cuenta_id, Animal.establecimiento_id == campo.id)
+            .execution_options(synchronize_session="fetch")
+        )
         self.db.delete(campo)
         self.db.flush()
         self.db.expire_all()  # lo cargado (el campo actual, la sesión) puede apuntar a lo borrado
@@ -558,6 +594,85 @@ class Cuaderno:
         lotes = [lote for c in campos for lote in c.lotes if not lote.isdecimal()]
         return list(dict.fromkeys([*nombres, *lotes]))
 
+    # --- Animales identificados ------------------------------------------------
+
+    def _animales_de(self, establecimiento_id: int | None) -> list[Animal]:
+        campo = (
+            Animal.establecimiento_id.is_(None)
+            if establecimiento_id is None
+            else Animal.establecimiento_id == establecimiento_id
+        )
+        return list(self.db.scalars(select(Animal).where(Animal.cuenta_id == self.cuenta_id, campo)).all())
+
+    def animal_existente(
+        self, rp: str | None, caravana: str | None, establecimiento: Establecimiento | None
+    ) -> Animal | None:
+        """El animal de ese campo (o suelto) con ese RP o esa caravana. Un número dicho sin decir
+        qué es ("el 412") llega como caravana y también se busca como RP."""
+        animales = self._animales_de(establecimiento.id if establecimiento else None)
+        return _el_animal(animales, rp, caravana)
+
+    def animal(
+        self, rp: str | None, caravana: str | None, establecimiento: Establecimiento | None, categoria: str
+    ) -> Animal | None:
+        """El animal con ese RP o esa caravana en ese campo; si no está, se crea. Si dice el
+        dato que le faltaba ("RP 412, caravana 405"), se le suma. None sin RP ni caravana."""
+        if not rp and not caravana:
+            return None
+        if establecimiento is not None and establecimiento.cuenta_id != self.cuenta_id:
+            raise ValueError("El establecimiento es de otra cuenta")
+        existente = self.animal_existente(rp, caravana, establecimiento)
+        if existente is not None:
+            existente.rp = existente.rp or rp
+            if caravana and caravana != existente.rp:
+                existente.caravana = existente.caravana or caravana
+            self.db.flush()
+            return existente
+        nuevo = Animal(
+            cuenta_id=self.cuenta_id, establecimiento=establecimiento, rp=rp, caravana=caravana, categoria=categoria
+        )
+        self.db.add(nuevo)
+        self.db.flush()
+        return nuevo
+
+    def animales_en_todos_los_campos(self, rp: str | None, caravana: str | None) -> list[Animal]:
+        """Los animales con ese RP o esa caravana, de cualquier campo (para un resultado de
+        laboratorio que no dice el campo)."""
+        todos = list(self.db.scalars(select(Animal).where(Animal.cuenta_id == self.cuenta_id)).all())
+        por_campo: dict[int | None, list[Animal]] = {}
+        for a in todos:
+            por_campo.setdefault(a.establecimiento_id, []).append(a)
+        return [uno for animales in por_campo.values() if (uno := _el_animal(animales, rp, caravana)) is not None]
+
+    def registros_del_animal(self, animal: Animal, tipo: str) -> list[Evento]:
+        """Los registros de ese tipo de ese animal, del más viejo al más nuevo."""
+        q = (
+            select(Evento)
+            .where(Evento.cuenta_id == self.cuenta_id, Evento.animal_id == animal.id, Evento.tipo == tipo)
+            .order_by(Evento.fecha_evento, Evento.id)
+            .limit(MAX_EVENTOS)
+        )
+        return list(self.db.scalars(q).all())
+
+    def _pasar_animales(self, origen_id: int, destino_id: int) -> None:
+        """Al unir dos campos: los animales de `origen` pasan a `destino`; si `destino` ya tiene
+        uno con el mismo RP o caravana, sus registros pasan a ese y el de `origen` se borra."""
+        de_destino = self._animales_de(destino_id)
+        for animal in self._animales_de(origen_id):
+            igual = _el_animal(de_destino, animal.rp, animal.caravana)
+            if igual is None:
+                animal.establecimiento_id = destino_id
+                continue
+            igual.rp, igual.caravana = igual.rp or animal.rp, igual.caravana or animal.caravana
+            self.db.execute(
+                update(Evento)
+                .where(Evento.cuenta_id == self.cuenta_id, Evento.animal_id == animal.id)
+                .values(animal_id=igual.id)
+                .execution_options(synchronize_session="fetch")
+            )
+            self.db.delete(animal)
+        self.db.flush()
+
     # --- Sesiones -------------------------------------------------------------
 
     def sesion_abierta(self) -> Sesion | None:
@@ -753,6 +868,7 @@ class Cuaderno:
 
         Hoy cada persona tiene su propia cuenta, así que se borra todo lo de la cuenta."""
         self.db.execute(delete(Evento).where(Evento.cuenta_id == self.cuenta_id))
+        self.db.execute(delete(Animal).where(Animal.cuenta_id == self.cuenta_id))
         self.db.execute(delete(Sesion).where(Sesion.cuenta_id == self.cuenta_id))
         self.db.execute(delete(Pendiente).where(Pendiente.cuenta_id == self.cuenta_id))
         self.db.execute(
@@ -763,6 +879,18 @@ class Cuaderno:
         for modelo in (MensajeChat, UsoDiario, BorradoPendiente, Solicitud, Prueba):
             self.db.execute(delete(modelo).where(modelo.usuario_id == self.usuario_id))
         self.db.flush()
+
+
+def _el_animal(animales: list[Animal], rp: str | None, caravana: str | None) -> Animal | None:
+    """De esos animales, el del RP o, si no, el de la caravana; un número que no está como
+    caravana se busca como RP ("el 412" es el RP 412), y al revés."""
+
+    def con(columna: str, valor: str | None) -> Animal | None:
+        if not valor:
+            return None
+        return next((a for a in animales if (getattr(a, columna) or "").lower() == valor.lower()), None)
+
+    return con("rp", rp) or con("caravana", caravana) or con("rp", caravana) or con("caravana", rp)
 
 
 def _ordenar_lotes(nombres: list[str]) -> list[str]:

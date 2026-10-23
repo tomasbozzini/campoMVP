@@ -114,6 +114,31 @@ class Sesion(Base):
     lote: Mapped[Lote | None] = relationship(lazy="joined")
 
 
+class Animal(Base):
+    """Un animal identificado por su RP, su caravana o los dos (un toro que se raspa), para
+    seguirlo de un registro a otro (1.° y 2.° raspaje). Es de un campo de la cuenta, como los
+    lotes: el toro 405 de La Pastora y el de El Retiro son dos animales; sin campo, queda suelto."""
+
+    __tablename__ = "animales"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    cuenta_id: Mapped[int] = mapped_column(ForeignKey("cuentas.id"), index=True)
+    establecimiento_id: Mapped[int | None] = mapped_column(ForeignKey("establecimientos.id"), index=True)
+    rp: Mapped[str | None] = mapped_column(String(40))  # como lo dijo, sin "RP"
+    caravana: Mapped[str | None] = mapped_column(String(40))
+    categoria: Mapped[str | None] = mapped_column(String(40))  # "toro"
+    creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_ahora)
+
+    establecimiento: Mapped[Establecimiento | None] = relationship(lazy="joined")
+
+    @property
+    def nombre(self) -> str:
+        """ "RP 412", "405" o "RP 412 · caravana 405"."""
+        if self.rp and self.caravana:
+            return f"RP {self.rp} · caravana {self.caravana}"
+        return f"RP {self.rp}" if self.rp else self.caravana or "?"
+
+
 class Evento(Base):
     """Cualquier cosa que anotó una persona: sanidad, movimientos, pesadas, clima, etc.
 
@@ -148,6 +173,8 @@ class Evento(Base):
     cantidad_animales: Mapped[int | None] = mapped_column(Integer)
     categoria_animal: Mapped[str | None] = mapped_column(String(40))  # vacas, terneros, novillos...
     caravana: Mapped[str | None] = mapped_column(String(40), index=True)
+    # El animal identificado del registro (un raspaje); None en los demás.
+    animal_id: Mapped[int | None] = mapped_column(ForeignKey("animales.id"), index=True)
     valor: Mapped[float | None] = mapped_column(Float)  # kg, mm de lluvia, hectáreas, $...
     unidad: Mapped[str | None] = mapped_column(String(20))
 
@@ -161,6 +188,7 @@ class Evento(Base):
     establecimiento: Mapped[Establecimiento | None] = relationship(lazy="joined")
     lote: Mapped[Lote | None] = relationship(foreign_keys=[lote_id], lazy="joined")
     lote_destino: Mapped[Lote | None] = relationship(foreign_keys=[lote_destino_id], lazy="joined")
+    animal: Mapped[Animal | None] = relationship(lazy="joined")
 
     @property
     def nombre_establecimiento(self) -> str | None:

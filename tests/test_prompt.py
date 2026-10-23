@@ -84,14 +84,15 @@ def test_hoy_ganaderia_es_de_veterinarios_y_productores(rubro, suyos):
     assert modulos.del_rubro(rubro) == suyos
 
 
-def test_el_tacto_esta_en_el_prompt_del_veterinario_y_del_productor_y_no_en_el_del_agronomo():
-    """Paso 3 de la etapa 2: el agrónomo no tiene ganadería y su prompt no cambia."""
+def test_tacto_y_raspaje_estan_en_el_prompt_del_veterinario_y_del_productor_y_no_en_el_del_agronomo():
+    """Pasos 3 y 4 de la etapa 2: el agrónomo no tiene ganadería y su prompt no cambia."""
     comun = prompt.sistema(modulos.partes(["comun"]))
     for rubro in ("veterinario", "productor"):
         sistema = prompt.sistema(modulos.partes(modulos.del_rubro(rubro)))
         assert '"tacto": TACTO | null' in sistema and "TACTO:\n{" in sistema
+        assert '"raspaje": RASPAJE | null' in sistema and "RASPAJE:\n{" in sistema
     assert prompt.sistema(modulos.partes(modulos.del_rubro("agronomo"))) == comun
-    assert '"tacto"' not in comun
+    assert '"tacto"' not in comun and '"raspaje"' not in comun
 
 
 def test_cada_rubro_suma_los_modulos_que_le_tocan(monkeypatch):

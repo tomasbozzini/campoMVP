@@ -61,9 +61,10 @@ class Tabla:
 
 
 class _Documento(FPDF):  # type: ignore[misc]  # fpdf2 no trae tipos
-    def __init__(self, generado: str) -> None:
+    def __init__(self, generado: str, pie: str) -> None:
         super().__init__(format="A4")
         self.generado = generado
+        self.pie = pie
         self.set_margins(15, 15, 15)
         self.set_auto_page_break(auto=True, margin=22)
         self.set_author(NOMBRE)
@@ -86,7 +87,7 @@ class _Documento(FPDF):  # type: ignore[misc]  # fpdf2 no trae tipos
         self.set_y(-17)
         self.set_font("Helvetica", "I", 7)
         self.set_text_color(*GRIS)
-        self.multi_cell(150, 3.4, latin1(PIE), new_x=XPos.RIGHT, new_y=YPos.TOP)
+        self.multi_cell(150, 3.4, latin1(self.pie), new_x=XPos.RIGHT, new_y=YPos.TOP)
         self.set_font("Helvetica", "", 7.5)
         self.cell(ANCHO - 150, 3.4, f"Página {self.page_no()} de {{nb}}", align="R")
 
@@ -98,10 +99,13 @@ def documento(
     resumen: list[str],
     tabla: Tabla,
     generado: datetime,
+    pie: str = PIE,
+    titulo_resumen: str = "Totales",
 ) -> bytes:
     """El PDF: título, membrete, de qué se trata (`subtitulo`), un resumen (los totales) y la
-    tabla. `generado`: la hora local en que se pidió."""
-    pdf = _Documento(generado.strftime("%d/%m/%Y %H:%M"))
+    tabla. `generado`: la hora local en que se pidió. `pie`: el legal, al que un registro
+    propio le puede sumar algo ("no es un certificado")."""
+    pdf = _Documento(generado.strftime("%d/%m/%Y %H:%M"), pie)
     pdf.set_title(latin1(titulo))
     pdf.add_page()
 
@@ -117,7 +121,7 @@ def documento(
     if resumen:
         pdf.ln(3)
         pdf.set_font("Helvetica", "B", 11)
-        pdf.cell(0, 6, "Totales", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.cell(0, 6, latin1(titulo_resumen), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         pdf.set_font("Helvetica", "", 10)
         for linea in resumen:
             pdf.cell(0, 5, latin1(f"·  {linea}"), new_x=XPos.LMARGIN, new_y=YPos.NEXT)

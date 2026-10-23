@@ -48,7 +48,7 @@ def test_un_nombre_casi_igual_se_toma_como_ese(nombre, valida):
 
 @pytest.mark.parametrize(
     "nombre",
-    ["registro", "borrar_datos", "borrar_todo", "anotar", "fuera_de_alcance", "raspaje", "", None, 3, ["borrar"]],
+    ["registro", "borrar_datos", "borrar_todo", "anotar", "fuera_de_alcance", "ecografia", "", None, 3, ["borrar"]],
 )
 def test_lo_que_no_se_parece_bastante_no_es_ninguna(nombre):
     assert intencion_valida(nombre, acciones.intenciones()) is None

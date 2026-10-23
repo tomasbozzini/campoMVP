@@ -1022,9 +1022,74 @@ de 3, 4 y 5):
         caracteres de `MAX_LARGO_MENSAJE` y responder "el mensaje es muy largo" (se mira en la
         prueba desde el celular).
 - [ ] 3b · PDF del tacto, a pedido, con un gráfico de barras de cabeza, cuerpo, cola y vacías.
-- [ ] 4 · Raspaje: tabla `animales` (RP o caravana por cuenta; migración que solo agrega),
+- [x] 4 · Raspaje: tabla `animales` (RP o caravana por cuenta; migración que solo agrega),
       número de muestreo calculado por el código, resultado en el momento o cuando llega el
       del laboratorio, repetición como pendiente, consultas y PDF "Registro de raspajes".
+
+      **Cómo funciona** (definido antes de programar; lo del muestreo, aprobado):
+      - **Veterinario y productor:** la intención `raspaje` es para los toros identificados (RP
+        o caravana) con su resultado o esperando el del laboratorio ("Toro caravana 405 raspaje
+        negativo, el 412 presentó muestra dudosa, repetir en 15 días"). Que raspó sin decir
+        qué toros ("raspamos 12 toros en La Pastora") sigue siendo `registrar`. **Agrónomo:** no
+        cambia; todo va a `registrar`.
+      - **Tabla `animales`** (migración que solo agrega la tabla y la columna
+        `eventos.animal_id`): un toro por campo de la cuenta, con su RP, su caravana o los dos
+        (como los lotes: el 405 de La Pastora y el de El Retiro son toros distintos). Se crea la
+        primera vez que se lo raspa. Buscar por caravana encuentra también el RP.
+      - **Resultado:** negativo, positivo, dudoso o, si no dice, esperando el resultado; por
+        enfermedad si lo dice (tricomoniasis, campylobacter). Nunca "Apto".
+      - **Laboratorio:** "llegó el resultado del 412: negativo" es `raspaje` con `laboratorio`:
+        se anota como un registro propio y se le pone el resultado al último raspaje de ese
+        toro (muestra "antes: esperando"). *Borrar* ese registro le devuelve al raspaje el
+        resultado que tenía.
+      - **Muestreo:** lo calcula el código: si el raspaje anterior de ese toro fue hace 60 días
+        o menos, es el siguiente número; si no, el 1.°. Si el veterinario dice el número
+        ("segundo raspaje del 405"), se guarda el que dijo y, si no coincide, se avisa ("en lo
+        anotado sería el 1.°"), como las diferencias del tacto.
+      - **Repetición:** solo con el intervalo que dice ("repetir en 15 días", "en 2 semanas"),
+        que la IA copia como lo dijo; el código calcula la fecha (desde el día del raspaje, o
+        desde hoy si es un resultado de laboratorio) y anota un pendiente por fecha ("Repetir
+        raspaje: toro 412", para el 28/10). *Borrar* el raspaje borra también ese pendiente.
+      - **El mismo toro dictado otra vez el mismo día** reemplaza al anterior ("el 412 no, era
+        negativo"), como la caravana repetida del tacto.
+      - **Consultas:** las de siempre ("¿cómo dio el 405?", "raspajes de La Pastora"): cada
+        registro muestra el toro, el muestreo y el resultado. El resumen de la sesión suma los
+        toros por resultado.
+      - **PDF "Registro de raspajes":** cuando pide el PDF de los raspajes: una fila por raspaje
+        (fecha, campo, toro, muestreo, resultado, repetición), los toros por resultado arriba y
+        el pie legal con "No es un certificado".
+
+      Cómo quedó:
+      - **Migración 0014**, solo agrega (tabla `animales` y `eventos.animal_id`); probada sobre
+        Postgres. Borrar un campo borra sus toros; unir dos campos junta los toros con el mismo
+        RP o caravana; "borrar mis datos" los borra.
+      - **Prompt:** veterinario y productor, 27.877 caracteres (+1.609 por el raspaje); **a
+        sanidad le quedan 2.123** del tope de 30.000. Agrónomo, 24.338, igual.
+      - **El núcleo suma, sin saber de raspajes:** `Cuaderno.borrar` deshace lo que un registro
+        dice en `extra` ("pendientes" que anotó y "deshacer" el `extra` que le cambió a otro);
+        `exportar.PDFS` (el PDF propio de un tipo); buscar por caravana encuentra también el RP
+        del animal; `pdf.documento` acepta otro pie y otro título del resumen.
+      - **Un `raspaje` sin ningún toro** ("raspamos 12 toros", si la IA no lo manda a
+        `registrar`) se anota con el manejador de `registrar`: queda el mismo registro.
+      - **Set:** 23 frases nuevas (raspaje 8 con el ejemplo de aceptación por texto y como sale
+        de un audio, laboratorio 5, registrar_raspaje 6 de contraste, consultas y PDF 4). "hoy
+        vacuné 20 vaquillonas" acepta la fecha vacía o `{"dias": 0}` (`o_bien_fechas`,
+        aprobado). Corrida final de las 46 del paso y las parecidas (tacto_cierre,
+        registrar_tacto, fecha_registro): 45/46; después de corregir la que fallaba, las 23 del
+        raspaje 23/23.
+      - **Lo que se corrigió con las corridas:** "raspamos 12 toros", "hoy hicimos raspaje a los
+        toros del lote 2" venían como `raspaje` sin toros; "ayer raspamos los toros de El
+        Retiro" perdía la fecha (0 de 3; con el prompt del agrónomo, bien): la regla "no calcules
+        … ni fechas" la hacía dejar en null, y el ejemplo ahora lleva su FECHA (3 de 3); "en 15
+        días tengo que repetir el raspaje" venía a veces `corregir_pendiente` (3 de 5; con la
+        línea de contraste, 3 de 3).
+      - Gasto del paso: USD 0,50 (corridas de 36, 21, 13 y 46 frases: 0,111, 0,065, 0,041 y
+        0,143; la confirmación de 23: 0,072; repeticiones de a una y la prueba de punta a
+        punta: unos 0,07). La clave quedó con USD 0,56 hasta el 31/10.
+      - **Quedan para después:** el pendiente de repetir no se marca hecho solo cuando se anota
+        el raspaje siguiente de ese toro (se marca como cualquier pendiente); "corregir" no
+        cambia los datos del raspaje (se dicta el toro de nuevo el mismo día o se borra); la
+        planilla Excel no tiene columnas propias del raspaje.
 - [ ] 5 · Sanidad: consumo, carencia y planes oficiales, con sus consultas.
 - [ ] 6 · Aceptación de punta a punta, README, este plan y el set entero (avisando antes).
 

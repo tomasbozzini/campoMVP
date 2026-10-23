@@ -197,6 +197,15 @@ def test_controla_las_fechas_que_quedan_con_el_hoy_de_la_frase():
     assert [r.bien for r in resultados] == [True, False, True]
 
 
+def test_otras_fechas_que_tambien_estan_bien():
+    """ "hoy vacuné 20 vaquillonas": la IA puede dejar la fecha vacía o poner {"dias": 0}; el
+    registro queda con la misma fecha (aprobado después del paso 3 de la etapa 2)."""
+    frase = next(f for f in evaluacion.cargar() if f.frase == "hoy vacuné 20 vaquillonas")
+    assert frase.acepta_fechas(()) and frase.acepta_fechas(("2026-10-20",))
+    assert not frase.acepta_fechas(("2026-10-19",))
+    assert evaluacion.Resultado(frase, obtenidas=("registrar",), fechas=("2026-10-20",)).bien
+
+
 def test_las_frases_con_fechas_del_set_tienen_hoy():
     frases = [f for f in evaluacion.cargar() if f.fechas is not None]
     assert frases and all(f.hoy is not None for f in frases)

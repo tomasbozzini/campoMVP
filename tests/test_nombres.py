@@ -57,7 +57,13 @@ NOMBRES = {
             "eventos_lote_id_fkey",
             "eventos_lote_destino_id_fkey",
             "eventos_sesion_id_fkey",
+            "eventos_animal_id_fkey",
         },
+        "uq": set(),
+    },
+    "animales": {
+        "pk": "animales_pkey",
+        "fk": {"animales_cuenta_id_fkey", "animales_establecimiento_id_fkey"},
         "uq": set(),
     },
     "sesiones": {

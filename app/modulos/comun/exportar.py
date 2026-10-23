@@ -7,6 +7,7 @@ PDF y el Excel llevan el membrete del profesional (nombre, rubro, localidad y ma
 el pie legal. En esta etapa le llega solo al profesional, que lo reenvía.
 """
 
+from collections.abc import Callable
 from datetime import date
 from typing import Annotated, Literal
 
@@ -31,6 +32,10 @@ CSV = "text/plain"
 SIN_RESULTADOS = "🔍 No encontré registros para armar el archivo.\nProbá con otro período, lote o campo."
 
 Formato = Literal["pdf", "excel", "csv"]
+
+# El PDF propio de los registros de un tipo ("Registro de raspajes"): tipo -> (nombre del
+# archivo, función que lo arma o devuelve None para el de siempre). Lo registra el módulo al cargarse.
+PDFS: dict[str, tuple[str, Callable[[Contexto, FiltrosConsulta, list[Evento]], bytes | None]]] = {}
 
 
 def _formato(valor: object) -> str:
@@ -189,7 +194,11 @@ def manejar(ctx: Contexto, datos: Exportar) -> str:
         ctx.adjuntos.append(Adjunto(f"{nombre}.csv", contenido, CSV))
         titulo = "📊 *CSV LISTO*"
     else:
-        ctx.adjuntos.append(Adjunto(f"{nombre}.pdf", armar_pdf(ctx, datos.consulta, eventos), PDF))
+        propio = PDFS.get((datos.consulta.tipo or "").lower())
+        del_tipo = propio[1](ctx, datos.consulta, eventos) if propio else None
+        if propio and del_tipo is not None:
+            nombre = f"{propio[0]}-{ctx.hoy.isoformat()}"
+        ctx.adjuntos.append(Adjunto(f"{nombre}.pdf", del_tipo or armar_pdf(ctx, datos.consulta, eventos), PDF))
         titulo = "📄 *PDF LISTO*"
     return (
         f"{titulo}\n{' · '.join(descripcion(datos.consulta, eventos))}\n\n{LINEA}\n"
