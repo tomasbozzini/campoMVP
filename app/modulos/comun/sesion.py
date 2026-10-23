@@ -35,7 +35,14 @@ def cerrar(ctx: Contexto, _datos: CerrarSesion) -> str:
     return sesiones.cerrar_pedido(ctx)
 
 
+def _sin_sesion(ctx: Contexto) -> bool:
+    return ctx.cuaderno.sesion_abierta() is None
+
+
 ACCIONES = [
     Accion("abrir_sesion", AbrirSesion, abrir),
-    Accion("cerrar_sesion", CerrarSesion, cerrar),
+    # "Vacuné 30 terneros y terminamos" o "Terminamos lote vaquillonas San Pedro: 88 preñadas…"
+    # sin sesión abierta: se responde lo otro, sin "no tenés ninguna sesión abierta" (paso 3 de
+    # la etapa 2). "Terminamos" solo, sí lo responde.
+    Accion("cerrar_sesion", CerrarSesion, cerrar, se_omite_si_hay_otras=_sin_sesion),
 ]

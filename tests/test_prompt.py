@@ -38,8 +38,8 @@ GLOSARIO_GANADERO = ("raspaje", "tricomoniasis", "vaquillonas")
 @pytest.fixture
 def ganaderia(monkeypatch):
     """El módulo ganadero, que tienen los veterinarios y los productores, con un tacto de
-    mentira (el de verdad llega en el paso 3 de la etapa 2)."""
-    monkeypatch.setattr(acciones, "_registro", dict(acciones._registro))
+    mentira en lugar del de verdad."""
+    monkeypatch.setattr(acciones, "_registro", {i: a for i, a in acciones._registro.items() if a.modulo != "ganaderia"})
     monkeypatch.setattr(modulos, "_partes", dict(modulos._partes))
     monkeypatch.setattr(modulos, "_glosarios", dict(modulos._glosarios))
     accion = Accion("tacto", EsquemaAccion, lambda _ctx, _datos: TACTO_ANOTADO)
@@ -84,12 +84,14 @@ def test_hoy_ganaderia_es_de_veterinarios_y_productores(rubro, suyos):
     assert modulos.del_rubro(rubro) == suyos
 
 
-@pytest.mark.parametrize("rubro", list(RUBROS))
-def test_ganaderia_todavia_no_cambia_el_prompt(rubro):
-    """Sus intenciones llegan en los pasos 3 a 5: hasta entonces el prompt de cada rubro es el
-    del módulo común, carácter por carácter."""
-    assert modulos.partes(["ganaderia"])[0].intenciones == ()
-    assert prompt.sistema(modulos.partes(modulos.del_rubro(rubro))) == prompt.sistema(modulos.partes(["comun"]))
+def test_el_tacto_esta_en_el_prompt_del_veterinario_y_del_productor_y_no_en_el_del_agronomo():
+    """Paso 3 de la etapa 2: el agrónomo no tiene ganadería y su prompt no cambia."""
+    comun = prompt.sistema(modulos.partes(["comun"]))
+    for rubro in ("veterinario", "productor"):
+        sistema = prompt.sistema(modulos.partes(modulos.del_rubro(rubro)))
+        assert '"tacto": TACTO | null' in sistema and "TACTO:\n{" in sistema
+    assert prompt.sistema(modulos.partes(modulos.del_rubro("agronomo"))) == comun
+    assert '"tacto"' not in comun
 
 
 def test_cada_rubro_suma_los_modulos_que_le_tocan(monkeypatch):
@@ -157,12 +159,14 @@ def test_el_prompt_de_un_modulo_ofrece_justo_sus_acciones(monkeypatch):
     monkeypatch.setattr(acciones, "_registro", dict(acciones._registro))
     monkeypatch.setattr(modulos, "_partes", dict(modulos._partes))
     antes = dict(modulos._partes)
-    accion = Accion("tacto", EsquemaAccion, lambda _ctx, _datos: TACTO_ANOTADO)
+    accion = Accion("ecografia", EsquemaAccion, lambda _ctx, _datos: TACTO_ANOTADO)
     with pytest.raises(ValueError, match="ganaderia"):
-        modulos.registrar("ganaderia", [accion], Parte(intenciones=("tacto", "raspaje"), campos="", descripciones=""))
+        modulos.registrar(
+            "ganaderia", [accion], Parte(intenciones=("ecografia", "raspaje"), campos="", descripciones="")
+        )
     with pytest.raises(ValueError, match="ganaderia"):
         modulos.registrar("ganaderia", [accion], Parte(intenciones=(), campos="", descripciones=""))
-    assert acciones.buscar("tacto") is None and modulos._partes == antes
+    assert acciones.buscar("ecografia") is None and modulos._partes == antes
 
 
 # --- Glosario para Whisper ------------------------------------------------------------

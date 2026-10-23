@@ -962,8 +962,65 @@ de 3, 4 y 5):
         el bot.
       - Gasto del paso: USD 0. No cambia nada de lo que ve la IA (el prompt es el mismo y el
         glosario es de Whisper), así que no hubo frases que correr.
-- [ ] 3 · Tacto y cierre: por cabeza (varias vacas en un mismo mensaje o audio) y el cierre
+- [x] 3 · Tacto y cierre: por cabeza (varias vacas en un mismo mensaje o audio) y el cierre
       del lote; % de preñez, total de vientres y CC promedio en `app/calculos/`.
+
+      **Cómo convive con lo que ya existe** (definido antes de programar):
+      - **Veterinario y productor** (tienen ganadería): la intención `tacto` es para los
+        **resultados**: vaca por vaca ("213 preñada cabeza CC 3, 214 vacía") o el cierre de un
+        lote ("88 preñadas: 60 cabeza, 20 cuerpo, 8 cola; 14 vacías, CC 3.2"). Que hizo tacto
+        **sin resultados** ("hice tacto a 50 vaquillonas", "el miércoles tactamos 80") sigue
+        siendo `registrar` tipo tacto, como hoy. Que **empieza** ("arrancamos tacto de
+        vaquillonas en La Pastora") es `abrir_sesion`; si ya dicta la primera vaca, van
+        `abrir_sesion` y `tacto`. Que **terminó** sin números ("terminamos") es
+        `cerrar_sesion`; con números ("Terminamos lote vaquillonas San Pedro: 88
+        preñadas…"), `tacto` y después `cerrar_sesion`. Corregir una vaca ("la 214 no,
+        estaba preñada") es `tacto` con esa vaca otra vez.
+      - **Agrónomo** (sin ganadería): no cambia nada. Su prompt no tiene `tacto` y todo lo de
+        tacto va a `registrar`, como hoy; si la IA devolviera `tacto`, es fuera de alcance.
+      - **Cómo se guarda**, sin migración (`eventos` ya tiene `extra`, "datos específicos por
+        tipo" de las decisiones): cada vaca es un registro reproducción/tacto con su caravana
+        y en `extra` el resultado, cabeza/cuerpo/cola y la CC; el cierre es otro registro
+        tacto con lo que dijo en `extra` y en `cantidad_animales` el total que calcula el
+        código. No hace falta la tabla `animales` (llega con el raspaje, paso 4).
+      - **Vaca por vaca:** cada respuesta muestra las vacas del mensaje y, con una sesión
+        abierta, las cuentas de las vacas dictadas desde el último cierre (el "% instantáneo"
+        de la especificación). Una vaca con la misma caravana dictada otra vez en la sesión
+        reemplaza a la anterior (así se corrige el resultado de una vaca). Al cerrar la sesión,
+        el resumen suma las cuentas de las vacas que no tuvieron cierre.
+      - **Cierre:** se compara con las vacas dictadas en la sesión desde el cierre anterior;
+        las diferencias se muestran sin preguntar.
+      - **"Terminamos" sin sesión abierta:** si viene con otro pedido ("Terminamos lote
+        vaquillonas San Pedro…" o "vacuné 30 terneros y terminamos"), no se responde "no
+        tenés ninguna sesión abierta"; solo, sí.
+      - **Límite diario:** con una sesión abierta, 300 mensajes con IA por día; sin sesión, 80.
+
+      Cómo quedó:
+      - **Prompt:** veterinario y productor, 26.268 caracteres (+1.930 por el tacto; tope
+        30.000, así que a raspaje y sanidad les quedan unos 3.700); agrónomo, 24.338, igual.
+        Glosario de ganadería con "vacías": 293 caracteres de 500.
+      - **Un módulo suma lo suyo sin tocar el núcleo:** `formato.DETALLES` (lo que se ve de
+        sus registros, también en el PDF y la planilla) y `sesiones.BLOQUES_RESUMEN` (su
+        bloque en el resumen de la sesión). La regla de omitir una acción cuando hay otros
+        pedidos ahora acepta una función (`cerrar_sesion`: solo sin sesión abierta).
+      - **Set:** 25 frases nuevas (abrir_sesion 5, tacto_vaca 7, tacto_cierre 7 con el
+        ejemplo de aceptación por texto y como sale de un audio, registrar_tacto 6 de
+        contraste). Con las parecidas (cerrar_sesion 5 y fecha_registro 10): 39/40. La que
+        falla es "hoy vacuné 20 vaquillonas": la IA ahora pone "hoy" como `{"dias": 0}` en vez
+        de null y el set espera null; el registro queda con la misma fecha.
+      - **Lo que se corrigió con las corridas:** "arrancamos tacto…, la primera la 101 preñada
+        cabeza" venía sin el tacto y con "primera" de lote; "el miércoles hicimos tacto a 80
+        vaquillonas" perdía la fecha (3 de 3 con ganadería, bien sin ella) hasta que el
+        ejemplo de "registrar" sin resultados llevó fecha.
+      - **El eval informa aparte los nombres casi iguales** que corrigió (en cada frase y en
+        el resumen); en estas corridas, 0.
+      - Gasto del paso: unos USD 0,27 (dos corridas de 40 frases, USD 0,116 cada una, y
+        verificaciones); la clave quedó con USD 0,067 hasta el 31/10.
+      - **Quedan para después:** "corregir" no cambia los datos del tacto (el cierre se
+        corrige con *borrar* y dictándolo de nuevo; una vaca, dictándola otra vez); la ayuda
+        todavía no muestra el tacto (paso 6); un audio largo en la manga puede pasar los 800
+        caracteres de `MAX_LARGO_MENSAJE` y responder "el mensaje es muy largo" (se mira en la
+        prueba desde el celular).
 - [ ] 3b · PDF del tacto, a pedido, con un gráfico de barras de cabeza, cuerpo, cola y vacías.
 - [ ] 4 · Raspaje: tabla `animales` (RP o caravana por cuenta; migración que solo agrega),
       número de muestreo calculado por el código, resultado en el momento o cuando llega el

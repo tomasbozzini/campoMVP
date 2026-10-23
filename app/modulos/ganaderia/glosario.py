@@ -10,6 +10,7 @@ GLOSARIO = (
     "manga",
     "destete",
     "preñez",
+    "vacías",
     "raspaje",
     "tricomoniasis",
     "campylobacter",

@@ -34,10 +34,17 @@ class Accion:
     # Se responden juntas las acciones de este tipo para las que `se_junta` da True.
     juntar: Callable[[Contexto, list[Any]], str] | None = None
     se_junta: Callable[[Any], bool] = lambda _datos: True
-    # Si el mensaje trae otros pedidos, esta acción no se responde ("hola, ¿cuánto está la soja?").
-    se_omite_si_hay_otras: bool = False
+    # Si el mensaje trae otros pedidos, esta acción no se responde ("hola, ¿cuánto está la soja?"):
+    # siempre (True) o cuando lo diga la función, que se mira al llegar a la acción ("vacuné 30
+    # terneros y terminamos" sin sesión abierta: no hay nada que cerrar).
+    se_omite_si_hay_otras: bool | Callable[[Contexto], bool] = False
     # El módulo de la acción: lo completa `registrar`.
     modulo: str = ""
+
+    def se_omite(self, ctx: Contexto) -> bool:
+        """Si no se responde cuando el mensaje trae otros pedidos."""
+        omitir = self.se_omite_si_hay_otras
+        return omitir(ctx) if callable(omitir) else omitir
 
 
 _registro: dict[str, Accion] = {}

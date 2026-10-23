@@ -152,7 +152,10 @@ def _responder(ctx: Contexto, telefono: str) -> str:
 
     if len(texto) > config.max_largo_mensaje:
         return MUY_LARGO
-    if not ctx.cuaderno.consumir_cupo(ctx.hoy, config.limite_diario_ia):
+    en_sesion = ctx.cuaderno.sesion_abierta() is not None
+    if not ctx.cuaderno.consumir_cupo(
+        ctx.hoy, config.limite_diario_ia_sesion if en_sesion else config.limite_diario_ia
+    ):
         return SIN_CUPO
 
     historial = charla.historial(ctx.cuaderno)
@@ -225,7 +228,7 @@ def _hacer(ctx: Contexto, pedidos: list[dict[str, Any]], suyos: list[str]) -> st
         if accion is None or datos is None:
             hubo_fuera = True
             continue
-        if varios and accion.se_omite_si_hay_otras:
+        if varios and accion.se_omite(ctx):
             omitidas.append((accion, datos))  # "hola, ¿cuánto está la soja?": se responde solo lo que pide
             continue
         if accion.juntar and accion.se_junta(datos):

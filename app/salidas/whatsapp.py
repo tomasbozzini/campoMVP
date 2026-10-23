@@ -6,6 +6,7 @@ líneas separadoras. Todo el texto lo arma el código: la IA no escribe nada de 
 """
 
 from collections import defaultdict
+from collections.abc import Callable
 from datetime import date
 from typing import Any
 
@@ -13,6 +14,11 @@ from app.infra.modelos import Evento
 
 SEPARADOR = "────────────"
 SANGRIA = "      "
+
+# Lo que un módulo le suma al detalle de los registros de un tipo, con los datos que guarda en
+# `extra` ("Preñada cabeza · CC 3" en un tacto): tipo -> función. Lo registra el módulo al
+# cargarse; sirve para WhatsApp, el PDF y la planilla.
+DETALLES: dict[str, Callable[[Evento], list[str]]] = {}
 
 NOMBRES_TIPO = {
     "vacunacion": "Vacunación",
@@ -109,6 +115,8 @@ def detalle(e: Evento) -> str:
         partes.append(e.dosis)
     if e.valor is not None:
         partes.append(f"{numero(e.valor)} {e.unidad or ''}".strip())
+    if (del_modulo := DETALLES.get(e.tipo)) is not None:
+        partes += del_modulo(e)
     return " · ".join(partes)
 
 

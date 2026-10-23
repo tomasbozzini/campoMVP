@@ -11,11 +11,12 @@ Reglas (docs/arquitectura.md, decisiones de producto "Sesiones" y "Campo actual"
   muestra el resumen.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from app.infra.config import config
-from app.infra.modelos import Establecimiento, Lote, Sesion
+from app.infra.modelos import Establecimiento, Evento, Lote, Sesion
 from app.nucleo.contexto import Contexto
 from app.nucleo.cuaderno import Cuaderno
 from app.salidas import whatsapp as formato
@@ -27,6 +28,11 @@ MAX_EN_RESUMEN = 15
 PEDIDO, OTRA, TIEMPO = "pedido", "otra", "tiempo"
 
 CERRAR = {"cerrar sesion", "cerrar la sesion", "terminar sesion", "terminar la sesion", "fin de sesion"}
+
+# Lo que un módulo le suma al resumen de una sesión, después de los totales (las cuentas del
+# tacto vaca por vaca): nombre -> función que recibe los registros de la sesión y devuelve el
+# bloque, o None. Lo registra el módulo al cargarse.
+BLOQUES_RESUMEN: dict[str, Callable[[list[Evento]], str | None]] = {}
 SIN_SESION = "🤔 No tenés ninguna sesión abierta.\nPara abrir una, decime por ejemplo: _arranco manga en El Retiro_."
 
 
@@ -76,6 +82,7 @@ def resumen(cuaderno: Cuaderno, sesion: Sesion) -> str:
         return "\n\n".join(partes)
     if bloque := formato.totales(eventos):
         partes.append(bloque)
+    partes += [b for armar in BLOQUES_RESUMEN.values() if (b := armar(eventos))]
     varios_dias = len({e.fecha_evento for e in eventos}) > 1
     partes.append(LINEA)
     partes.append(formato.tarjetas(eventos[:MAX_EN_RESUMEN], lugar=False, fecha=varios_dias))

@@ -48,7 +48,7 @@ def test_un_nombre_casi_igual_se_toma_como_ese(nombre, valida):
 
 @pytest.mark.parametrize(
     "nombre",
-    ["registro", "borrar_datos", "borrar_todo", "anotar", "fuera_de_alcance", "tacto", "", None, 3, ["borrar"]],
+    ["registro", "borrar_datos", "borrar_todo", "anotar", "fuera_de_alcance", "raspaje", "", None, 3, ["borrar"]],
 )
 def test_lo_que_no_se_parece_bastante_no_es_ninguna(nombre):
     assert intencion_valida(nombre, acciones.intenciones()) is None
@@ -92,4 +92,7 @@ def test_la_evaluacion_cuenta_el_nombre_casi_igual_como_el_bot():
     ia = IAFalsa({frase.frase: {"acciones": [{"intencion": "borrar_pendente"}]}})
     resultados, _ = evaluacion.correr([frase], ia, modulos.partes(["comun"]), HOY, tope_usd=1.0)
     assert resultados[0].obtenidas == ("borrar_pendiente",) and resultados[0].bien
+    # Se informa aparte, para ver si la IA los escribe mal más seguido.
+    assert resultados[0].corregidas == (("borrar_pendente", "borrar_pendiente"),)
+    assert evaluacion.resumir(resultados).corregidas == 1
     assert evaluacion.intenciones({"intencion": "borrar_pendente"}) == ("borrar_pendente",)  # sin las válidas, tal cual

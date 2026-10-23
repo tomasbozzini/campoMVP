@@ -60,6 +60,8 @@ class Configuracion(BaseSettings):
     max_largo_mensaje: int = 800  # caracteres
     max_audio_bytes: int = 2 * 1024 * 1024  # ~3-4 min de audio
     limite_diario_ia: int = 80  # mensajes con IA por usuario y día
+    # Con una sesión de trabajo abierta: en la manga se dicta vaca por vaca (etapa 2, paso 3).
+    limite_diario_ia_sesion: int = 300
     # Un precio más viejo que esto se muestra avisando que no está actualizado
     dias_precio_vigente: int = 7
 

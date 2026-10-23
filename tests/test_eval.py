@@ -151,6 +151,19 @@ def test_el_comando_eval_muestra_cada_frase_y_el_resumen(monkeypatch, capsys):
     for dato in ("Precisión: 1/2 (50%)", "Llamadas: 2 (1 con error)", "Tokens: 5000 de entrada", "Costo: USD 0.0100"):
         assert dato in salida
     assert "Demora: mediana" in salida and "p95" in salida
+    assert "Nombres casi iguales corregidos: 0" in salida
+
+
+def test_el_comando_eval_muestra_los_nombres_casi_iguales(monkeypatch, capsys):
+    modulos.cargar()
+    ia = IAFalsa({"¿qué podés hacer?": {"intencion": "ayudas"}})
+    monkeypatch.setattr(config, "openrouter_api_key", "clave-or")
+    monkeypatch.setattr(proveedor, "uno_solo", lambda _nombre, _esfuerzo=None: ia)
+    monkeypatch.setattr(evaluacion, "cargar", lambda: FRASES[1:2])
+    terminal.main(["eval"])
+    salida = capsys.readouterr().out
+    assert "nombre casi igual: vino 'ayudas' y se tomó como 'ayuda'" in salida
+    assert "Precisión: 1/1" in salida and "Nombres casi iguales corregidos: 1" in salida
 
 
 def test_eval_sin_clave_avisa(monkeypatch):

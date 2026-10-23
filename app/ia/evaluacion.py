@@ -49,6 +49,9 @@ class Resultado:
     segundos: float = 0.0
     fechas: tuple[str, ...] = ()
     respuesta: object = None  # lo que devolvió el modelo, para ver por qué falló
+    # Nombres de intención casi iguales que se tomaron como una válida ("borrar_pendente"):
+    # se informan aparte para ver si la IA los escribe mal más seguido.
+    corregidas: tuple[tuple[str, str], ...] = ()
 
     @property
     def bien(self) -> bool:
@@ -72,6 +75,7 @@ class Resumen:
     costo_usd: float | None  # None si el proveedor no informa el costo
     mediana: float
     p95: float
+    corregidas: int = 0  # nombres casi iguales que se tomaron como una intención válida
 
     @property
     def precision(self) -> float:
@@ -145,6 +149,8 @@ def correr(
                 mensaje = prompt.mensaje(frase.frase, frase.historial, pregunta)
                 interpretado = resultado.respuesta = proveedor.completar_json(sistema, mensaje)
                 resultado.obtenidas = intenciones(interpretado, validas)
+                crudas = intenciones(interpretado)
+                resultado.corregidas = tuple((c, o) for c, o in zip(crudas, resultado.obtenidas, strict=True) if c != o)
                 resultado.fechas = fechas(interpretado, frase.hoy or hoy)
             except ErrorIA as e:
                 resultado.error = str(e)
@@ -188,4 +194,5 @@ def resumir(resultados: Sequence[Resultado]) -> Resumen:
         costo_usd=sum(con_costo) if con_costo else None,
         mediana=statistics.median(demoras) if demoras else 0.0,
         p95=_p95(demoras),
+        corregidas=sum(len(r.corregidas) for r in resultados),
     )

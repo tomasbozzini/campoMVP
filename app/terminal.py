@@ -157,6 +157,8 @@ def _eval(args: argparse.Namespace) -> None:
             linea += f"\n      esperaba {list(r.frase.intenciones)} y vino {list(r.obtenidas)}"
         elif not r.bien:
             linea += f"\n      esperaba las fechas {list(r.frase.fechas or ())} y quedaron {list(r.fechas)}"
+        for vino, quedo in r.corregidas:
+            linea += f"\n      nombre casi igual: vino {vino!r} y se tomó como {quedo!r}"
         if not r.bien and not r.error:
             # Para saber qué devolvió sin repetir la corrida.
             linea += f"\n      la IA devolvió: {json.dumps(r.respuesta, ensure_ascii=False)}"
@@ -183,6 +185,7 @@ def _eval(args: argparse.Namespace) -> None:
         f"({r.tokens_razonamiento} de razonamiento)"
         f"\nCosto: {costo}"
         f"\nDemora: mediana {r.mediana:.1f} s, p95 {r.p95:.1f} s"
+        f"\nNombres casi iguales corregidos: {r.corregidas}"
     )
     funciones = evaluacion.por_funcion(resultados)
     if len(funciones) > 1:
